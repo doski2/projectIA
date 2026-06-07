@@ -6,13 +6,19 @@ Lee el JSON de referencia grabada y entrena la red neuronal del agente
 por imitación supervisada, SIN necesidad de abrir el juego.
 
 El agente aprende a imitar al piloto de referencia punto a punto usando
-las MISMAS 33 observaciones que environment.py, incluyendo curvatura,
+las MISMAS 19 observaciones que environment.py, incluyendo curvatura,
 lookahead de velocidad, orientación y referencia de freno/acelerador.
+
+Data augmentation (activado por defecto):
+  Se añade ruido gaussiano a CTE y heading_err para reducir el distribution
+  shift entre BC (piloto en la línea, CTE=0) y la inferencia real (CTE≠0).
+  Desactivar con --no-augment si se prefiere el dataset limpio.
 
 Uso:
     python pretrain.py --reference src/refs/reference_1778013812.json
     python pretrain.py --reference src/refs/reference_1778013812.json --epochs 100
     python pretrain.py --reference src/refs/reference_1778013812.json --output models/pretrained
+    python pretrain.py --reference src/refs/reference_1778013812.json --no-augment
 """
 
 import argparse
@@ -49,12 +55,15 @@ MAX_GEARS       = 6   # Formula Rookie tiene 6 marchas
 # Construcción del dataset desde el JSON de referencia
 # ---------------------------------------------------------------------------
 
-def build_dataset(ref_path: str) -> tuple:
+def build_dataset(ref_path: str, augment: bool = True) -> tuple:
     """
     Lee el JSON de referencia y construye arrays (observaciones, acciones).
 
-    Las observaciones tienen exactamente 33 floats, igual que environment._build_obs().
+    Las observaciones tienen exactamente 19 floats, igual que environment._build_obs().
     Los valores no disponibles en el JSON estático usan el valor neutral correcto.
+
+    Si augment=True, añade ruido gaussiano a CTE y heading_err para reducir el
+    distribution shift entre BC (CTE=0 siempre) y la inferencia real (CTE≠0).
 
     Si el JSON contiene 'all_laps' (multi-vuelta), itera TODAS las vueltas para
     obtener un dataset más grande y con más variabilidad → mejor BC.
@@ -104,8 +113,14 @@ def build_dataset(ref_path: str) -> tuple:
         # ── 0 · Velocidad normalizada ─────────────────────────────────
         speed_norm = float(np.clip(speed / MAX_SPEED_MS, 0.0, 1.0))
 
-        # ── 1 · CTE = 0 (estamos EN la línea de referencia) ──────────
-        cte_norm = 0.0
+        # ── 1 · CTE — con data augmentation para reducir distribution shift ──
+        # En la referencia, CTE=0 (piloto EN la línea). En inferencia real CTE≠0.
+        # Añadimos ruido gaussiano para que el modelo aprenda a reaccionar a desviaciones.
+        if augment:
+            cte_noise = np.random.normal(0.0, 0.15)  # std ~1.2m normalizado a MAX_CTE=8
+            cte_norm = float(np.clip(cte_noise, 0.0, 1.0))
+        else:
+            cte_norm = 0.0
 
         # ── 2 · Delta velocidad = 0 (velocidad igual a referencia) ───
         delta_norm = 0.0
@@ -130,8 +145,12 @@ def build_dataset(ref_path: str) -> tuple:
         # ── 8 · Marcha normalizada ────────────────────────────────────
         gear_norm = float(np.clip(gear / MAX_GEARS, 0.0, 1.0))
 
-        # ── 9 · Heading error = 0 (vamos en la dirección correcta) ───
-        heading_err_norm = 0.0
+        # ── 9 · Heading error — con augmentation ─────────────────────
+        if augment:
+            heading_noise = np.random.normal(0.0, 0.1)  # std ~18° normalizado a pi
+            heading_err_norm = float(np.clip(heading_noise, -1.0, 1.0))
+        else:
+            heading_err_norm = 0.0
 
         # ── 12 · Curvatura calculada desde las posiciones de referencia
         curv = ref.curvature(d)
@@ -275,9 +294,11 @@ def pretrain(
     optimizer = torch.optim.Adam(actor_params, lr=learning_rate)
     loss_fn   = nn.MSELoss()
 
-    # ---- Loop de Behavioral Cloning ----
+    # ---- Loop de Behavioral Cloning (con early stopping) ----
     print(f"[BC] Entrenando {epochs} épocas × {len(dataset)} muestras...")
     best_loss = float("inf")
+    patience = 15          # épocas sin mejora antes de parar
+    patience_counter = 0
     for epoch in range(1, epochs + 1):
         total_loss = 0.0
         for obs_batch, act_batch in loader:
@@ -293,8 +314,14 @@ def pretrain(
         avg_loss = total_loss / len(loader)
         if avg_loss < best_loss:
             best_loss = avg_loss
+            patience_counter = 0
+        else:
+            patience_counter += 1
         if epoch % 10 == 0 or epoch == 1:
             print(f"  Época {epoch:>4}/{epochs}  |  loss={avg_loss:.6f}  |  mejor={best_loss:.6f}")
+        if patience_counter >= patience:
+            print(f"  [BC] Early stopping en época {epoch} (sin mejora en {patience} épocas)")
+            break
 
     # ---- Guardar modelo ----
     os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else ".", exist_ok=True)
@@ -309,7 +336,7 @@ def pretrain(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="PCARS2-AI — Pre-entrenamiento por Behavioral Cloning (33 obs)",
+        description="PCARS2-AI — Pre-entrenamiento por Behavioral Cloning (19 obs)",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--reference", "-r", required=True, metavar="RUTA_JSON",
@@ -323,6 +350,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=256, metavar="N")
     parser.add_argument("--lr", type=float, default=1e-3, metavar="FLOAT",
                         help="Tasa de aprendizaje.")
+    parser.add_argument("--seed", type=int, default=42, metavar="N",
+                        help="Semilla para reproducibilidad.")
+    parser.add_argument("--no-augment", action="store_true", default=False,
+                        help="Desactivar data augmentation (ruido en CTE/heading).")
     return parser.parse_args()
 
 
@@ -333,7 +364,12 @@ if __name__ == "__main__":
         print(f"[Error] Archivo de referencia no encontrado: {args.reference}")
         sys.exit(1)
 
-    obs_array, act_array = build_dataset(args.reference)
+    # Fijar seeds para reproducibilidad
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    print(f"[BC] Seed: {args.seed}")
+
+    obs_array, act_array = build_dataset(args.reference, augment=not args.no_augment)
 
     pretrain(
         obs_array     = obs_array,

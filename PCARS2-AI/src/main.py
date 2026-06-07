@@ -34,17 +34,21 @@ from typing import Optional
 
 def _reset_log_std(model, target_std: float = 0.8) -> None:
     """
-    Resetea el log_std de la política PPO a log(target_std).
-    Necesario cuando el modelo ha divergido y std >> 1.0,
-    ya que con lr pequeño tardaría miles de iteraciones en bajar.
+    Resetea el log_std de la política PPO a log(target_std) SOLO si el std
+    actual ha divergido (> 1.2). Si el modelo ya convergió a un std menor,
+    no lo toca para no deshacer progreso.
     No afecta a los pesos del actor/crítico.
     """
     import math
-    log_std_val = math.log(target_std)
     try:
+        current_std = model.policy.log_std.exp().mean().item()
+        if current_std <= 1.2:
+            print(f"[main] log_std OK (std actual={current_std:.3f} ≤ 1.2) — no se resetea.")
+            return
+        log_std_val = math.log(target_std)
         with torch.no_grad():
             model.policy.log_std.fill_(log_std_val)
-        print(f"[main] log_std reseteado → std={target_std:.2f} (log_std={log_std_val:.3f})")
+        print(f"[main] log_std reseteado: {current_std:.3f} → std={target_std:.2f} (divergido)")
     except AttributeError:
         pass  # Algunos tipos de política no tienen log_std separado
 
@@ -203,6 +207,13 @@ def parse_args() -> argparse.Namespace:
             "está dentro de ±10 km/h del objetivo. 0 = desactivado (por defecto)."
         ),
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        metavar="N",
+        help="Semilla para reproducibilidad (NumPy + PyTorch).",
+    )
     return parser.parse_args()
 
 
@@ -217,6 +228,12 @@ def train(args: argparse.Namespace) -> None:
     from stable_baselines3.common.monitor import Monitor
     from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
     from environment import PCARS2Env
+    import numpy as np
+
+    # ---- Fijar seeds para reproducibilidad ----
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    print(f"[main] Seed: {args.seed}")
 
     # TensorBoard es opcional — si no está instalado, se deshabilitan los logs
     try:
@@ -286,7 +303,7 @@ def train(args: argparse.Namespace) -> None:
             _vec_env,
             norm_obs    = False,   # obs ya normalizadas en environment.py
             norm_reward = True,    # normalizar recompensas → crítico puede aprender
-            clip_reward = 10.0,
+            clip_reward = 5.0,     # reducido de 10 para acotar el rango del crítico
             gamma       = 0.99,
         )
         print("[main] VecNormalize creado (stats desde cero).")
