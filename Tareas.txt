@@ -1,0 +1,61 @@
+========================================
+ PCARS2-AI — Estado del proyecto
+ Actualizado: 24 mayo 2026
+========================================
+
+COMPLETADO
+----------
+[x] BC pretrain (behavioral cloning desde referencia JSON)
+[x] Warmup automático al reset (--warmup-steps 30)
+[x] Curriculum reward (--curriculum) — resolvió mínimo local "coche parado"
+[x] Fase 1 curriculum: avg_speed hasta 70.9 km/h
+[x] Fase 2 reward completa: consolidación en pista
+[x] Fase 3 long run: ep_rew_mean de -3507 → +3159 (positivo estable)
+[x] Monitor en tiempo real (src/monitor.py con rich)
+[x] _auto_shift: maneja neutro/marcha atrás con throttle activo
+[x] Diagnósticos CSV completos: avg_cte, max_speed_kmh, ep_count, pct_stuck/wrong_way/no_progress/lap_done/timelimit
+[x] environment.py expone term_reason en info dict (stuck/wrong_way/no_progress/lap_done/timelimit)
+[x] Fix entrenar.bat: EXTRA_ARGS loop sin límite de args + SCRIPT_DIR antes de shifts
+[x] Reset completo de checkpoints — inicio desde pretrained.zip (24 mayo 2026)
+
+EN CURSO
+--------
+[ ] Fase 3 — inicio limpio desde pretrained.zip, revisión cada 100k steps
+    .\entrenar.bat src\refs\formula_rookie__sugo__gpyf.json 500000 --frame-skip 4 --warmup-steps 30 --curriculum --save-freq 50000 --base-model models\formula_rookie__sugo\pretrained.zip
+    Criterios revisión 100k: avg_speed > 40 km/h | pct_stuck < 20% | avg_cte < 3m
+
+PENDIENTE
+---------
+[ ] Fase 4 — quitar curriculum cuando avg_speed > 40 km/h estable
+    .\entrenar.bat src\refs\formula_rookie__sugo__gpyf.json 500000 --frame-skip 4 --warmup-steps 30
+[ ] Ajustar learning_rate a 5e-5 si ep_rew_mean se estanca >50k steps
+[ ] Transfer a nueva pista (grabar referencia + pretrain + entrenar con --model)
+[ ] Investigar fix definitivo para marcha 4ª al reset en PCARS2 manual
+
+PROBLEMA CONOCIDO
+-----------------
+PCARS2 en manual no acepta downshift con coche parado.
+El coche arranca en 4ª tras cada reset → warmup parcialmente lo compensa.
+Workaround actual: warmup con gas a fondo (30 steps) antes de entregar control al agente.
+
+CONFIGURACIÓN ESTABLE ACTUAL
+-----------------------------
+  Algoritmo    : PPO (Stable-Baselines3)
+  Red          : MlpPolicy [256, 256, 128]
+  lr           : 1e-4
+  n_steps      : 2048
+  batch_size   : 64
+  frame_skip   : 4
+  warmup_steps : 30
+  curriculum   : True (fase 3)
+  Referencia   : src\refs\formula_rookie__sugo__gpyf.json
+  Modelo dir   : models\formula_rookie__sugo\
+  Pista        : Sugo GP (3567 m)
+  Coche        : Formula Rookie
+
+REFERENCIA DE SESIONES
+----------------------
+  Sesión de evaluación rápida  : 100k–200k steps
+  Primera sesión desde cero    : 500k–1M steps
+  Sesión larga nocturna        : 1M–2M steps
+  Transfer a nueva pista       : 300k–500k steps
