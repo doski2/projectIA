@@ -93,8 +93,10 @@ class DS4Controller:
         brake    = max(0.0, min(1.0, float(brake)))
         steering = max(-1.0, min(1.0, float(steering)))
 
-        # Prioridad al freno cuando ambos activos (arranque errático del agente)
-        if brake > 0.05 and throttle > 0.05:
+        # Trail-braking: permitir overlap parcial de pedales (throttle + brake)
+        # Solo anular throttle si el freno es predominante (>0.3).
+        # Esto permite trail-braking, técnica real que estabiliza el coche en curvas.
+        if brake > 0.3 and throttle > 0.05:
             throttle = 0.0
 
         # Convertir a rangos del hardware virtual
