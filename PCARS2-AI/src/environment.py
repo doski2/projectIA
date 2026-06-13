@@ -110,16 +110,26 @@ SPEED_TARGET_TOL_KMH  = 10.0
 SPEED_TARGET_STEP_KMH = 5.0
 
 # Detección de coche sin progreso (cubre marcha atrás, box y atasco lento)
-# El coche debe avanzar al menos NO_PROGRESS_DIST_M metros en NO_PROGRESS_TIME_S segundos
+# El coche debe avanzar al menos NO_PROGRESS_DIST_M metros en NO_PROGRESS_STEPS steps
 NO_PROGRESS_DIST_M  = 10.0
 NO_PROGRESS_TIME_S  = 12.0
+# Conversión a steps: asumiendo ~25 fps y frame_skip=4 → ~6.25 steps/s → 12s ≈ 75 steps
+# Se calcula dinámicamente en __init__ basado en frame_skip real.
+NO_PROGRESS_STEPS_DEFAULT = 75
 
-# Detección de sentido contrario: error de heading >160° durante >2s → terminar
+# Detección de sentido contrario: error de heading >160° durante >N steps → terminar
 # 160° equivale a "prácticamente al revés" (180° = exactamente invertido)
 WRONGWAY_ANGLE_RAD       = math.radians(160)
-WRONGWAY_TIME_S          = 2.0    # tolerancia fuera de la zona de meta
-WRONGWAY_NEAR_FINISH_S   = 0.3    # tolerancia cerca de meta/box (caso: choque → box)
+WRONGWAY_TIME_S          = 2.0    # referencia temporal (se convierte a steps)
+WRONGWAY_NEAR_FINISH_S   = 0.3    # referencia temporal cerca de meta
 PIT_ZONE_MARGIN_M        = 300.0  # metros alrededor de la línea de meta que forman la zona restringida
+# Steps equivalentes (se calculan en __init__)
+WRONGWAY_STEPS_DEFAULT        = 12   # ~2s a 6.25 steps/s
+WRONGWAY_NEAR_FINISH_STEPS_DEFAULT = 2  # ~0.3s
+
+# Detección de atascado: speed < 1 m/s durante N steps
+STUCK_TIME_S = 8.0
+STUCK_STEPS_DEFAULT = 50  # ~8s a 6.25 steps/s
 
 # Pasos iniciales de gracia al inicio del episodio (no se penaliza off-track)
 # Ampliado para dar tiempo al coche a volver al trazado tras reposicionamiento
@@ -137,53 +147,43 @@ class PCARS2Env(gym.Env):
     """
     Entorno Gymnasium que conecta el agente PPO con Project CARS 2.
 
-    Observation Space (33 valores normalizados):
+    Observation Space (19 valores normalizados):
       --- Dinámica del coche ---
        0  velocidad normalizada            [0, 1]
        1  cross-track error normalizado    [0, 1]
        2  delta velocidad vs referencia    [-1, 1]
        3  slip angle                       [-1, 1]
        4  yaw rate                         [-1, 1]
-       5  aceleración lateral              [-1, 1]
+       5  aceleración lateral (G)          [-1, 1]
        6  aceleración longitudinal (G)     [-1, 1]  (+frena, -acelera)
        7  RPM normalizado (rpm/max_rpm)    [0, 1]
        8  marcha normalizada               [0, 1]
-       9  pitch (cabeceo)                  [-1, 1]
-      10  roll (balanceo)                  [-1, 1]
       --- Error vs trazado ideal ---
-      11  heading error                    [-1, 1]
-      12  curvatura en punto actual        [-1, 1]
+       9  heading error                    [-1, 1]
+      10  curvatura en punto actual        [-1, 1]
       --- Anticipación (lookahead) ---
-      13  velocidad referencia +50m        [0, 1]
-      14  velocidad referencia +100m       [0, 1]
-      15  throttle de referencia actual    [0, 1]
-      16  brake de referencia actual       [0, 1]
+      11  velocidad referencia +50m        [0, 1]
+      12  velocidad referencia +100m       [0, 1]
+      13  throttle de referencia actual    [0, 1]
+      14  brake de referencia actual       [0, 1]
       --- Ruedas ---
-      17  wheelspin trasero                [-1, 1]  (+>0 = desliza)
-      18  bloqueo delantero                [-1, 1]  (+>0 = bloquea)
-      19  throttle filtrado actual         [0, 1]
-      --- Neumáticos ---
-      20  temp tread delantera media       [0, 1]
-      21  temp tread trasera media         [0, 1]
-      22  desgaste delantero medio         [0, 1]
-      23  desgaste trasero medio           [0, 1]
-      --- Suspensión / chasis ---
-      24  suspension travel delantera      [0, 1]
-      25  suspension travel trasera        [0, 1]
-      26  ride height media                [0, 1]
+      15  wheelspin trasero                [-1, 1]  (+>0 = desliza)
+      16  bloqueo delantero                [-1, 1]  (+>0 = bloquea)
+      17  throttle filtrado actual         [0, 1]
       --- Estado general ---
-      27  progreso en la vuelta            [0, 1]
-      28  combustible                      [0, 1]
-      29  bias de frenado                  [0, 1]
-      30  sector (1/2/3 → 0.33/0.66/1.0)  [0, 1]
-      --- Daños ---
-      31  daño aerodinámico               [0, 1]
-      32  daño motor                       [0, 1]
+      18  progreso en la vuelta            [0, 1]
 
     Action Space (3 valores continuos en [-1, 1]):
       0  acelerador  (mapeado a [0, 1] antes de enviar al mando)
       1  freno        (mapeado a [0, 1])
       2  volante      (directo: -1=izq, +1=der)
+
+    Nota sobre frame_skip:
+      Con frame_skip > 1 el agente repite la misma acción N frames seguidos.
+      Esto mejora la señal de reward pero reduce la reactividad del steering
+      en curvas rápidas. Valores recomendados: 2-4. Si se necesita mayor
+      reactividad, considerar interpolar el steering linealmente entre frames
+      (requiere refactor de step()).
     """
 
     metadata = {"render_modes": []}
@@ -264,11 +264,19 @@ class PCARS2Env(gym.Env):
         self._udp_ready:     bool  = False
         self._max_cte_seen:  float = 0.0   # diagnóstico
         self._term_reason:   str   = "?"   # razón de terminación del episodio
-        self._offtrack_since: Optional[float] = None
-        self._progress_dist:  float = -999.0  # mejor lap_distance reciente
-        self._progress_time:  float = 0.0     # momento del último progreso
-        self._prev_check_lap: int   = -1      # vuelta en el último check de progreso
-        self._wrongway_since: Optional[float] = None
+        self._stuck_steps:       int = 0       # contador de steps con speed < 1 m/s
+        self._progress_dist:     float = -999.0  # mejor lap_distance reciente
+        self._progress_step:     int   = 0       # step del último progreso
+        self._prev_check_lap:    int   = -1      # vuelta en el último check de progreso
+        self._wrongway_steps:    int   = 0       # contador de steps en sentido contrario
+
+        # Calcular thresholds de terminación basados en steps (determinista, sin reloj real)
+        # Asumimos ~25 fps del juego; con frame_skip el agente decide cada frame_skip frames.
+        _steps_per_sec = 25.0 / max(1, frame_skip)
+        self._stuck_max_steps       = int(STUCK_TIME_S * _steps_per_sec)
+        self._no_progress_max_steps = int(NO_PROGRESS_TIME_S * _steps_per_sec)
+        self._wrongway_max_steps    = int(WRONGWAY_TIME_S * _steps_per_sec)
+        self._wrongway_finish_steps = max(1, int(WRONGWAY_NEAR_FINISH_S * _steps_per_sec))
 
     # ------------------------------------------------------------------
     # Gymnasium API
@@ -318,11 +326,11 @@ class PCARS2Env(gym.Env):
         time.sleep(0.2)
 
         self._prev_steering      = 0.0
-        self._offtrack_since     = None
+        self._stuck_steps        = 0
         self._progress_dist      = -999.0
-        self._progress_time      = time.monotonic()
+        self._progress_step      = 0
         self._prev_check_lap     = -1
-        self._wrongway_since     = None
+        self._wrongway_steps     = 0
         self._prev_lap_dist      = 0.0
         self._step_count         = 0
         self._ep_reward          = 0.0
@@ -456,8 +464,9 @@ class PCARS2Env(gym.Env):
         # ── 4 · Yaw rate (sobreviraje) ────────────────────────────────────
         yaw_norm = np.clip(t.angular_velocity[1] / MAX_ANGULAR_VEL, -1.0, 1.0)
 
-        # ── 5 · Aceleración lateral ───────────────────────────────────────
-        lat_norm = np.clip(t.local_velocity[2] / (MAX_LAT_ACCEL * 9.81), -1.0, 1.0)
+        # ── 5 · Aceleración lateral (G) ──────────────────────────────────
+        # Nota: se usa local_acceleration[2] (eje lateral del coche), no velocity.
+        lat_norm = np.clip(t.local_acceleration[2] / (MAX_LAT_ACCEL * 9.81), -1.0, 1.0)
 
         # ── 6 · Aceleración longitudinal (G) ──────────────────────────────
         long_norm = np.clip(t.local_acceleration[0] / MAX_LONG_ACCEL, -1.0, 1.0)
@@ -598,10 +607,6 @@ class PCARS2Env(gym.Env):
         speed_deficit = self._ref.speed_delta(t.speed, i.lap_distance)
         r_slow = W_SLOW * np.clip(speed_deficit / MAX_SPEED_DELTA, -1.0, 0.0)
 
-        # Incentivo directo por acelerar: rompe el mínimo local "estar parado"
-        # throttle ya está en [0,1] → recompensa máxima +0.4 cuando gas a fondo
-        r_throttle = 0.4 * throttle
-
         # ---- Incentivo por frenar donde frena la referencia ----
         # r_brake es proporcional a (brake_agente × brake_referencia):
         #   · Si la referencia frena fuerte y el agente también → +W_BRAKE máximo
@@ -648,7 +653,7 @@ class PCARS2Env(gym.Env):
                 self._spd_win_steps = 0
                 self._spd_win_sum   = 0.0
 
-        reward = r_speed + r_cte + r_steer + r_progress + r_slow + r_throttle + r_brake + r_overspeed + r_target
+        reward = r_speed + r_cte + r_steer + r_progress + r_slow + r_brake + r_overspeed + r_target
         return float(reward)
 
     # ------------------------------------------------------------------
@@ -660,9 +665,9 @@ class PCARS2Env(gym.Env):
         Devuelve (terminated, truncated).
 
         terminated = True si:
-          - stuck:       speed < 1 m/s durante 8 s
-          - no_progress: lap_distance no crece +10 m en 12 s
-          - wrong_way:   heading >160° + speed >2 m/s durante 2 s (0.3 s cerca de meta)
+          - stuck:       speed < 1 m/s durante ~8s (basado en steps, determinista)
+          - no_progress: lap_distance no crece +10 m en ~12s (steps)
+          - wrong_way:   heading >160° + speed >2 m/s durante ~2s (steps)
 
         truncated = True si:
           - lap_done: vuelta completada
@@ -679,9 +684,6 @@ class PCARS2Env(gym.Env):
             self._max_cte_seen = cte
 
         # ---- Pit box / garaje: CTE absurda (>20 m) CERCA de la línea de meta ----
-        # El garaje está junto a la meta; en el resto del circuito la CTE máx es ~8 m.
-        # Solo se activa en los 100 m antes/después de la línea de meta para evitar
-        # falsos positivos en curvas con referencia escasa.
         if self._step_count > GRACE_STEPS and cte > 20.0:
             d    = i.lap_distance
             tlen = self._ref.track_length
@@ -690,61 +692,53 @@ class PCARS2Env(gym.Env):
                 self._term_reason = "pit_box"
                 return True, False
 
-        # ---- Atascado: velocidad ~0 durante > 8 segundos (en pista o fuera) ----
-        # Con frame_skip alto y el coche parado los episodios se alargan infinitamente.
-        # Termina el episodio si el coche no supera 1 m/s durante 8 segundos reales.
+        # ---- Atascado: velocidad ~0 durante N steps (determinista) ----
+        # Usa contador de steps en vez de reloj real para ser inmune a lag del juego.
         if self._step_count > GRACE_STEPS:
             if t.speed < 1.0:
-                if self._offtrack_since is None:
-                    self._offtrack_since = time.monotonic()
-                elif time.monotonic() - self._offtrack_since > 8.0:
+                self._stuck_steps += 1
+                if self._stuck_steps >= self._stuck_max_steps:
                     self._term_reason = "stuck"
                     return True, False
             else:
-                self._offtrack_since = None  # se mueve → reset timer
+                self._stuck_steps = 0  # se mueve → reset counter
 
-        # ---- Sin progreso: cubre marcha atrás y box (speed>1 pero lap_dist no crece) ----
-        # Si la distancia recorrida en la vuelta no aumenta ≥10m en 12s → terminar.
-        # Reinicia si cambia de vuelta (lap_distance vuelve a 0 tras completar una vuelta).
+        # ---- Sin progreso: lap_distance no crece +10m en N steps ----
+        # Determinista: usa step_count en vez de time.monotonic().
         if self._step_count > GRACE_STEPS:
-            now      = time.monotonic()
             lap_dist = i.lap_distance
             cur_lap  = i.current_lap
             if cur_lap != self._prev_check_lap:
                 # Nueva vuelta: reiniciar tracker sin disparar el timer
                 self._progress_dist  = lap_dist
-                self._progress_time  = now
+                self._progress_step  = self._step_count
                 self._prev_check_lap = cur_lap
             elif lap_dist > self._progress_dist + NO_PROGRESS_DIST_M:
                 self._progress_dist  = lap_dist
-                self._progress_time  = now
-            elif now - self._progress_time > NO_PROGRESS_TIME_S:
+                self._progress_step  = self._step_count
+            elif (self._step_count - self._progress_step) >= self._no_progress_max_steps:
                 self._term_reason = "no_progress"
                 return True, False
 
-        # ---- Sentido contrario: heading >160° respecto al trazado durante >2s ----
-        # Cubre el caso: choque → giro 180° → conduce al revés (o hacia el box invertido)
-        # Solo se activa con velocidad mínima para no disparar con el coche parado.
+        # ---- Sentido contrario: heading >160° durante N steps ----
+        # Determinista: cuenta steps consecutivos en sentido contrario.
         if self._step_count > GRACE_STEPS and t.speed > 2.0:
             ref_yaw   = self._ref.heading_at(i.lap_distance)
             agent_yaw = t.orientation[2]
             diff      = agent_yaw - ref_yaw
             heading_err = abs(math.atan2(math.sin(diff), math.cos(diff)))
             if heading_err > WRONGWAY_ANGLE_RAD:
-                if self._wrongway_since is None:
-                    self._wrongway_since = time.monotonic()
-                else:
-                    # Cerca de la línea de meta (zona del box) → tolerancia mínima
-                    # para cortar el episodio antes de que la IA del juego tome el control
-                    d    = i.lap_distance
-                    tlen = self._ref.track_length
-                    near_finish = d < PIT_ZONE_MARGIN_M or d > tlen - PIT_ZONE_MARGIN_M
-                    timeout = WRONGWAY_NEAR_FINISH_S if near_finish else WRONGWAY_TIME_S
-                    if time.monotonic() - self._wrongway_since > timeout:
-                        self._term_reason = "wrong_way"
-                        return True, False
+                self._wrongway_steps += 1
+                # Cerca de la línea de meta (zona del box) → tolerancia mínima
+                d    = i.lap_distance
+                tlen = self._ref.track_length
+                near_finish = d < PIT_ZONE_MARGIN_M or d > tlen - PIT_ZONE_MARGIN_M
+                max_steps = self._wrongway_finish_steps if near_finish else self._wrongway_max_steps
+                if self._wrongway_steps >= max_steps:
+                    self._term_reason = "wrong_way"
+                    return True, False
             else:
-                self._wrongway_since = None
+                self._wrongway_steps = 0
 
         # ---- Vuelta completada ----
         laps_done = i.current_lap - self._start_lap
