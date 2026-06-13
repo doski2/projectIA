@@ -1,24 +1,20 @@
 @echo off
-:: ============================================================
-:: monitor.bat  —  Dashboard de entrenamiento PCARS2-AI
-:: ============================================================
-:: Uso:
-::   monitor.bat               <- Auto-detecta el CSV más reciente
-::   monitor.bat --refresh 10  <- Actualiza cada 10 segundos
-::   monitor.bat logs\formula_rookie__sugo\metricas.csv
-:: ============================================================
-
 setlocal
-
-set "VENV=%~dp0..\\.venv"
-set "PYTHON=%VENV%\Scripts\python.exe"
+set "SCRIPT_DIR=%~dp0"
+set "PYTHON=%SCRIPT_DIR%..\.venv\Scripts\python.exe"
 
 if not exist "%PYTHON%" (
-    echo [ERROR] Entorno virtual no encontrado en: %VENV%
-    echo         Ejecuta primero: python -m venv .venv
+    echo [ERROR] Entorno virtual no encontrado en: %SCRIPT_DIR%..\.venv
     pause
     exit /b 1
 )
 
 set PYTHONUNBUFFERED=1
-"%PYTHON%" -u "%~dp0src\monitor.py" %*
+"%PYTHON%" -u "%SCRIPT_DIR%src\monitor.py" %*
+
+if %ERRORLEVEL% NEQ 0 (
+    echo.
+    echo [INFO] El monitor se ha detenido. 
+    echo        Si acabas de borrar los logs, es normal: no hay nada que monitorizar aun.
+    pause
+)

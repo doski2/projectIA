@@ -21,18 +21,18 @@ setlocal EnableDelayedExpansion
 ::    models\{coche}__{pista}\           \u2190 combo detectado
 :: ============================================================
 
-set PYTHON=C:\Users\doski\projectIA\.venv\Scripts\python.exe
 set SCRIPT_DIR=%~dp0
+set "PYTHON=%SCRIPT_DIR%..\.venv\Scripts\python.exe"
 
 :: ---- Argumentos ----
 if "%~1"=="" (
-    set REFERENCE=src\refs\formula_rookie__sugo__gpyf.json
+    set REFERENCE=src\refs\sugo_ai.json
 ) else (
     set REFERENCE=%~1
 )
 
 if "%~2"=="" (
-    set TIMESTEPS=200000
+    set TIMESTEPS=500000
 ) else (
     set TIMESTEPS=%~2
 )

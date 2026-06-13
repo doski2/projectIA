@@ -80,7 +80,9 @@ La IA del juego tomó el control dentro del box. El episodio no terminaba
 
 ```bat
 :: Entrenamiento principal (sesión larga)
-.\entrenar.bat src\refs\formula_rookie__sugo__gpyf.json 500000 --frame-skip 4 --warmup-steps 30 --curriculum
+:: Referencia: sugo_ai.json (15 vueltas grabadas de la IA del juego; el antiguo
+:: formula_rookie__sugo__gpyf.json solo tenía 1 vuelta). Misma pista (SUGO_GP, 3567 m).
+.\entrenar.bat src\refs\sugo_ai.json 500000 --frame-skip 4 --warmup-steps 30 --curriculum
 
 :: Monitor en tiempo real (otra terminal)
 python src\monitor.py --refresh 20
