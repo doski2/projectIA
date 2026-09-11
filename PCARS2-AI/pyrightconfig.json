@@ -1,0 +1,9 @@
+{
+  "venvPath": "..",
+  "venv": ".venv",
+  "include": ["src", "tests", "v2"],
+  "extraPaths": [
+    ".",
+    "src"
+  ]
+}

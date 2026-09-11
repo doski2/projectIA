@@ -256,17 +256,19 @@ def pretrain(
     env = DummyEnv()
 
     # ---- Crear o cargar modelo PPO (misma arquitectura que main.py) ----
+    model = None
+    base_path = None
     if base_model:
-        bp = base_model if not base_model.endswith(".zip") else base_model[:-4]
-        if os.path.isfile(bp + ".zip"):
-            print(f"[BC] Cargando modelo base: {bp}.zip")
-            model = PPO.load(bp, env=env)
-        else:
-            print(f"[BC] Modelo base no encontrado ({bp}.zip) — creando desde cero.")
-            base_model = None
+        base_path = base_model if not base_model.endswith(".zip") else base_model[:-4]
+        if os.path.isfile(base_path + ".zip"):
+            print(f"[BC] Cargando modelo base: {base_path}.zip")
+            model = PPO.load(base_path, env=env)
 
-    if not base_model:
-        print("[BC] Creando modelo PPO desde cero (net_arch=[256,256,128])...")
+    if model is None:
+        if base_path is not None:
+            print(f"[BC] Modelo base no encontrado ({base_path}.zip) — creando desde cero.")
+        else:
+            print("[BC] Creando modelo PPO desde cero (net_arch=[256,256,128])...")
         model = PPO(
             policy        = "MlpPolicy",
             policy_kwargs = dict(net_arch=[256, 256, 128]),

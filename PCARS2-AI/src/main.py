@@ -23,6 +23,8 @@ import os
 import sys
 import glob
 import csv
+
+from checkpoints import pick_latest_checkpoint
 import time as _time
 import torch
 from typing import Optional
@@ -72,11 +74,10 @@ def _find_best_model(
     if os.path.isfile(final):
         return {"path": final[:-4], "mode": "continue"}   # SB3 no quiere .zip
 
-    # 2. Checkpoint más reciente del combo
+    # 2. Checkpoint más reciente del combo (por número de pasos, no alfabético)
     pattern = os.path.join(model_dir, f"{name_prefix}_*_steps.zip")
-    checkpoints = sorted(glob.glob(pattern))
-    if checkpoints:
-        best = checkpoints[-1]   # orden alfabético = orden numérico con relleno 0
+    best = pick_latest_checkpoint(glob.glob(pattern))
+    if best:
         return {"path": best[:-4], "mode": "continue"}
 
     # 3. Transfer learning desde el base (solo si el combo no ES base)
@@ -85,9 +86,10 @@ def _find_best_model(
         base_final  = os.path.join(base_dir, "pcars2_base_final.zip")
         if os.path.isfile(base_final):
             return {"path": base_final[:-4], "mode": "transfer"}
-        base_cps = sorted(glob.glob(os.path.join(base_dir, "pcars2_base_*_steps.zip")))
-        if base_cps:
-            return {"path": base_cps[-1][:-4], "mode": "transfer"}
+        base_cps = glob.glob(os.path.join(base_dir, "pcars2_base_*_steps.zip"))
+        best_base = pick_latest_checkpoint(base_cps)
+        if best_base:
+            return {"path": best_base[:-4], "mode": "transfer"}
 
     return None
 
@@ -167,6 +169,13 @@ def parse_args() -> argparse.Namespace:
         default=False,
         help="Activa recompensa simplificada (solo gas + velocidad, sin CTE ni penalizaciones). "
              "Úsalo para que el agente aprenda a moverse primero. Desactivar una vez el coche se mueve.",
+    )
+    parser.add_argument(
+        "--basics",
+        action="store_true",
+        default=False,
+        help="Modo básicos: línea + velocidad objetivo + girar + acciones suaves. "
+             "Recomendado con --speed-target-kmh 20. Ignora --curriculum si ambos están activos.",
     )
     parser.add_argument(
         "--car",
@@ -255,7 +264,7 @@ def train(args: argparse.Namespace) -> None:
 
     # ---- Crear entorno ----
     print(f"[main] Creando entorno PCARS2Env (gamepad={args.gamepad}, frame_skip={args.frame_skip}, "
-          f"warmup={args.warmup_steps}, curriculum={args.curriculum}, "
+          f"warmup={args.warmup_steps}, basics={args.basics}, curriculum={args.curriculum}, "
           f"speed_target={args.speed_target_kmh:.0f} km/h)...")
     raw_env   = PCARS2Env(
         reference_path=args.reference,
@@ -263,6 +272,7 @@ def train(args: argparse.Namespace) -> None:
         frame_skip=args.frame_skip,
         warmup_steps=args.warmup_steps,
         curriculum=args.curriculum,
+        basics=args.basics,
         speed_target_kmh=args.speed_target_kmh,
     )
     _mon_env  = Monitor(raw_env)

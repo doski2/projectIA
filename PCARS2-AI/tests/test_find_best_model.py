@@ -89,6 +89,21 @@ def test_none_when_nothing_available(tmp_path):
     assert result is None
 
 
+def test_picks_highest_step_count_not_alphabetic(tmp_path):
+    """90000 ordena después de 300000 alfabéticamente — debe ganar el mayor número."""
+    models_root = str(tmp_path)
+    subdir = "formula_rookie__sugo"
+    prefix = f"pcars2_{subdir}"
+    model_dir = os.path.join(models_root, subdir)
+
+    _touch(os.path.join(model_dir, f"{prefix}_90000_steps.zip"))
+    _touch(os.path.join(model_dir, f"{prefix}_300000_steps.zip"))
+
+    result = _find_best_model(model_dir, prefix, models_root, subdir)
+    assert result is not None
+    assert result["path"].endswith(f"{prefix}_300000_steps")
+
+
 def test_base_combo_does_not_self_transfer(tmp_path):
     # Si el combo ES "base" y no tiene modelos, no debe intentar transfer de sí mismo
     models_root = str(tmp_path)

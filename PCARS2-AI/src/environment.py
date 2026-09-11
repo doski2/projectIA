@@ -113,9 +113,8 @@ SPEED_TARGET_STEP_KMH = 5.0
 # El coche debe avanzar al menos NO_PROGRESS_DIST_M metros en NO_PROGRESS_STEPS steps
 NO_PROGRESS_DIST_M  = 10.0
 NO_PROGRESS_TIME_S  = 12.0
-# Conversión a steps: asumiendo ~25 fps y frame_skip=4 → ~6.25 steps/s → 12s ≈ 75 steps
-# Se calcula dinámicamente en __init__ basado en frame_skip real.
-NO_PROGRESS_STEPS_DEFAULT = 75
+# Con curriculum el agente suele ir fuera de línea: dar más margen antes de cortar.
+NO_PROGRESS_CURRICULUM_TIME_S = 30.0
 
 # Detección de sentido contrario: error de heading >160° durante >N steps → terminar
 # 160° equivale a "prácticamente al revés" (180° = exactamente invertido)
@@ -123,13 +122,19 @@ WRONGWAY_ANGLE_RAD       = math.radians(160)
 WRONGWAY_TIME_S          = 2.0    # referencia temporal (se convierte a steps)
 WRONGWAY_NEAR_FINISH_S   = 0.3    # referencia temporal cerca de meta
 PIT_ZONE_MARGIN_M        = 300.0  # metros alrededor de la línea de meta que forman la zona restringida
-# Steps equivalentes (se calculan en __init__)
-WRONGWAY_STEPS_DEFAULT        = 12   # ~2s a 6.25 steps/s
-WRONGWAY_NEAR_FINISH_STEPS_DEFAULT = 2  # ~0.3s
 
-# Detección de atascado: speed < 1 m/s durante N steps
+# FPS del juego: los contadores de terminación avanzan una vez por frame de juego
+# (cada iteración del bucle interno en step(), no por decisión del agente).
+GAME_FPS = 25.0
+
+# Detección de atascado: velocidad baja durante N frames de juego consecutivos
+STUCK_SPEED_MS = 1.0
 STUCK_TIME_S = 8.0
-STUCK_STEPS_DEFAULT = 50  # ~8s a 6.25 steps/s
+# Básicos: umbrales más permisivos para no cortar episodios mientras aprende a moverse
+STUCK_SPEED_BASICS_MS = 0.4   # ~1.4 km/h — solo casi parado
+STUCK_TIME_BASICS_S = 15.0    # ~15 s antes de cortar (vs 8 s)
+# Penalización extra de volante a baja velocidad en básicos (evita girar a tope atascado)
+BASICS_LOW_SPEED_MS = 5.0 / 3.6  # 5 km/h
 
 # Pasos iniciales de gracia al inicio del episodio (no se penaliza off-track)
 # Ampliado para dar tiempo al coche a volver al trazado tras reposicionamiento
@@ -137,6 +142,11 @@ GRACE_STEPS = 250
 
 # Vuelta máxima por episodio (evitar episodios infinitos en entrenamiento)
 MAX_LAPS_PER_EPISODE = 1
+
+
+def termination_frame_count(time_s: float) -> int:
+    """Frames de juego equivalentes a `time_s` segundos a GAME_FPS."""
+    return int(time_s * GAME_FPS)
 
 
 # ---------------------------------------------------------------------------
@@ -196,6 +206,7 @@ class PCARS2Env(gym.Env):
         frame_skip:     int   = 1,
         warmup_steps:   int   = 0,
         curriculum:        bool  = False,
+        basics:            bool  = False,
         speed_target_kmh:  float = 0.0,
         render_mode:       Optional[str] = None,
     ):
@@ -204,7 +215,8 @@ class PCARS2Env(gym.Env):
         # --- Referencia de trazado ---
         self._ref = ReferenceLine.load(reference_path)
         self._warmup_steps    = max(0, warmup_steps)
-        self._curriculum      = curriculum
+        self._curriculum      = curriculum and not basics
+        self._basics          = basics
         self._speed_target_ms = max(0.0, speed_target_kmh) / 3.6  # 0 = desactivado
         self._spd_win_steps   = 0
         self._spd_win_sum     = 0.0
@@ -216,8 +228,19 @@ class PCARS2Env(gym.Env):
         )
         if self._warmup_steps > 0:
             print(f"[Env] Warm-up activado: {self._warmup_steps} frames de gas antes de cada episodio.")
-        if self._curriculum:
-            print("[Env] Curriculum activo: recompensa simplificada (solo gas + velocidad).")
+        if self._basics:
+            print(
+                "[Env] Modo BÁSICOS: línea + velocidad objetivo + girar + acciones suaves.\n"
+                f"      no_progress relajado: {NO_PROGRESS_CURRICULUM_TIME_S:.0f}s.\n"
+                f"      stuck relajado: <{STUCK_SPEED_BASICS_MS * 3.6:.1f} km/h "
+                f"durante {STUCK_TIME_BASICS_S:.0f}s."
+            )
+        elif self._curriculum:
+            print(
+                "[Env] Curriculum activo: recompensa simplificada (solo gas + velocidad).\n"
+                f"      no_progress relajado: {NO_PROGRESS_CURRICULUM_TIME_S:.0f}s "
+                f"(vs {NO_PROGRESS_TIME_S:.0f}s en reward completa)."
+            )
         if self._speed_target_ms > 0:
             print(f"[Env] Speed-target activo: objetivo inicial {self._speed_target_ms * 3.6:.1f} km/h, "
                   f"incremento +{SPEED_TARGET_STEP_KMH:.0f} km/h cada {SPEED_TARGET_WINDOW:,} pasos.")
@@ -270,13 +293,18 @@ class PCARS2Env(gym.Env):
         self._prev_check_lap:    int   = -1      # vuelta en el último check de progreso
         self._wrongway_steps:    int   = 0       # contador de steps en sentido contrario
 
-        # Calcular thresholds de terminación basados en steps (determinista, sin reloj real)
-        # Asumimos ~25 fps del juego; con frame_skip el agente decide cada frame_skip frames.
-        _steps_per_sec = 25.0 / max(1, frame_skip)
-        self._stuck_max_steps       = int(STUCK_TIME_S * _steps_per_sec)
-        self._no_progress_max_steps = int(NO_PROGRESS_TIME_S * _steps_per_sec)
-        self._wrongway_max_steps    = int(WRONGWAY_TIME_S * _steps_per_sec)
-        self._wrongway_finish_steps = max(1, int(WRONGWAY_NEAR_FINISH_S * _steps_per_sec))
+        # Umbrales en frames de juego (step() incrementa _step_count por frame UDP).
+        _stuck_time = STUCK_TIME_BASICS_S if self._basics else STUCK_TIME_S
+        self._stuck_speed_ms = STUCK_SPEED_BASICS_MS if self._basics else STUCK_SPEED_MS
+        self._stuck_max_steps = termination_frame_count(_stuck_time)
+        _no_progress_time = (
+            NO_PROGRESS_CURRICULUM_TIME_S
+            if (self._curriculum or self._basics)
+            else NO_PROGRESS_TIME_S
+        )
+        self._no_progress_max_steps = termination_frame_count(_no_progress_time)
+        self._wrongway_max_steps = termination_frame_count(WRONGWAY_TIME_S)
+        self._wrongway_finish_steps = max(1, termination_frame_count(WRONGWAY_NEAR_FINISH_S))
 
     # ------------------------------------------------------------------
     # Gymnasium API
@@ -535,6 +563,41 @@ class PCARS2Env(gym.Env):
     # Función de recompensa
     # ------------------------------------------------------------------
 
+    def _speed_target_reward(self, speed_ms: float, positive: bool = False) -> float:
+        """
+        Componente de reward por cercanía al objetivo de velocidad.
+        positive=True (básicos): recompensa hasta +W_TARGET al acercarse.
+        positive=False (completo): penalización hasta -W_TARGET al alejarse.
+        """
+        if self._speed_target_ms <= 0:
+            return 0.0
+
+        speed_err_ms = abs(speed_ms - self._speed_target_ms)
+        closeness = 1.0 - min(speed_err_ms / SPEED_TARGET_BAND_MS, 1.0)
+        r_target = W_TARGET * closeness if positive else -W_TARGET * (1.0 - closeness)
+
+        self._spd_win_sum += speed_ms
+        self._spd_win_steps += 1
+        if self._spd_win_steps >= SPEED_TARGET_WINDOW:
+            avg_ms = self._spd_win_sum / self._spd_win_steps
+            avg_kmh = avg_ms * 3.6
+            tgt_kmh = self._speed_target_ms * 3.6
+            if abs(avg_ms - self._speed_target_ms) <= SPEED_TARGET_TOL_KMH / 3.6:
+                self._speed_target_ms += SPEED_TARGET_STEP_KMH / 3.6
+                print(
+                    f"[SpeedTarget] ✓ avg={avg_kmh:.1f} km/h ≈ objetivo {tgt_kmh:.1f} km/h "
+                    f"→ nuevo objetivo: {self._speed_target_ms * 3.6:.1f} km/h"
+                )
+            else:
+                print(
+                    f"[SpeedTarget] avg={avg_kmh:.1f} km/h  objetivo {tgt_kmh:.1f} km/h "
+                    f"(±{abs(avg_kmh - tgt_kmh):.1f} km/h) — manteniendo objetivo"
+                )
+            self._spd_win_steps = 0
+            self._spd_win_sum = 0.0
+
+        return float(r_target)
+
     def _compute_reward(
         self,
         throttle: float,
@@ -569,6 +632,26 @@ class PCARS2Env(gym.Env):
             speed_proj = t.speed
 
         r_speed = W_SPEED * np.clip(speed_proj / MAX_SPEED_MS, -1.0, 1.0)
+
+        # ---- Básicos: línea + velocidad objetivo + heading + acciones suaves ----
+        if self._basics:
+            cte = self._ref.cross_track_error(t.position, i.lap_distance)
+            r_cte = -W_CTE * min(cte / MAX_CTE, 2.0)
+
+            h_err = self._ref.heading_error(t.world_velocity, i.lap_distance)
+            r_heading = -0.8 * min(abs(h_err) / MAX_HEADING_ERR, 1.0)
+
+            delta_steer = abs(steering - self._prev_steering)
+            r_steer = -W_STEER * (delta_steer + 0.5 * abs(steering))
+            if t.speed < BASICS_LOW_SPEED_MS:
+                r_steer -= 0.5 * abs(steering)
+
+            r_spd = self._speed_target_reward(t.speed, positive=True)
+            if self._speed_target_ms <= 0:
+                r_spd = 0.4 * max(0.0, r_speed)
+
+            r_actions = 0.15 * throttle - 0.25 * brake
+            return float(r_cte + r_heading + r_steer + r_spd + r_actions)
 
         # ---- Curriculum: recompensa simplificada solo por acelerar ----
         # Útil en las primeras iteraciones cuando el coche nunca ha llegado a moverse.
@@ -624,34 +707,7 @@ class PCARS2Env(gym.Env):
             )
 
         # ---- Objetivo de velocidad adaptativo (speed-target curriculum) ----
-        # Penaliza en AMBAS direcciones (ir demasiado rápido Y demasiado lento).
-        # El objetivo sube +5 km/h automáticamente cada SPEED_TARGET_WINDOW pasos
-        # cuando el promedio se mantiene dentro de ±SPEED_TARGET_TOL_KMH del objetivo.
-        r_target = 0.0
-        if self._speed_target_ms > 0:
-            speed_err_ms = abs(t.speed - self._speed_target_ms)
-            r_target = -W_TARGET * min(speed_err_ms / SPEED_TARGET_BAND_MS, 1.0)
-
-            # Actualizar ventana deslizante para evaluar el progreso
-            self._spd_win_sum   += t.speed
-            self._spd_win_steps += 1
-            if self._spd_win_steps >= SPEED_TARGET_WINDOW:
-                avg_ms  = self._spd_win_sum / self._spd_win_steps
-                avg_kmh = avg_ms * 3.6
-                tgt_kmh = self._speed_target_ms * 3.6
-                if abs(avg_ms - self._speed_target_ms) <= SPEED_TARGET_TOL_KMH / 3.6:
-                    self._speed_target_ms += SPEED_TARGET_STEP_KMH / 3.6
-                    print(
-                        f"[SpeedTarget] ✓ avg={avg_kmh:.1f} km/h ≈ objetivo {tgt_kmh:.1f} km/h "
-                        f"→ nuevo objetivo: {self._speed_target_ms * 3.6:.1f} km/h"
-                    )
-                else:
-                    print(
-                        f"[SpeedTarget] avg={avg_kmh:.1f} km/h  objetivo {tgt_kmh:.1f} km/h "
-                        f"(±{abs(avg_kmh - tgt_kmh):.1f} km/h) — manteniendo objetivo"
-                    )
-                self._spd_win_steps = 0
-                self._spd_win_sum   = 0.0
+        r_target = self._speed_target_reward(t.speed, positive=False)
 
         reward = r_speed + r_cte + r_steer + r_progress + r_slow + r_brake + r_overspeed + r_target
         return float(reward)
@@ -665,8 +721,8 @@ class PCARS2Env(gym.Env):
         Devuelve (terminated, truncated).
 
         terminated = True si:
-          - stuck:       speed < 1 m/s durante ~8s (basado en steps, determinista)
-          - no_progress: lap_distance no crece +10 m en ~12s (steps)
+          - stuck:       speed < umbral durante N frames de juego (8s / 15s en básicos)
+          - no_progress: lap_distance no crece +10 m en 12s (30s en básicos/curriculum)
           - wrong_way:   heading >160° + speed >2 m/s durante ~2s (steps)
 
         truncated = True si:
@@ -695,7 +751,7 @@ class PCARS2Env(gym.Env):
         # ---- Atascado: velocidad ~0 durante N steps (determinista) ----
         # Usa contador de steps en vez de reloj real para ser inmune a lag del juego.
         if self._step_count > GRACE_STEPS:
-            if t.speed < 1.0:
+            if t.speed < self._stuck_speed_ms:
                 self._stuck_steps += 1
                 if self._stuck_steps >= self._stuck_max_steps:
                     self._term_reason = "stuck"

@@ -1,0 +1,14 @@
+{
+  "reference": "src/refs/sugo_ai.json",
+  "timesteps": 150000,
+  "speed_target_kmh": 20.0,
+  "frame_skip": 4,
+  "warmup_steps": 30,
+  "gamepad": "xbox",
+  "car": "formula_rookie",
+  "track": "sugo",
+  "model_path": "models/formula_rookie__sugo/pcars2_formula_rookie__sugo_300000_steps",
+  "save_freq": 10000,
+  "seed": 42,
+  "mode_id": "basico"
+}

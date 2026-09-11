@@ -209,10 +209,9 @@ def test_real_reference_is_trainable(ref_path):
     ref = ReferenceLine.load(ref_path)
     assert len(ref.points) > 20, "referencia con muy pocos puntos"
     assert ref.track_length > 0, "track_length debe ser > 0"
-    # lookup debe devolver algo en mitad de la vuelta
+    # lookup debe devolver algo en mitad de la vuelta; CTE sobre el trazado ~0
     mid = ref.track_length / 2.0
-    assert ref.lookup(mid) is not None
-    # CTE sobre el propio trazado en mitad de vuelta debe ser pequeño
     p = ref.lookup(mid)
+    assert p is not None
     cte = ref.cross_track_error(p.position, p.lap_distance)
     assert cte == pytest.approx(0.0, abs=1.0)

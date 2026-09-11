@@ -1,126 +1,117 @@
 # Guía de métricas PPO — PCARS2-AI
 
-Referencia rápida para interpretar el CSV y la tabla del CMD.
+Referencia para interpretar `metricas.csv` y el monitor en consola.
+
+**Operativa (comandos, GUI, qué log pasar):** [ENTRENAMIENTO.md](ENTRENAMIENTO.md)
 
 ---
 
-## rollout/ — Lo que hizo el agente en el juego
+## Archivo principal
 
-| Métrica | Qué significa | ¿Bueno o malo? |
-|---|---|---|
-| `ep_len_mean` | Promedio de pasos por episodio (~10 ms cada uno). 6000 = TimeLimit completo. | Cuanto más alto mejor. 6000 = completó el tiempo sin salirse. |
-| `ep_rew_mean` | Recompensa promedio por episodio. Negativo = más castigos que premios. | Debe subir hacia 0 con el tiempo. |
+`logs/{combo}/metricas.csv` — por defecto `logs/formula_rookie__sugo/metricas.csv`
 
----
-
-## time/ — Velocidad del entrenamiento
-
-| Métrica | Qué significa |
-|---|---|
-| `fps` | Pasos por segundo. Depende del juego y la CPU. |
-| `iterations` | Veces que el agente recogió datos (cada una = 2048 pasos). |
-| `total_timesteps` | Pasos totales acumulados desde el inicio. |
+- Una fila **cada 2048 pasos** de entrenamiento (rollout PPO).
+- Se **reescribe** al iniciar cada sesión de `main.py` (no acumula sesiones en el mismo archivo).
 
 ---
 
-## train/ — Lo que aprende la red neuronal
+## Columnas del CSV
 
-| Métrica | Qué significa | Rango saludable |
-|---|---|---|
-| `explained_variance` | Qué tan bien predice el crítico. 0=nada, 1=perfecto, negativo=peor que adivinar. | > 0.5 idealmente |
-| `value_loss` | Error del crítico al predecir recompensas futuras. | Bajando con el tiempo |
-| `policy_gradient_loss` | Pérdida del actor. Negativo = la política mejora. | Cercano a 0, negativo |
-| `entropy_loss` | Entropía de la política. Más negativo = más exploración. | -3 a -6 |
-| `std` | Aleatoriedad de las acciones. 1.0=aleatorio, 0.3=determinista. | Baja de 1.0 al madurar |
-| `approx_kl` | Cuánto cambia la política entre updates. Si sube mucho = inestable. | < 0.02 |
-| `clip_fraction` | % de veces que PPO recortó el gradiente. | 5–20% |
-| `learning_rate` | Velocidad de aprendizaje (fija en 1e-4). | — |
-| `n_updates` | Actualizaciones totales de la red. | Contador |
+### Agente en el juego
 
----
+| Columna                      | Qué significa                                           | En modo Básicos                                   |
+| ---------------------------- | ------------------------------------------------------- | ------------------------------------------------- |
+| `ep_rew_mean`                | Recompensa media por episodio                           | Escala distinta al curriculum; buscar tendencia ↑ |
+| `ep_len_mean`                | Pasos agente por episodio (× frame_skip ≈ frames juego) | ↑ = aguanta más en pista                          |
+| `avg_speed_kmh`              | Velocidad media del rollout                             | Objetivo ~20 km/h (±5) en Fase 0                  |
+| `max_speed_kmh`              | Pico de velocidad en el rollout                         | —                                                 |
+| `avg_cte`                    | Desviación media de línea (m)                           | < 8 m ideal                                       |
+| `avg_steering`               | Volante medio (− izq, + der)                            | —                                                 |
+| `avg_throttle` / `avg_brake` | Acciones medias                                         | —                                                 |
+| `dist_km`                    | Distancia acumulada en el rollout                       | —                                                 |
 
-## Diagnóstico del estado actual (~1.38M pasos, 17 mayo 2026)
+### Terminaciones (porcentaje de episodios en el rollout)
 
-```
-ep_rew_mean   +3599   → Positivo estable antes del incidente del box.
-ep_len_mean    302    → Episodios algo más cortos que sesión anterior.
-std            1.43   → Subió ligeramente (exploración activa).
-avg_speed      0.3    → DEGRADADO por incidente: coche en box 271 min sin aprender.
-dist_km        0.175  → Idem: distancia media/episodio muy baja.
-```
+| Columna           | Condición                                            | `fin=` en consola |
+| ----------------- | ---------------------------------------------------- | ----------------- |
+| `pct_stuck`       | speed < umbral durante 8 s / 15 s (básicos) a 25 fps de juego | `stuck`           |
+| `pct_no_progress` | lap_dist no crece +10 m en 12 s / 30 s (básicos) a 25 fps     | `no_progress`     |
+| `pct_wrong_way`   | heading > 160° ~2 s                                  | `wrong_way`       |
+| `pct_pit_box`     | CTE absurda cerca de meta                            | `pit_box`         |
+| `pct_lap_done`    | Vuelta completada                                    | `lap_done`        |
+| `pct_timelimit`   | TimeLimit externo                                    | `timelimit`       |
 
-**Incidente detectado (17 mayo):**  
-El coche chocó en pista, giró 180° y entró al box en sentido contrario.  
-La IA del juego tomó el control dentro del box. El episodio no terminaba  
-(speed > 1 m/s, pero lap_distance no avanzaba) → 271 minutos perdidos.  
+### PPO / red
 
-**Fixes aplicados:**
-- `no_progress`: termina si `lap_distance` no crece +10m en 12s (cubre box + atasco lento)
-- `wrong_way`: termina si heading >160° respecto al trazado durante 2s (cubre giro 180°)
-- Ambos activos junto al detector previo `stuck` (speed < 1 m/s, 8s)
-
-**Estado:** reentrenando con los fixes aplicados desde checkpoint.
-
----
-
-## Historial de fases de entrenamiento
-
-| Fase | Steps aprox. | Configuración | Resultado |
-|---|---|---|---|
-| Fase 0 — BC pretrain | — | `pretrain.bat` | Actor inicializado con datos de referencia |
-| Fase 1 — Curriculum | ~200k | `--warmup-steps 30 --curriculum` | `avg_speed` hasta 70.9 km/h |
-| Fase 2 — Reward completa | ~100k | `--warmup-steps 30` | Consolidación en pista |
-| Fase 3 — Long run | ~500k+ | `--warmup-steps 30 --curriculum` | `ep_rew_mean` de -3507 a +3599 |
-| Fase 3b — Bug/fix | ~500k | igual | Incidente box (271 min). Fixes: `no_progress` + `wrong_way` |
-| Fase 3c — Reentrenamiento | en curso | igual + fixes | Objetivo: `avg_speed` estable >40 km/h |
+| Columna                | Qué significa                   | Rango saludable                    |
+| ---------------------- | ------------------------------- | ---------------------------------- |
+| `explained_variance`   | Calidad del crítico             | > 0.5                              |
+| `value_loss`           | Error del crítico               | Baja con el tiempo                 |
+| `policy_gradient_loss` | Pérdida actor                   | Cercano a 0, negativo              |
+| `entropy_loss`         | Exploración                     | ~−3 a −6                           |
+| `std`                  | Aleatoriedad acciones           | ~0.8–0.9 en curso; baja al madurar |
+| `approx_kl`            | Cambio de política              | < 0.02 ideal                       |
+| `clip_fraction`        | % recortes PPO                  | 5–20%                              |
+| `fps`                  | Pasos agente / segundo          | Depende del juego (~10–30)         |
+| `total_timesteps`      | Pasos acumulados (contador SB3) | —                                  |
 
 ---
 
-## Comandos activos (configuración estable)
+## Monitor en vivo (`monitor.bat`)
+
+Actualiza cada ~20 s. Muestra tendencias ▲▼ respecto al rollout anterior.
+
+Métricas destacadas: recompensa, duración, velocidad, distancia, terminaciones, salud PPO.
+
+---
+
+## TensorBoard
 
 ```bat
-:: Entrenamiento principal (sesión larga)
-:: Referencia: sugo_ai.json (15 vueltas grabadas de la IA del juego; el antiguo
-:: formula_rookie__sugo__gpyf.json solo tenía 1 vuelta). Misma pista (SUGO_GP, 3567 m).
-.\entrenar.bat src\refs\sugo_ai.json 500000 --frame-skip 4 --warmup-steps 30 --curriculum
-
-:: Monitor en tiempo real (otra terminal)
-python src\monitor.py --refresh 20
-
-:: TensorBoard (opcional)
-tensorboard --logdir logs/formula_rookie__sugo
 ```
 
----
-
-## Detectores de terminación de episodio
-
-| Detector | Condición | Tiempo | `fin=` en log |
-|---|---|---|---|
-| `stuck` | speed < 1 m/s | 8s | `stuck` |
-| `no_progress` | lap_dist no crece +10m | 12s | `no_progress` |
-| `wrong_way` | heading >160° + speed >2 m/s | 2s | `wrong_way` |
-| `lap_done` | vuelta completada | — | `lap_done` |
-| `timelimit` | TimeLimit wrapper externo | — | `timelimit` |
+→ http://localhost:6006 — curvas `rollout/` y `train/` de SB3.
 
 ---
 
-## Señales de progreso
+## Señales de progreso — Fase Básicos (20 km/h)
 
-| Señal | Qué significa |
-|---|---|
-| `ep_rew_mean` sube y se mantiene positivo | ✅ Conseguido (max +3599) |
-| `std` baja de 1.0 | ⚠️ Subió a 1.43 tras bug, debe volver a bajar |
-| `explained_variance` > 0.5 estable | ⚠️ Oscila, normal con reward positiva |
-| `ep_len_mean` > 300 constante | ⚠️ En progreso (302) |
-| `avg_speed` > 40 km/h estable | ❌ Degradado por bug. Objetivo tras reentrenamiento |
-| `fin=wrong_way` o `fin=no_progress` en log | Detector activo, episodio cortado correctamente |
+| Señal           | Objetivo                               |
+| --------------- | -------------------------------------- |
+| `avg_speed_kmh` | 18–25 km/h estable                     |
+| `avg_cte`       | < 8 m, bajando                         |
+| `ep_len_mean`   | > 120, luego > 150                     |
+| `pct_stuck`     | < 50%                                  |
+| `pct_lap_done`  | Aparece en algunos rollouts tras 100k+ |
+
+No comparar `ep_rew_mean` con sesiones curriculum antiguas (función de reward distinta).
 
 ---
 
-## Próximos pasos recomendados
+## Historial de fases (referencia)
 
-1. **Seguir entrenando** con la configuración actual hasta ~1M pasos totales
-2. Cuando `avg_speed` suba de forma estable, quitar `--curriculum` (phase 4)
-3. Si `ep_rew_mean` se estanca >50k steps, bajar `learning_rate` a `5e-5`
-4. Transfer a nueva pista: grabar referencia nueva + `pretrain.bat` + `entrenar.bat` con `--model`
+| Fase                | Período    | Config                           | Notas                                                   |
+| ------------------- | ---------- | -------------------------------- | ------------------------------------------------------- |
+| 0 — BC pretrain     | —          | `pretrain.bat`                   | Actor desde referencia                                  |
+| 1 — Curriculum      | ~200k–970k | `--curriculum`                   | Reward gas; archivado en `*_archive_curriculum`         |
+| 2 — Básicos v2      | actual     | `--basics --speed-target-kmh 20` | Línea + velocidad + girar; sesiones cortas supervisadas |
+| 3 — Subir velocidad | pendiente  | Básicos + auto speed-target      | 25 → 35 km/h                                            |
+| 4 — Reward completa | pendiente  | sin `--basics`                   | Cuando conduzca bien en línea                           |
+
+---
+
+## Detectores de terminación (código)
+
+| Modo                 | `no_progress` ventana              |
+| -------------------- | ---------------------------------- |
+| Reward completa      | 12 s (~75 frames con frame_skip=4) |
+| Básicos / Curriculum | 30 s (~187 frames)                 |
+
+Ver `environment.py`: `GRACE_STEPS = 250` al inicio de episodio (sin penalizar off-track fuerte).
+
+---
+
+## Documentación relacionada
+
+- [ENTRENAMIENTO.md](ENTRENAMIENTO.md) — comandos, GUI v2, logs, revisión de sesiones
+- [DEPENDENCIAS.md](DEPENDENCIAS.md) — entorno Python y paquetes

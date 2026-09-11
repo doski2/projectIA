@@ -1,0 +1,9 @@
+{
+  "include": ["PCARS2-AI/src", "PCARS2-AI/tests", "PCARS2-AI/v2"],
+  "extraPaths": [
+    "PCARS2-AI",
+    "PCARS2-AI/src"
+  ],
+  "venvPath": ".",
+  "venv": ".venv"
+}

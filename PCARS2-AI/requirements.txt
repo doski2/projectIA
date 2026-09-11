@@ -1,12 +1,22 @@
 # PCARS2-AI — Dependencias del proyecto
-# Instalar con: pip install -r requirements.txt
+# Python >= 3.10 (probado en 3.13.5, Windows 10/11)
+# Instalar: pip install -r requirements.txt
+# Detalle y matriz de compatibilidad: DEPENDENCIAS.md
 
-numpy>=1.24.0
-stable-baselines3>=2.0.0
-torch>=2.0.0
+# --- Core RL (PPO, VecNormalize, checkpoints) ---
+numpy>=1.24.0,<3.0
+gymnasium>=0.29.1,<2.0
+stable-baselines3>=2.8.0,<3.0
+torch>=2.8.0,<3.0
+
+# --- Entrada virtual al juego (ViGEmBus en Windows) ---
 vgamepad>=0.1.0
-gymnasium>=0.29.0
+
+# --- Monitor en terminal (monitor.py) ---
 rich>=13.0.0
 
-# --- Desarrollo / tests (no necesarios para entrenar) ---
+# --- TensorBoard (main.py + tensorboard.bat; opcional para entrenar) ---
+tensorboard>=2.14.0
+
+# --- Desarrollo / tests (no necesarios para entrenar en producción) ---
 pytest>=8.0.0
