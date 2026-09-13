@@ -28,3 +28,23 @@ def pick_latest_checkpoint(paths: List[str]) -> Optional[str]:
     if not paths:
         return None
     return max(paths, key=step_number_from_checkpoint)
+
+
+def resolve_combo_checkpoint(model_dir: str, name_prefix: str) -> Optional[str]:
+    """
+    Mejor checkpoint del combo (ruta sin .zip).
+
+    Prioridad unificada GUI / main:
+      1. *_steps.zip con más pasos
+      2. *_final.zip
+    """
+    pattern = os.path.join(model_dir, f"{name_prefix}_*_steps.zip")
+    best = pick_latest_checkpoint(glob.glob(pattern))
+    if best:
+        return best[:-4]
+
+    final = os.path.join(model_dir, f"{name_prefix}_final.zip")
+    if os.path.isfile(final):
+        return final[:-4]
+
+    return None

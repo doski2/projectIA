@@ -24,6 +24,7 @@ class TrainingSettings:
     car: str = "formula_rookie"
     track: str = "sugo"
     model_path: str = ""
+    fresh_start: bool = False
     save_freq: int = 10_000
     seed: int = 42
     mode_id: str = "basico"

@@ -9,6 +9,8 @@ panel en mitad de una sesión larga.
 
 import os
 
+import pytest
+
 import monitor
 from monitor import (
     sfloat,
@@ -17,6 +19,9 @@ from monitor import (
     sparkline,
     find_latest_csv,
     read_rows,
+    format_duration,
+    average_fps,
+    compute_time_estimate,
     ARROW_UP,
     ARROW_DOWN,
     ARROW_SAME,
@@ -113,6 +118,55 @@ def test_read_rows_parses_header_and_rows(tmp_path):
 
 def test_find_latest_csv_none_when_empty(tmp_path):
     assert find_latest_csv(str(tmp_path)) is None
+
+
+def test_format_duration():
+    assert format_duration(45) == "45s"
+    assert format_duration(125) == "2m 05s"
+    assert format_duration(3725) == "1h 02m"
+
+
+def test_average_fps_ignores_zeros():
+    rows = [{"fps": "4"}, {"fps": "0"}, {"fps": "8"}]
+    assert average_fps(rows) == 6.0
+
+
+def test_compute_time_estimate_with_target():
+    est = compute_time_estimate(10_000, 150_000, fps=4.0)
+    assert est["remaining"] == 140_000
+    assert est["pct"] == pytest.approx(100 * 10_000 / 150_000)
+    assert est["eta_sec"] == 35_000
+    assert est["eta_label"] == "9h 43m"
+
+
+def test_compute_time_estimate_completed():
+    est = compute_time_estimate(150_000, 150_000, fps=4.0)
+    assert est["remaining"] == 0
+    assert est["eta_label"] == "completado"
+
+
+def test_compute_time_estimate_overshot():
+    est = compute_time_estimate(160_000, 150_000, fps=4.0)
+    assert est["remaining"] == 0
+    assert est["eta_label"] == "superado (+10,000)"
+
+
+def test_find_latest_csv_skips_archive(tmp_path):
+    active = os.path.join(str(tmp_path), "formula_rookie__sugo", "metricas.csv")
+    archive = os.path.join(
+        str(tmp_path), "formula_rookie__sugo_archive_2026", "metricas.csv",
+    )
+    os.makedirs(os.path.dirname(active))
+    os.makedirs(os.path.dirname(archive))
+    with open(active, "w") as f:
+        f.write("x\n")
+    with open(archive, "w") as f:
+        f.write("x\n")
+    import time
+    time.sleep(0.05)
+    with open(archive, "a") as f:
+        f.write("y\n")
+    assert find_latest_csv(str(tmp_path)) == active
 
 
 def test_find_latest_csv_picks_most_recent(tmp_path):

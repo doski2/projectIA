@@ -14,9 +14,12 @@ Uso:
 import argparse
 import csv
 import glob
+import json
+import math
 import os
 import sys
 import time
+from datetime import datetime, timedelta
 from typing import List, Optional, Tuple
 
 from rich import box
@@ -43,11 +46,25 @@ BLOCKS = " ▁▂▃▄▅▆▇█"
 # ---------------------------------------------------------------------------
 
 def find_latest_csv(logs_dir: str = "logs") -> Optional[str]:
+    """CSV activo más reciente; ignora carpetas *_archive_*."""
     pattern = os.path.join(logs_dir, "**", "metricas.csv")
     files   = glob.glob(pattern, recursive=True)
+    files   = [f for f in files if "_archive_" not in f.replace("\\", "/")]
     if not files:
         return None
     return max(files, key=os.path.getmtime)
+
+
+def load_timesteps_from_settings(project_dir: str) -> Optional[int]:
+    """Lee el objetivo de pasos desde v2/user_settings.json (GUI)."""
+    path = os.path.join(project_dir, "v2", "user_settings.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        ts = int(data.get("timesteps", 0))
+        return ts if ts > 0 else None
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -134,11 +151,111 @@ def health_tag(value: float, lo: float, hi: float) -> Text:
     return Text(" ✗", style="red")
 
 
+def format_duration(seconds: float) -> str:
+    """Formatea segundos como duración legible (ej. 6h 12m)."""
+    if not math.isfinite(seconds) or seconds < 0:
+        return "—"
+    total = int(seconds)
+    if total < 60:
+        return f"{total}s"
+    m, s = divmod(total, 60)
+    if m < 60:
+        return f"{m}m {s:02d}s"
+    h, m = divmod(m, 60)
+    if h < 48:
+        return f"{h}h {m:02d}m"
+    d, h = divmod(h, 24)
+    return f"{d}d {h}h"
+
+
+def average_fps(rows: List[dict], last_n: int = 5) -> float:
+    """Media de FPS de los últimos rollouts (más estable que una sola fila)."""
+    vals = [
+        sfloat(r.get("fps"))
+        for r in rows[-last_n:]
+        if sfloat(r.get("fps")) > 0
+    ]
+    if not vals:
+        return 0.0
+    return sum(vals) / len(vals)
+
+
+def compute_time_estimate(
+    steps: int,
+    target: Optional[int],
+    fps: float,
+) -> dict:
+    """
+    Estima progreso y tiempo restante hacia el total_timesteps de SB3.
+
+    Nota: con checkpoint, el objetivo es el --timesteps de la sesión actual
+    (total acumulado SB3), no «pasos extra».
+    """
+    if target is None or target <= 0:
+        return {
+            "pct": None,
+            "remaining": None,
+            "eta_sec": None,
+            "finish_at": None,
+            "eta_label": "— (usa --timesteps o GUI)",
+        }
+
+    remaining = max(0, target - steps)
+    pct = min(100.0, 100.0 * steps / target)
+
+    if remaining == 0:
+        label = f"superado (+{steps - target:,})" if steps > target else "completado"
+        return {
+            "pct": 100.0,
+            "remaining": 0,
+            "eta_sec": 0.0,
+            "finish_at": datetime.now(),
+            "eta_label": label,
+        }
+
+    if fps <= 0:
+        return {
+            "pct": pct,
+            "remaining": remaining,
+            "eta_sec": None,
+            "finish_at": None,
+            "eta_label": "calculando…",
+        }
+
+    eta_sec = remaining / fps
+    finish_at = datetime.now() + timedelta(seconds=eta_sec)
+    return {
+        "pct": pct,
+        "remaining": remaining,
+        "eta_sec": eta_sec,
+        "finish_at": finish_at,
+        "eta_label": format_duration(eta_sec),
+    }
+
+
+def progress_bar(pct: float, width: int = 40, style: str = "cyan") -> Text:
+    """Barra de progreso 0–100 %."""
+    pct = max(0.0, min(100.0, pct))
+    filled = int(width * pct / 100)
+    bar = Text()
+    bar.append("[", style="dim")
+    bar.append("█" * filled, style=style)
+    bar.append("░" * (width - filled), style="dim")
+    bar.append(f"] {pct:.0f}%", style="dim")
+    return bar
+
+
 # ---------------------------------------------------------------------------
 # Construcción del panel rich
 # ---------------------------------------------------------------------------
 
-def build_panel(rows: List[dict], csv_path: str, refresh_sec: int, elapsed: int) -> Panel:
+def build_panel(
+    rows: List[dict],
+    csv_path: str,
+    refresh_sec: int,
+    elapsed: int,
+    target_timesteps: Optional[int] = None,
+) -> Panel:
     if not rows:
         # Mostrar info de espera con estado del archivo
         try:
@@ -150,7 +267,14 @@ def build_panel(rows: List[dict], csv_path: str, refresh_sec: int, elapsed: int)
         msg = Text()
         msg.append("Esperando primer rollout (2048 steps)...\n", style="yellow")
         msg.append("  El CSV se escribe cada 2048 pasos, no por episodio.\n", style="dim")
-        msg.append(f"  {file_info}", style="dim cyan")
+        msg.append(f"  {file_info}\n", style="dim cyan")
+        if target_timesteps:
+            est = compute_time_estimate(0, target_timesteps, 4.0)
+            msg.append(
+                f"  Objetivo: {target_timesteps:,} pasos · "
+                f"~{est['eta_label']} a 4 FPS · ~{format_duration(target_timesteps / 20)} a 20 FPS",
+                style="dim",
+            )
         return Panel(
             msg,
             title="[bold]PCARS2-AI · Monitor[/bold]",
@@ -197,6 +321,16 @@ def build_panel(rows: List[dict], csv_path: str, refresh_sec: int, elapsed: int)
     arr_kl,   col_kl   = trend(kl,       p("approx_kl"),          higher_better=False)
     arr_clip, col_clip = trend(clip_fr,  p("clip_fraction"),      higher_better=False)
 
+    avg_fps   = average_fps(rows)
+    time_est  = compute_time_estimate(steps, target_timesteps, avg_fps)
+    fps_label = f"{avg_fps:.1f}" if avg_fps > 0 else f"{fps:.0f}"
+    finish_lbl = (
+        time_est["finish_at"].strftime("%H:%M")
+        if time_est.get("finish_at") is not None
+        else "—"
+    )
+    refresh_lbl = f"{refresh_sec - (elapsed % refresh_sec)}s"
+
     # ── Tabla: resumen superior ────────────────────────────────────────────
     header = Table(box=None, show_header=False, padding=(0, 1))
     header.add_column(style="dim")
@@ -205,16 +339,34 @@ def build_panel(rows: List[dict], csv_path: str, refresh_sec: int, elapsed: int)
     header.add_column(style="bold cyan")
     header.add_column(style="dim")
     header.add_column(style="bold cyan")
-    header.add_row(
-        "Pasos:", f"{steps:,}",
-        "Iteración:", str(iters),
-        "FPS:", f"{fps:.0f}",
-    )
-    header.add_row(
-        "Última actualización:", ts,
-        "Actualizaciones red:", str(n_upd),
-        "Próximo refresco:", f"{refresh_sec - (elapsed % refresh_sec)}s",
-    )
+    if target_timesteps:
+        rem_lbl = f"{time_est['remaining']:,}" if time_est["remaining"] is not None else "—"
+        header.add_row(
+            "Pasos:", f"{steps:,}",
+            "Iteración:", str(iters),
+            "FPS (media):", fps_label,
+        )
+        header.add_row(
+            "Objetivo:", f"{target_timesteps:,}",
+            "Restantes:", rem_lbl,
+            "Tiempo restante:", time_est["eta_label"],
+        )
+        header.add_row(
+            "Fin estimado:", finish_lbl,
+            "Última actualización:", ts,
+            "Próximo refresco:", refresh_lbl,
+        )
+    else:
+        header.add_row(
+            "Pasos:", f"{steps:,}",
+            "Iteración:", str(iters),
+            "FPS (media):", fps_label,
+        )
+        header.add_row(
+            "Última actualización:", ts,
+            "Actualizaciones red:", str(n_upd),
+            "Próximo refresco:", refresh_lbl,
+        )
 
     # ── Tabla izquierda: episodio ──────────────────────────────────────────
     t_ep = Table(title="[bold]EPISODIO[/bold]", box=box.SIMPLE, expand=True)
@@ -317,29 +469,33 @@ def build_panel(rows: List[dict], csv_path: str, refresh_sec: int, elapsed: int)
     spark_text.append_text(spark)
     spark_text.append(f" {last_val}", style="bold green" if history[-1] > history[0] else "bold red")
 
-    # ── Barra de progreso hacia 0 ──────────────────────────────────────────
-    if history:
-        best  = max(history)
-        worst = min(history)
-        span  = abs(worst) if worst < 0 else 1.0
-        pct   = min(100, int((1.0 - abs(best) / span) * 100)) if span > 0 else 0
-        pct   = max(0, pct)
-        bar_w = 40
-        filled = int(bar_w * pct / 100)
-        bar_text = Text()
-        bar_text.append("[", style="dim")
-        bar_text.append("█" * filled, style="green")
-        bar_text.append("░" * (bar_w - filled), style="dim")
-        bar_text.append(f"] {pct}%", style="dim")
+    # ── Barra de progreso de pasos ─────────────────────────────────────────
+    if time_est["pct"] is not None:
+        steps_bar = progress_bar(time_est["pct"], width=50, style="bright_cyan")
+        overnight = (
+            time_est.get("eta_sec") is not None and time_est["eta_sec"] > 8 * 3600
+        )
+        steps_hint = Text()
+        if time_est["remaining"] == 0:
+            steps_hint.append(
+                f"  Objetivo de pasos: {time_est['eta_label']}.",
+                style="green",
+            )
+        elif overnight:
+            steps_hint.append("  ETA > 8 h — puedes dejarlo toda la noche.", style="yellow")
+        elif time_est.get("eta_sec") is not None and time_est["eta_sec"] < 3600:
+            steps_hint.append("  ETA < 1 h — puedes quedarte cerca.", style="dim")
     else:
-        bar_text = Text("Sin datos", style="dim")
+        steps_bar = Text("  Indica --timesteps 150000 (o abre Monitor desde la GUI)", style="dim")
+        steps_hint = Text()
 
     # ── Composición final ─────────────────────────────────────────────────
     layout = Layout()
+    header_rows = 3 if target_timesteps else 2
     layout.split_column(
-        Layout(name="header",  size=3),
+        Layout(name="header",  size=header_rows),
         Layout(name="tables",  size=16),
-        Layout(name="spark",   size=4),
+        Layout(name="spark",   size=5),
     )
     layout["tables"].split_row(
         Layout(name="ep"),
@@ -351,11 +507,16 @@ def build_panel(rows: List[dict], csv_path: str, refresh_sec: int, elapsed: int)
 
     spark_panel = Table(box=None, show_header=False, padding=(0, 0))
     spark_panel.add_column()
+    spark_panel.add_row(Text(" Progreso de pasos (timesteps SB3):", style="dim"))
+    spark_panel.add_row(steps_bar)
+    spark_panel.add_row(steps_hint)
     spark_panel.add_row(
-        Text(" Historial recompensa (ep_rew_mean):", style="dim")
+        Text(" Tendencia reward (aprox.) — no es progreso de pasos:", style="dim")
     )
     spark_panel.add_row(spark_text)
-    spark_panel.add_row(bar_text)
+    spark_panel.add_row(
+        Text("  Mini-gráfico ep_rew_mean; escala distinta entre modos (básicos vs completo).", style="dim italic")
+    )
 
     layout["spark"].update(spark_panel)
 
@@ -372,7 +533,11 @@ def build_panel(rows: List[dict], csv_path: str, refresh_sec: int, elapsed: int)
 # Bucle principal
 # ---------------------------------------------------------------------------
 
-def run(csv_path: str, refresh_sec: int) -> None:
+def run(
+    csv_path: str,
+    refresh_sec: int,
+    target_timesteps: Optional[int] = None,
+) -> None:
     console   = Console()
     start     = time.time()
     rows      = read_rows(csv_path)
@@ -385,7 +550,9 @@ def run(csv_path: str, refresh_sec: int) -> None:
                 rows      = read_rows(csv_path)
                 last_read = now
             elapsed = int(now - start)
-            panel   = build_panel(rows, csv_path, refresh_sec, elapsed)
+            panel   = build_panel(
+                rows, csv_path, refresh_sec, elapsed, target_timesteps,
+            )
             live.update(panel)
             time.sleep(1)
 
@@ -411,16 +578,23 @@ def main() -> None:
         metavar="SEGUNDOS",
         help="Intervalo de actualización en segundos (defecto: 20)",
     )
+    parser.add_argument(
+        "--timesteps", "-t",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Objetivo total de pasos SB3 (defecto: v2/user_settings.json o sin ETA)",
+    )
     args = parser.parse_args()
+
+    script_dir  = os.path.dirname(os.path.abspath(__file__))
+    project_dir = os.path.dirname(script_dir)
 
     # Determinar ruta del CSV
     csv_path = args.csv
     if csv_path is None:
-        # Buscar relativo a la carpeta del proyecto (un nivel arriba de src/)
-        script_dir  = os.path.dirname(os.path.abspath(__file__))
-        project_dir = os.path.dirname(script_dir)
-        logs_dir    = os.path.join(project_dir, "logs")
-        csv_path    = find_latest_csv(logs_dir)
+        logs_dir = os.path.join(project_dir, "logs")
+        csv_path = find_latest_csv(logs_dir)
         if csv_path is None:
             print("[monitor] No se encontró ningún metricas.csv en logs/")
             print("          Usa: python src/monitor.py <ruta/metricas.csv>")
@@ -431,11 +605,19 @@ def main() -> None:
         print(f"[monitor] Archivo no encontrado: {csv_path}")
         sys.exit(1)
 
+    target = args.timesteps
+    if target is None:
+        target = load_timesteps_from_settings(project_dir)
+    if target:
+        print(f"[monitor] Objetivo de pasos: {target:,}")
+    else:
+        print("[monitor] Sin --timesteps: no se mostrará ETA (usa GUI o -t 150000)")
+
     print(f"[monitor] Iniciando dashboard (refresco cada {args.refresh}s) — Ctrl+C para salir")
     time.sleep(0.5)
 
     try:
-        run(csv_path, args.refresh)
+        run(csv_path, args.refresh, target)
     except KeyboardInterrupt:
         print("\n[monitor] Saliendo.")
 

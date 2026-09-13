@@ -10,9 +10,9 @@ mando virtual DS4.
 Flujo de un step():
   1. El agente elige una acción (throttle, brake, steering).
   2. El controlador envía esa acción al mando virtual.
-  3. El entorno espera el siguiente paquete UDP del juego.
-  4. Se calcula la observación y la recompensa.
-  5. Se detecta si el episodio ha terminado (salida de pista, vuelta completa).
+  3. Se drena el backlog UDP y se espera un CAR_PHYSICS nuevo (no timeout falso).
+  4. Se calcula la observación y la recompensa (solo tras frame de física).
+  5. Se detecta si el episodio ha terminado.
 
 Uso:
     from environment import PCARS2Env
@@ -110,7 +110,7 @@ SPEED_TARGET_TOL_KMH  = 10.0
 SPEED_TARGET_STEP_KMH = 5.0
 
 # Detección de coche sin progreso (cubre marcha atrás, box y atasco lento)
-# El coche debe avanzar al menos NO_PROGRESS_DIST_M metros en NO_PROGRESS_STEPS steps
+# Debe avanzar al menos NO_PROGRESS_DIST_M metros en NO_PROGRESS_TIME_S (vía GAME_FPS)
 NO_PROGRESS_DIST_M  = 10.0
 NO_PROGRESS_TIME_S  = 12.0
 # Con curriculum el agente suele ir fuera de línea: dar más margen antes de cortar.
@@ -292,8 +292,10 @@ class PCARS2Env(gym.Env):
         self._progress_step:     int   = 0       # step del último progreso
         self._prev_check_lap:    int   = -1      # vuelta en el último check de progreso
         self._wrongway_steps:    int   = 0       # contador de steps en sentido contrario
+        self._physics_anchor:     Optional[tuple] = None  # clave del último frame aceptado
+        self._udp_stats = self._fresh_udp_stats()
 
-        # Umbrales en frames de juego (step() incrementa _step_count por frame UDP).
+        # Umbrales en frames de juego (_step_count solo avanza con CAR_PHYSICS nuevo).
         _stuck_time = STUCK_TIME_BASICS_S if self._basics else STUCK_TIME_S
         self._stuck_speed_ms = STUCK_SPEED_BASICS_MS if self._basics else STUCK_SPEED_MS
         self._stuck_max_steps = termination_frame_count(_stuck_time)
@@ -305,6 +307,32 @@ class PCARS2Env(gym.Env):
         self._no_progress_max_steps = termination_frame_count(_no_progress_time)
         self._wrongway_max_steps = termination_frame_count(WRONGWAY_TIME_S)
         self._wrongway_finish_steps = max(1, termination_frame_count(WRONGWAY_NEAR_FINISH_S))
+
+    @staticmethod
+    def _fresh_udp_stats() -> dict:
+        return {
+            "physics_frames":  0,
+            "backlog_dropped": 0,
+            "other_packets":   0,
+            "timeouts":        0,
+        }
+
+    def udp_stats_snapshot(self) -> dict:
+        """Contadores UDP del rollout actual (para metricas.csv)."""
+        return dict(self._udp_stats)
+
+    def udp_stats_reset(self) -> None:
+        self._udp_stats = self._fresh_udp_stats()
+
+    @staticmethod
+    def _physics_key(frame: TelemetryFrame) -> tuple:
+        """Identidad ligera de un frame de física (detecta duplicados en cola UDP)."""
+        return (
+            round(frame.speed, 2),
+            round(frame.position[0], 1),
+            round(frame.position[1], 1),
+            round(frame.position[2], 1),
+        )
 
     # ------------------------------------------------------------------
     # Gymnasium API
@@ -363,6 +391,7 @@ class PCARS2Env(gym.Env):
         self._step_count         = 0
         self._ep_reward          = 0.0
         self._episode           += 1
+        self._physics_anchor     = None
 
         # Sincronizar hasta tener un frame de telemetría y timings válidos
         self._last_telem   = None
@@ -377,7 +406,9 @@ class PCARS2Env(gym.Env):
         _warned = False
         _t0 = time.monotonic()
         while self._last_telem is None or self._last_timings is None:
-            self._poll_udp()
+            self._ingest_pending_packets()
+            if self._last_telem is None or self._last_timings is None:
+                self._recv_blocking_packet()
             if not _warned and time.monotonic() - _t0 > 10:
                 print("[Env] Sin datos UDP tras 10s. Comprueba la config del juego.")
                 _warned = True
@@ -390,8 +421,12 @@ class PCARS2Env(gym.Env):
             for _ in range(self._warmup_steps):
                 self._controller.apply_action(1.0, 0.0, 0.0)
                 self._auto_shift(1.0, 0.0)
-                self._poll_udp()
+                self._sync_physics_frame()
 
+        self._physics_anchor = (
+            self._physics_key(self._last_telem)
+            if self._last_telem is not None else None
+        )
         self._start_lap = self._last_timings.current_lap
         obs = self._build_obs()
         return obs, {}
@@ -433,8 +468,10 @@ class PCARS2Env(gym.Env):
             self._controller.apply_action(throttle, brake, steering)
             self._auto_shift(throttle, brake)
 
-            # 2. Leer el siguiente estado del juego
-            self._poll_udp()
+            # 2. Esperar un frame CAR_PHYSICS nuevo (no contar timeouts como frame)
+            if not self._sync_physics_frame():
+                break
+
             self._step_count += 1
 
             # 3. Calcular recompensa
@@ -808,25 +845,93 @@ class PCARS2Env(gym.Env):
     # Polling UDP
     # ------------------------------------------------------------------
 
-    def _poll_udp(self):
-        """Lee paquetes UDP hasta tener telemetría y timings actualizados."""
-        viewed_idx = (
-            self._last_telem.viewed_participant_index
-            if self._last_telem is not None
-            else None
-        )
-        ptype, packet = self._listener.recv(
-            timeout      = self._udp_timeout,
-            viewed_index = viewed_idx,
-        )
+    def _viewed_index(self) -> Optional[int]:
+        if self._last_telem is not None:
+            return self._last_telem.viewed_participant_index
+        return None
+
+    def _apply_packet(self, ptype: int, packet) -> str:
+        """Actualiza estado interno. Devuelve 'physics', 'timings' u 'other'."""
         if ptype == PACKET_CAR_PHYSICS and packet is not None:
             self._last_telem = packet  # type: ignore[assignment]
-        elif ptype == PACKET_TIMINGS and packet is not None:
+            return "physics"
+        if ptype == PACKET_TIMINGS and packet is not None:
             self._last_timings = packet  # type: ignore[assignment]
-        elif ptype == PACKET_RACE_DEF and packet is not None:
+            return "timings"
+        if ptype == PACKET_RACE_DEF and packet is not None:
             self._race_data = packet  # type: ignore[assignment]
         elif ptype == PACKET_VEHICLE_NAMES and packet is not None:
             self._vehicle_info = packet  # type: ignore[assignment]
+        return "other"
+
+    def _ingest_pending_packets(self) -> None:
+        """Drena la cola UDP y deja telemetría/timings al día (sin avanzar step_count)."""
+        viewed_idx = self._viewed_index()
+        pending = self._listener.drain(viewed_index=viewed_idx)
+        physics_seen = 0
+        for ptype, packet in pending:
+            kind = self._apply_packet(ptype, packet)
+            if kind == "physics":
+                physics_seen += 1
+            elif kind == "other":
+                self._udp_stats["other_packets"] += 1
+        if physics_seen > 1:
+            self._udp_stats["backlog_dropped"] += physics_seen - 1
+        if self._last_telem is not None:
+            self._physics_anchor = self._physics_key(self._last_telem)
+
+    def _recv_blocking_packet(self) -> None:
+        """Un recv con timeout (arranque / combo cuando el socket está vacío)."""
+        ptype, packet = self._listener.recv(
+            timeout=self._udp_timeout,
+            viewed_index=self._viewed_index(),
+        )
+        if ptype is None:
+            return
+        kind = self._apply_packet(ptype, packet)
+        if kind == "other":
+            self._udp_stats["other_packets"] += 1
+
+    def _sync_physics_frame(self) -> bool:
+        """
+        Espera un paquete CAR_PHYSICS nuevo respecto al último frame aceptado.
+
+        1. Drena backlog (colapsa ráfagas de paquetes viejos en el socket).
+        2. Bloquea hasta recibir física con posición/velocidad distinta (nuevo tick).
+        3. Devuelve False si expira udp_timeout sin frame nuevo.
+        """
+        self._ingest_pending_packets()
+        anchor = self._physics_anchor
+        viewed_idx = self._viewed_index()
+        deadline = time.monotonic() + self._udp_timeout
+
+        while time.monotonic() < deadline:
+            remaining = deadline - time.monotonic()
+            ptype, packet = self._listener.recv(
+                timeout=max(remaining, 0.001),
+                viewed_index=viewed_idx,
+            )
+            if ptype is None:
+                break
+
+            kind = self._apply_packet(ptype, packet)
+            if kind == "timings":
+                continue
+            if kind == "other":
+                self._udp_stats["other_packets"] += 1
+                continue
+
+            key = self._physics_key(packet)  # type: ignore[arg-type]
+            if anchor is not None and key == anchor:
+                self._udp_stats["backlog_dropped"] += 1
+                continue
+
+            self._physics_anchor = key
+            self._udp_stats["physics_frames"] += 1
+            return True
+
+        self._udp_stats["timeouts"] += 1
+        return False
 
     # ------------------------------------------------------------------
     # Detección automática de combo coche+pista
@@ -871,7 +976,9 @@ class PCARS2Env(gym.Env):
         )
         t0 = time.monotonic()
         while time.monotonic() - t0 < timeout:
-            self._poll_udp()
+            self._ingest_pending_packets()
+            if self._race_data is None or self._vehicle_info is None:
+                self._recv_blocking_packet()
             cid = self.combo_id
             if cid is not None and self._vehicle_info is not None:
                 print(f"[Env] Combo detectado: {cid}")

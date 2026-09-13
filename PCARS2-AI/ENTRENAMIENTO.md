@@ -2,7 +2,7 @@
 
 Documentación operativa: modos, comandos, logs, revisión de sesiones y flujo supervisado.
 
-**Última actualización:** 2026-08-13
+**Última actualización:** 2026-09-13
 
 ---
 
@@ -53,13 +53,24 @@ Solo cuando mantenga **35+ km/h en línea** de forma habitual. Modo **Completo**
 
 ## Comandos
 
+### Archivar sesión anterior y empezar desde 0
+
+```bat
+archivar_sesion.bat
+```
+
+Mueve `models/formula_rookie__sugo/` y `logs/formula_rookie__sugo/` a carpetas `*_archive_FECHA/`.
+También archiva `models/pretrained.zip` si existe.
+
 ### Entrenamiento — Básicos desde cero (recomendado ahora)
 
 ```bat
-entrenar.bat src\refs\sugo_ai.json 150000 --frame-skip 4 --warmup-steps 30 --basics --speed-target-kmh 20
+entrenar.bat src\refs\sugo_ai.json 150000 --frame-skip 4 --warmup-steps 30 --basics --speed-target-kmh 20 --fresh
 ```
 
-- **Sin** `--model` (política nueva; no cargar checkpoints de curriculum).
+- **Sin** `--model` y con **`--fresh`** (política nueva; no carga checkpoints ni pretrained).
+- En la GUI: marca **Desde cero (--fresh)**. Sin marcar y sin checkpoint → auto-reanuda (max steps → _final).
+- **Último** desmarca “Desde cero” y rellena el checkpoint con más pasos.
 - **Sin** `--curriculum` (usar `--basics`).
 - En básicos, `stuck` es más permisivo: < 1.4 km/h durante ~15 s (vs 3.6 km/h / 8 s en modo completo).
 - **100k–150k** pasos por sesión supervisada (no 500k de golpe).
@@ -92,7 +103,8 @@ La configuración se guarda en `v2/user_settings.json`.
 monitor.bat
 ```
 
-Desde la GUI: botones **Monitor** y **TensorBoard**.
+Desde la GUI: botones **Monitor** y **TensorBoard**. El monitor muestra **ETA** y barra de pasos si
+indicas `--timesteps` (la GUI lo pasa automáticamente). Ver [Planificar pasos y tiempo](#planificar-pasos-y-tiempo).
 
 TensorBoard (opcional):
 
@@ -249,6 +261,136 @@ PCARS2-AI/
 4. Al terminar: revisar metricas.csv
 5. Decidir: +100k | subir a 25 km/h | ajustar código
 ```
+
+---
+
+## Flujo de datos y UDP (cuello de botella)
+
+El entrenamiento es **síncrono** con PCARS2: PPO no avanza más rápido que el juego.
+
+```text
+PPO → mando virtual (ViGEm) → PCARS2 → UDP :5606 → environment → reward/obs → PPO
+```
+
+### Qué hace el entorno (desde 2026-09-13)
+
+1. **Drena** la cola UDP (`drain`) para no consumir paquetes viejos en ráfaga.
+2. **Espera** un `CAR_PHYSICS` con posición/velocidad distinta al último frame aceptado.
+3. Solo entonces incrementa `_step_count` (contadores `stuck` / `no_progress`).
+
+Así el FPS del CSV refleja **pasos PPO reales**, no timeouts ni backlog del socket.
+
+### Métricas UDP en `metricas.csv`
+
+| Columna | Interpretación |
+| ------- | -------------- |
+| `udp_physics` | Frames de física aceptados en el rollout |
+| `pct_udp_timeout` | Alto → juego en pausa, menú, o sin UDP |
+| `pct_udp_backlog` | Alto → antes había cola UDP (FPS artificialmente alto) |
+
+### `frame_skip`
+
+| Valor | Efecto |
+| ----- | ------ |
+| **4** (defecto GUI) | Más estable; ~6 pasos PPO/s con juego a 25 Hz |
+| **2** | 2× pasos/hora; volante más reactivo; prueba si CTE oscila |
+
+### FPS esperado
+
+No confundir con rendimiento GPU. Con `frame_skip=4` y juego a ~25 Hz:
+
+```text
+FPS_monitor ≈ 25 / frame_skip ≈ 6 pasos PPO por segundo
+```
+
+Si ves **FPS >> 8** con `frame_skip=4`, revisa `pct_udp_backlog` (cola UDP). Si **FPS < 3**
+y `pct_udp_timeout` alto, el juego no está enviando telemetría (pausa, menú, alt-tab).
+
+---
+
+## Planificar pasos y tiempo
+
+El campo **Pasos (timesteps)** en la GUI y el flag `--timesteps` de `main.py` son el **total
+acumulado de SB3**, no «pasos extra de esta tanda».
+
+| Situación | Qué poner en GUI |
+| --------- | ---------------- |
+| Primera sesión desde 0 | `150000` = entrena hasta 150k y para |
+| Continuar sin checkpoint manual | Pasos **totales** deseados (ej. `450000`); desmarca **Desde cero** |
+| Continuar con `--model` | El contador sigue desde el checkpoint; el objetivo sigue siendo el **total** |
+
+El monitor calcula: `restantes = objetivo − total_timesteps` del CSV y `ETA = restantes / FPS_medio`.
+
+### Fórmula rápida
+
+```text
+timesteps_objetivo = pasos_actuales + (horas × 3600 × FPS_esperado)
+```
+
+Usa el **FPS medio** del monitor (últimos rollouts). Con `frame_skip=4` suele ser **4–6**;
+para planificar usa **5** (conservador) o mira `udp_physics` en el CSV.
+
+### Tabla de referencia (pasos que caben en X horas)
+
+| Horas | @ 15 FPS | @ 18 FPS | @ 20 FPS | @ 24 FPS |
+| ----- | -------- | -------- | -------- | -------- |
+| 2 h   | 108k     | 130k     | 144k     | 173k     |
+| 6 h   | 324k     | 389k     | 432k     | 518k     |
+| 8 h   | 432k     | 518k     | 576k     | 691k     |
+| 10 h  | 540k     | 648k     | 720k     | 864k     |
+| 15 h  | 810k     | 972k     | 1,08 M   | 1,30 M   |
+| 23 h  | 1,24 M   | 1,49 M   | 1,66 M   | 1,99 M   |
+
+### Ejemplo: revisión a las 9:00 (sesión de ~6 h)
+
+Supón que empiezas o continúas con ~**40k** pasos y el FPS medio es ~**20**:
+
+```text
+6 h 20 min ≈ 22 800 s × 20 FPS ≈ 456 000 pasos más
+40 000 + 456 000 ≈ 496 000 → redondea a 450 000–500 000
+```
+
+| Objetivo GUI | FPS ~ | Termina ~ |
+| ------------ | ----- | --------- |
+| **450 000**  | 18    | 8:45–9:00 |
+| **480 000**  | 20    | 9:00–9:15 |
+| **400 000**  | 15    | ~8:30     |
+
+**Recomendación habitual:** `450 000` si el monitor marca 17–22 FPS.
+
+### Ejemplo: dejarlo toda la noche (tras revisar por la mañana)
+
+Tras la revisión, mira el último `total_timesteps` del CSV (ej. ~450k a las 9:00). La nueva meta
+es **ese número + pasos de la noche**:
+
+| Hasta… (aprox.) | Horas desde 9:00 | Pasos extra @ 18 FPS | Si acabas en ~450k → pon |
+| --------------- | ---------------- | -------------------- | ------------------------ |
+| Medianoche      | 15 h             | ~972k                | **1 420 000**            |
+| 07:00           | 22 h             | ~1,43 M              | **1 880 000**            |
+| 08:00           | 23 h             | ~1,49 M              | **1 950 000**            |
+
+**Recomendación nocturna (hasta ~8:00):** `2 000 000` total — redondo y con margen si baja el FPS.
+
+### Checklist antes de dejar el PC
+
+1. **Desde cero** desmarcado si quieres continuar (checkpoint vacío = auto-reanuda el último `*_steps.zip`).
+2. **Pasos** = total objetivo calculado arriba (no solo los de la noche).
+3. **save_freq** 10 000 (defecto GUI) → checkpoint cada ~8–10 min a 20 FPS.
+4. PCARS2 en pista; **Monitor** abierto (ETA y barra de pasos).
+5. Anota la hora de inicio y el objetivo para comparar al volver.
+
+### Qué decidir en la revisión (ej. 9:00)
+
+Mira `metricas.csv` (últimas filas) y `pct_stuck`, `avg_speed_kmh`, `ep_len_mean`:
+
+| Señal | Acción |
+| ----- | ------ |
+| `pct_stuck` < 50%, speed ~15–25 km/h, `ep_len_mean` sube | Seguir: nueva meta (ej. +150k o noche con `2 000 000`) |
+| `pct_stuck` > 80% tras 50k+ sin mejora | Parar: grabar IA (`reference_recorder --source ai`) + `pretrain.bat`, luego RL **sin** `--fresh` |
+| Regresión clara (speed cae, stuck sube) | Cargar checkpoint **anterior** con mejor `avg_speed`, no el último |
+
+Los criterios detallados de Fase 0 están en [Señales en modo Básicos](#señales-en-modo-básicos-20-kmh)
+y en [METRICAS.md](METRICAS.md).
 
 ---
 

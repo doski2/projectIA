@@ -52,8 +52,11 @@ Referencia para interpretar `metricas.csv` y el monitor en consola.
 | `std`                  | Aleatoriedad acciones           | ~0.8–0.9 en curso; baja al madurar |
 | `approx_kl`            | Cambio de política              | < 0.02 ideal                       |
 | `clip_fraction`        | % recortes PPO                  | 5–20%                              |
-| `fps`                  | Pasos agente / segundo          | Depende del juego (~10–30)         |
+| `fps`                  | Pasos agente / segundo          | Con `frame_skip=4` y juego ~25 Hz: **~4–6** estable |
 | `total_timesteps`      | Pasos acumulados (contador SB3) | —                                  |
+| `udp_physics`          | Frames CAR_PHYSICS aceptados en el rollout | ≈ `2048 × frame_skip` si sin timeouts |
+| `pct_udp_timeout`      | % esperas UDP sin frame nuevo   | **< 5%** ideal; alto = juego pausado o desync |
+| `pct_udp_backlog`      | % física descartada por cola UDP | **< 10%** ideal; alto = ráfagas irreales (FPS inflado) |
 
 ---
 
@@ -62,6 +65,29 @@ Referencia para interpretar `metricas.csv` y el monitor en consola.
 Actualiza cada ~20 s. Muestra tendencias ▲▼ respecto al rollout anterior.
 
 Métricas destacadas: recompensa, duración, velocidad, distancia, terminaciones, salud PPO.
+
+**Tiempo estimado:** barra de **pasos** (timesteps SB3) + ETA según FPS medio de los últimos rollouts.
+El objetivo se toma de `--timesteps`, de `v2/user_settings.json` o de la GUI (botón Monitor).
+
+La línea inferior es solo **tendencia visual** de `ep_rew_mean` (no un % de entrenamiento).
+
+```bat
+monitor.bat --timesteps 450000
+```
+
+Con **`frame_skip=4`**, el techo teórico es ~**6 pasos/s** (juego 25 Hz ÷ 4). El FPS del CSV no es
+uso de GPU.
+
+| FPS medio | 150k pasos (desde 0) | 450k pasos (desde ~40k) |
+| --------- | -------------------- | ----------------------- |
+| 4         | ~10 h                | ~28 h                   |
+| 6         | ~7 h                 | ~19 h                   |
+| 8         | ~5 h                 | ~14 h                   |
+
+Si ETA > 8 h, el monitor avisa «dejar toda la noche».
+
+**Planificar cuántos pasos poner** (mañana, noche, fórmula): ver
+[ENTRENAMIENTO.md — Planificar pasos y tiempo](ENTRENAMIENTO.md#planificar-pasos-y-tiempo).
 
 ---
 
@@ -102,12 +128,18 @@ No comparar `ep_rew_mean` con sesiones curriculum antiguas (función de reward d
 
 ## Detectores de terminación (código)
 
-| Modo                 | `no_progress` ventana              |
-| -------------------- | ---------------------------------- |
-| Reward completa      | 12 s (~75 frames con frame_skip=4) |
-| Básicos / Curriculum | 30 s (~187 frames)                 |
+Contadores en **frames de juego** (25 fps); independientes de `frame_skip`.
 
-Ver `environment.py`: `GRACE_STEPS = 250` al inicio de episodio (sin penalizar off-track fuerte).
+| Regla | Modo completo | Básicos | Curriculum |
+| ----- | ------------- | ------- | ---------- |
+| `stuck` (speed < umbral) | < 3.6 km/h, 8 s (200 fr) | < 1.4 km/h, 15 s (375 fr) | igual que completo |
+| `no_progress` (+10 m) | 12 s (300 fr) | 30 s (750 fr) | 30 s (750 fr) |
+| `wrong_way` | heading > 160°, ~2 s | igual | igual |
+| `pit_box` | CTE > 20 m cerca meta | igual | igual |
+
+`GRACE_STEPS = 250` al inicio de episodio (sin cortes por stuck/no_progress/wrong_way).
+
+No hay terminación dura por CTE > 8 m: solo penalización en la reward.
 
 ---
 

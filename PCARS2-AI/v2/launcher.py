@@ -4,7 +4,6 @@ PCARS2-AI v2 — Construcción de comandos y lanzamiento de procesos.
 
 from __future__ import annotations
 
-import glob
 import json
 import os
 import subprocess
@@ -18,7 +17,7 @@ _SRC = Path(__file__).resolve().parent.parent / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-from checkpoints import pick_latest_checkpoint  # noqa: E402
+from checkpoints import resolve_combo_checkpoint  # noqa: E402
 
 
 def project_root() -> Path:
@@ -68,18 +67,7 @@ def find_latest_checkpoint(combo: str) -> Optional[str]:
     model_dir = project_root() / "models" / combo
     if not model_dir.is_dir():
         return None
-
-    pattern = str(model_dir / f"pcars2_{combo}_*_steps.zip")
-    checkpoints = glob.glob(pattern)
-    best = pick_latest_checkpoint(checkpoints)
-    if best:
-        return best[:-4]
-
-    final = model_dir / f"pcars2_{combo}_final.zip"
-    if final.is_file():
-        return str(final.with_suffix(""))
-
-    return None
+    return resolve_combo_checkpoint(str(model_dir), f"pcars2_{combo}")
 
 
 def build_argv(settings: TrainingSettings) -> List[str]:
@@ -119,6 +107,8 @@ def build_argv(settings: TrainingSettings) -> List[str]:
 
     if settings.model_path.strip():
         argv.extend(["--model", settings.model_path.strip()])
+    elif settings.fresh_start:
+        argv.append("--fresh")
 
     return argv
 
@@ -148,11 +138,20 @@ def launch_training(settings: TrainingSettings, new_console: bool = True) -> Non
     subprocess.Popen(argv, cwd=str(root), env=env)
 
 
-def launch_monitor(combo: str) -> None:
+def launch_monitor(settings: TrainingSettings) -> None:
     root = project_root()
     python = venv_python()
     monitor_py = root / "src" / "monitor.py"
-    argv = [str(python), str(monitor_py), "--refresh", "20"]
+    csv_path = root / "logs" / settings.combo() / "metricas.csv"
+    argv = [
+        str(python),
+        str(monitor_py),
+        "--refresh",
+        "20",
+        "--timesteps",
+        str(settings.timesteps),
+        str(csv_path),
+    ]
     if sys.platform == "win32":
         cmdline = subprocess.list2cmdline(argv)
         subprocess.Popen(

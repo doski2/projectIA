@@ -7,7 +7,8 @@
   "gamepad": "xbox",
   "car": "formula_rookie",
   "track": "sugo",
-  "model_path": "models/formula_rookie__sugo/pcars2_formula_rookie__sugo_300000_steps",
+  "model_path": "",
+  "fresh_start": true,
   "save_freq": 10000,
   "seed": 42,
   "mode_id": "basico"

@@ -28,7 +28,7 @@ def test_apply_mode_defaults():
     assert s.timesteps == 150_000
 
 
-def test_build_argv_basico():
+def test_build_argv_basico_fresh_explicit():
     s = TrainingSettings(
         mode_id="basico",
         reference="src/refs/sugo_ai.json",
@@ -36,22 +36,40 @@ def test_build_argv_basico():
         speed_target_kmh=20,
         frame_skip=4,
         warmup_steps=30,
+        fresh_start=True,
     )
     argv = build_argv(s)
     assert "--basics" in argv
     assert "--speed-target-kmh" in argv
     assert "20" in argv
     assert "--curriculum" not in argv
+    assert "--fresh" in argv
 
 
-def test_build_argv_with_model():
+def test_build_argv_without_model_and_no_fresh_auto_resumes():
+    s = TrainingSettings(mode_id="basico", model_path="", fresh_start=False)
+    argv = build_argv(s)
+    assert "--fresh" not in argv
+    assert "--model" not in argv
+
+
+def test_build_argv_fresh_when_checked():
+    s = TrainingSettings(mode_id="basico", model_path="", fresh_start=True)
+    argv = build_argv(s)
+    assert "--fresh" in argv
+    assert "--model" not in argv
+
+
+def test_build_argv_with_model_ignores_fresh():
     s = TrainingSettings(
         mode_id="basico",
         model_path="models/foo/pcars2_foo_1000_steps",
+        fresh_start=True,
     )
     argv = build_argv(s)
     assert "--model" in argv
     assert "models/foo/pcars2_foo_1000_steps" in argv
+    assert "--fresh" not in argv
 
 
 def test_find_latest_checkpoint_missing_dir():

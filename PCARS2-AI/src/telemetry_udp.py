@@ -6,6 +6,7 @@ Protocolo: SMS_UDP_Definitions.hpp  |  Puerto: 5606
 Referencia completa: pcars2_udp_data_reference.md
 """
 
+import errno
 import socket
 import struct
 from dataclasses import dataclass
@@ -385,13 +386,20 @@ class UDPListener:
           en lugar del jugador local. Imprescindible para grabar en
           práctica libre con la IA o en modo espectador en carrera.
 
-        Devuelve (packet_type: int, parsed_object) o (None, None).
+        Devuelve (packet_type: int, parsed_object) o (None, None) si timeout.
         """
-        self._sock.settimeout(timeout)
+        self._sock.settimeout(max(0.0, timeout))
         try:
             data, _ = self._sock.recvfrom(SMS_UDP_BUFFER_SIZE)
         except socket.timeout:
             return None, None
+        except (BlockingIOError, InterruptedError):
+            # Windows: timeout=0 → WinError 10035 en vez de socket.timeout
+            return None, None
+        except OSError as exc:
+            if exc.errno in (errno.EWOULDBLOCK, errno.EAGAIN):
+                return None, None
+            raise
 
         if len(data) < 11:
             return None, None
@@ -408,6 +416,21 @@ class UDPListener:
             return ptype, parse_vehicle_names(data, participant_index=0)
 
         return ptype, None
+
+    def drain(self, viewed_index: Optional[int] = None, max_packets: int = 256):
+        """
+        Lee todos los paquetes UDP pendientes sin bloquear (timeout 0).
+
+        Devuelve lista de (packet_type, parsed_object). Útil para colapsar
+        backlog antes de esperar el siguiente frame de física del juego.
+        """
+        out = []
+        for _ in range(max_packets):
+            ptype, packet = self.recv(timeout=0.0, viewed_index=viewed_index)
+            if ptype is None:
+                break
+            out.append((ptype, packet))
+        return out
 
     def close(self):
         self._sock.close()

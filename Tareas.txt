@@ -1,8 +1,10 @@
 =Fases — ver PCARS2-AI/ENTRENAMIENTO.md
 
-Fase 0 — Básicos (actual)
-  gui.bat → Básicos, 20 km/h, 100k, sin checkpoint
-  Log revisión: logs/formula_rookie__sugo/metricas.csv
+Fase 0 — Básicos desde 0 (LISTO PARA ARRANCAR)
+  1. archivar_sesion.bat  (ya ejecutado si moviste modelos/logs)
+  2. gui.bat → Básicos, 20 km/h, 150k, ☑ Desde cero
+  3. Sesiones siguientes: desmarcar Desde cero + Último (o auto-reanuda)
+  4. monitor.bat → logs/formula_rookie__sugo/metricas.csv
 
 Fase 1 — Subir velocidad (20 → 25 → 30 → 35 km/h)
 

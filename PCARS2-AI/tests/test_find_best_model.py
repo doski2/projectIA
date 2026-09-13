@@ -2,8 +2,8 @@
 Tests de la selección automática de checkpoint (`main._find_best_model`).
 
 Esta es la lógica que decide DESDE DÓNDE se continúa el entrenamiento:
-  1. modelo final del combo            → continuar
-  2. checkpoint más reciente del combo → continuar
+  1. checkpoint con más pasos del combo → continuar
+  2. modelo final del combo            → continuar
   3. modelo base (otro combo)          → transfer learning
   4. nada                               → entrenar desde cero (None)
 
@@ -28,7 +28,7 @@ def _touch(path: str):
         f.write("")
 
 
-def test_prefers_final_over_checkpoints(tmp_path):
+def test_prefers_max_steps_over_final(tmp_path):
     models_root = str(tmp_path)
     subdir = "formula_rookie__sugo"
     prefix = f"pcars2_{subdir}"
@@ -40,8 +40,8 @@ def test_prefers_final_over_checkpoints(tmp_path):
     result = _find_best_model(model_dir, prefix, models_root, subdir)
     assert result is not None
     assert result["mode"] == "continue"
-    assert result["path"].endswith(f"{prefix}_final")
-    assert not result["path"].endswith(".zip")  # SB3 no quiere extensión
+    assert result["path"].endswith(f"{prefix}_90000_steps")
+    assert not result["path"].endswith(".zip")
 
 
 def test_picks_latest_checkpoint_when_no_final(tmp_path):

@@ -24,7 +24,7 @@ import sys
 import glob
 import csv
 
-from checkpoints import pick_latest_checkpoint
+from checkpoints import pick_latest_checkpoint, resolve_combo_checkpoint
 import time as _time
 import torch
 from typing import Optional
@@ -55,6 +55,29 @@ def _reset_log_std(model, target_std: float = 0.8) -> None:
         pass  # Algunos tipos de política no tienen log_std separado
 
 
+def _create_ppo_from_scratch(env, tb_log):
+    """Nueva política PPO con la arquitectura estándar del proyecto."""
+    from stable_baselines3 import PPO
+
+    return PPO(
+        policy              = "MlpPolicy",
+        policy_kwargs       = dict(net_arch=[256, 256, 128]),
+        env                 = env,
+        learning_rate       = 1e-4,
+        n_steps             = 2048,
+        batch_size          = 64,
+        n_epochs            = 10,
+        gamma               = 0.99,
+        gae_lambda          = 0.95,
+        clip_range          = 0.2,
+        ent_coef            = 0.01,
+        vf_coef             = 1.5,
+        max_grad_norm       = 0.5,
+        verbose             = 1,
+        tensorboard_log     = tb_log,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Utilidad: buscar el mejor modelo disponible para un combo
 # ---------------------------------------------------------------------------
@@ -69,18 +92,11 @@ def _find_best_model(
     Busca el mejor punto de partida para el combo dado.
     Devuelve un dict {'path': str, 'mode': 'continue'|'transfer'} o None.
     """
-    # 1. Modelo final del combo
-    final = os.path.join(model_dir, f"{name_prefix}_final.zip")
-    if os.path.isfile(final):
-        return {"path": final[:-4], "mode": "continue"}   # SB3 no quiere .zip
+    combo_path = resolve_combo_checkpoint(model_dir, name_prefix)
+    if combo_path:
+        return {"path": combo_path, "mode": "continue"}
 
-    # 2. Checkpoint más reciente del combo (por número de pasos, no alfabético)
-    pattern = os.path.join(model_dir, f"{name_prefix}_*_steps.zip")
-    best = pick_latest_checkpoint(glob.glob(pattern))
-    if best:
-        return {"path": best[:-4], "mode": "continue"}
-
-    # 3. Transfer learning desde el base (solo si el combo no ES base)
+    # Transfer learning desde el base (solo si el combo no ES base)
     if subdir != "base":
         base_dir    = os.path.join(models_root, "base")
         base_final  = os.path.join(base_dir, "pcars2_base_final.zip")
@@ -223,6 +239,12 @@ def parse_args() -> argparse.Namespace:
         metavar="N",
         help="Semilla para reproducibilidad (NumPy + PyTorch).",
     )
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        default=False,
+        help="Nueva política PPO: no cargar checkpoints, _final ni pretrained.zip.",
+    )
     return parser.parse_args()
 
 
@@ -320,12 +342,10 @@ def train(args: argparse.Namespace) -> None:
 
     # ---- Crear o cargar modelo ----
     # Prioridad:
-    #   1. --model especificado manualmente → continuar ese modelo
-    #   2. --base-model especificado manualmente → transfer learning
-    #   3. Auto: modelo final del combo (models/{subdir}/pcars2_{subdir}_final)
-    #   4. Auto: checkpoint más reciente del combo
-    #   5. Auto: modelo base (models/base/...) → transfer learning
-    #   6. Desde cero
+    #   1. --model → continuar ese checkpoint
+    #   2. --base-model → transfer learning
+    #   3. --fresh → política nueva (sin auto-carga)
+    #   4. Auto: max steps del combo → _final → base → pretrained → cero
     if args.model:
         print(f"[main] Cargando modelo indicado: {args.model}")
         model = PPO.load(args.model, env=env, tensorboard_log=tb_log,
@@ -343,65 +363,50 @@ def train(args: argparse.Namespace) -> None:
         reset_num_timesteps = True
 
     else:
-        # Auto-búsqueda del mejor punto de partida
-        auto_model = _find_best_model(model_dir, name_prefix, args.model_dir, subdir)
-
-        if auto_model and auto_model["mode"] == "continue":
-            print(f"[main] Continuando desde: {auto_model['path']}")
-            model = PPO.load(auto_model["path"], env=env, tensorboard_log=tb_log,
-                             custom_objects={'learning_rate': 1e-4, 'clip_range': 0.15})
-            model.ent_coef  = 0.007
-            model.vf_coef   = 1.0
-            _reset_log_std(model, target_std=0.85)
-            reset_num_timesteps = False
-
-        elif auto_model and auto_model["mode"] == "transfer":
-            print(f"[main] Transfer learning desde modelo base: {auto_model['path']}")
-            print(f"[main] → Combo: {subdir}  (contador de pasos a cero)")
-            model = PPO.load(auto_model["path"], env=env, tensorboard_log=tb_log,
-                             custom_objects={'learning_rate': 1e-4, 'clip_range': 0.2})
-            model.vf_coef = 1.5
+        if args.fresh:
+            print(f"[main] Desde cero (--fresh): nueva política PPO para {subdir}")
+            model = _create_ppo_from_scratch(env, tb_log)
             reset_num_timesteps = True
-
         else:
-            # Intentar cargar pretrained.zip como punto de partida
-            pretrained_path = os.path.join(args.model_dir, "pretrained.zip")
-            if os.path.isfile(pretrained_path):
-                print(f"[main] Cargando pretrained.zip como base: {pretrained_path}")
-                model = PPO.load(pretrained_path[:-4], env=env, tensorboard_log=tb_log)
-                model.ent_coef  = 0.01    # más entropía para explorar desde la política imitada
-                model.vf_coef   = 1.5
+            auto_model = _find_best_model(model_dir, name_prefix, args.model_dir, subdir)
+            if auto_model and auto_model["mode"] == "continue":
+                print(f"[main] Continuando desde: {auto_model['path']}")
+                model = PPO.load(auto_model["path"], env=env, tensorboard_log=tb_log,
+                                 custom_objects={'learning_rate': 1e-4, 'clip_range': 0.15})
+                model.ent_coef  = 0.007
+                model.vf_coef   = 1.0
+                _reset_log_std(model, target_std=0.85)
+                reset_num_timesteps = False
+            elif auto_model and auto_model["mode"] == "transfer":
+                print(f"[main] Transfer learning desde modelo base: {auto_model['path']}")
+                print(f"[main] → Combo: {subdir}  (contador de pasos a cero)")
+                model = PPO.load(auto_model["path"], env=env, tensorboard_log=tb_log,
+                                 custom_objects={'learning_rate': 1e-4, 'clip_range': 0.2})
+                model.vf_coef = 1.5
                 reset_num_timesteps = True
             else:
-                print(f"[main] Creando modelo PPO desde cero para: {subdir}")
-                model = PPO(
-                    policy              = "MlpPolicy",
-                    policy_kwargs       = dict(net_arch=[256, 256, 128]),
-                    env                 = env,
-                    learning_rate       = 1e-4,
-                    n_steps             = 2048,
-                    batch_size          = 64,
-                    n_epochs            = 10,
-                    gamma               = 0.99,
-                    gae_lambda          = 0.95,
-                    clip_range          = 0.2,
-                    ent_coef            = 0.01,   # entropía más alta para explorar
-                    vf_coef             = 1.5,    # más peso al crítico
-                    max_grad_norm       = 0.5,
-                    verbose             = 1,
-                    tensorboard_log     = tb_log,
-                )
-                reset_num_timesteps = True
+                pretrained_path = os.path.join(args.model_dir, "pretrained.zip")
+                if os.path.isfile(pretrained_path):
+                    print(f"[main] Cargando pretrained.zip como base: {pretrained_path}")
+                    model = PPO.load(pretrained_path[:-4], env=env, tensorboard_log=tb_log)
+                    model.ent_coef  = 0.01
+                    model.vf_coef   = 1.5
+                    reset_num_timesteps = True
+                else:
+                    print(f"[main] Creando modelo PPO desde cero para: {subdir}")
+                    model = _create_ppo_from_scratch(env, tb_log)
+                    reset_num_timesteps = True
 
     # ---- Callback: CSV logger ----
     from stable_baselines3.common.callbacks import BaseCallback
 
     class CSVLoggerCallback(BaseCallback):
         """Guarda métricas PPO a un CSV tras cada iteración."""
-        def __init__(self, csv_path: str, track_length: float = 3567.0):
+        def __init__(self, csv_path: str, track_length: float = 3567.0, raw_env=None):
             super().__init__()
             self._csv_path    = csv_path
             self._track_length = track_length
+            self._raw_env     = raw_env
             self._file = None
             self._writer = None
             self._prev_steps = 0
@@ -443,6 +448,7 @@ def train(args: argparse.Namespace) -> None:
                 'avg_speed_kmh', 'max_speed_kmh', 'avg_cte',
                 'avg_steering', 'avg_throttle', 'avg_brake', 'dist_km',
                 'ep_count', 'pct_stuck', 'pct_pit_box', 'pct_wrong_way', 'pct_no_progress', 'pct_lap_done', 'pct_timelimit',
+                'udp_physics', 'pct_udp_timeout', 'pct_udp_backlog',
             ])
             if self._file:
                 self._file.flush()
@@ -488,7 +494,7 @@ def train(args: argparse.Namespace) -> None:
                     self._n_lap_done += 1
                 else:
                     self._n_timelimit += 1
-            # Acumular distancia recorrida usando obs[27] (progress 0-1 en vuelta)
+            # Acumular distancia recorrida usando obs[18] (progress 0-1 en vuelta)
             if new_obs is not None:
                 prog = float(new_obs[0][18])
                 delta = prog - self._dist_prev_prog
@@ -519,6 +525,22 @@ def train(args: argparse.Namespace) -> None:
                 fps = 0.0
             self._prev_steps = self.num_timesteps
             self._prev_time  = now
+            udp = {}
+            if self._raw_env is not None and hasattr(self._raw_env, "udp_stats_snapshot"):
+                udp = self._raw_env.udp_stats_snapshot()
+            udp_physics = int(udp.get("physics_frames", 0))
+            udp_timeouts = int(udp.get("timeouts", 0))
+            udp_backlog = int(udp.get("backlog_dropped", 0))
+            udp_attempts = udp_physics + udp_timeouts
+            pct_udp_timeout = (
+                round(100.0 * udp_timeouts / udp_attempts, 1) if udp_attempts > 0 else 0.0
+            )
+            backlog_total = udp_physics + udp_backlog
+            pct_udp_backlog = (
+                round(100.0 * udp_backlog / backlog_total, 1) if backlog_total > 0 else 0.0
+            )
+            if self._raw_env is not None and hasattr(self._raw_env, "udp_stats_reset"):
+                self._raw_env.udp_stats_reset()
             self._writer.writerow([
                 _time.strftime('%H:%M:%S'),
                 self.num_timesteps,
@@ -549,6 +571,9 @@ def train(args: argparse.Namespace) -> None:
                 round(100 * self._n_no_progress / self._ep_count, 1) if self._ep_count > 0 else 0.0,
                 round(100 * self._n_lap_done    / self._ep_count, 1) if self._ep_count > 0 else 0.0,
                 round(100 * self._n_timelimit   / self._ep_count, 1) if self._ep_count > 0 else 0.0,
+                udp_physics,
+                pct_udp_timeout,
+                pct_udp_backlog,
             ])
             self._speed_sum      = 0.0
             self._speed_count    = 0
@@ -578,7 +603,11 @@ def train(args: argparse.Namespace) -> None:
                 self._file.close()
 
     csv_path = os.path.join(log_dir, 'metricas.csv')
-    csv_cb   = CSVLoggerCallback(csv_path, track_length=raw_env._ref.track_length)
+    csv_cb   = CSVLoggerCallback(
+        csv_path,
+        track_length=raw_env._ref.track_length,
+        raw_env=raw_env,
+    )
     print(f"[main] Métricas CSV → {csv_path}")
 
     # ---- Callback: guardar checkpoints ----

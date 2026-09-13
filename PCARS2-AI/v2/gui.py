@@ -184,6 +184,16 @@ class TrainingGui(tk.Tk):
             row=0, column=2
         )
 
+        self.fresh_var = tk.BooleanVar(value=self.settings.fresh_start)
+        fresh_row = ttk.Frame(grid)
+        fresh_row.grid(row=6, column=1, sticky="w", padx=px, pady=py)
+        ttk.Checkbutton(
+            fresh_row,
+            text="Desde cero (--fresh): nueva política, sin cargar checkpoints",
+            variable=self.fresh_var,
+            command=self._on_fresh_toggle,
+        ).pack(anchor="w")
+
         # --- Comando ---
         cmd_frame = ttk.LabelFrame(self, text="Comando generado")
         cmd_frame.pack(fill="both", expand=True, padx=12, pady=6)
@@ -228,6 +238,7 @@ class TrainingGui(tk.Tk):
         self.car_var.set(self.settings.car)
         self.track_var.set(self.settings.track)
         self.model_var.set(self.settings.model_path)
+        self.fresh_var.set(self.settings.fresh_start)
 
     def _collect_settings(self) -> TrainingSettings:
         return TrainingSettings(
@@ -239,6 +250,7 @@ class TrainingGui(tk.Tk):
             car=self.car_var.get().strip() or "formula_rookie",
             track=self.track_var.get().strip() or "sugo",
             model_path=self.model_var.get().strip(),
+            fresh_start=bool(self.fresh_var.get()),
             mode_id=self.mode_var.get(),
         )
 
@@ -257,6 +269,11 @@ class TrainingGui(tk.Tk):
         self._update_command_preview()
 
     def _on_speed_scale(self, _value: str) -> None:
+        self._update_command_preview()
+
+    def _on_fresh_toggle(self) -> None:
+        if self.fresh_var.get():
+            self.model_var.set("")
         self._update_command_preview()
 
     def _update_command_preview(self) -> None:
@@ -282,6 +299,7 @@ class TrainingGui(tk.Tk):
 
     def _browse_model(self) -> None:
         root = project_root()
+        self.fresh_var.set(False)
         path = filedialog.askopenfilename(
             title="Checkpoint del modelo",
             initialdir=str(root / "models"),
@@ -301,6 +319,7 @@ class TrainingGui(tk.Tk):
         settings = self._collect_settings()
         latest = find_latest_checkpoint(settings.combo())
         if latest:
+            self.fresh_var.set(False)
             root = project_root()
             try:
                 rel = Path(latest).resolve().relative_to(root.resolve())
@@ -332,7 +351,7 @@ class TrainingGui(tk.Tk):
 
     def _open_monitor(self) -> None:
         settings = self._collect_settings()
-        launch_monitor(settings.combo())
+        launch_monitor(settings)
 
     def _open_tb(self) -> None:
         settings = self._collect_settings()
