@@ -1,0 +1,16 @@
+---
+description: Dataset de demostraciones y Teacher
+globs: PCARS2-AI/src/**/dataset*.py,PCARS2-AI/src/pretrain.py,PCARS2-AI/data/**,PCARS2-AI/refs/**/*
+alwaysApply: false
+---
+# Dataset Teaching
+
+Separar:
+- DEMO: humano,
+- TEACHER: reglas,
+- MIXED: combinación controlada.
+
+Cada muestra debe conservar origen, lap distance, estado, acción, referencia y calidad/confianza.
+
+Objetivo: OBSERVATION → ACTION.
+No mezclar etiquetas sin registrar su origen.

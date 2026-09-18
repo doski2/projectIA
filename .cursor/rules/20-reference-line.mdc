@@ -1,0 +1,13 @@
+---
+description: Línea de referencia y lookahead
+globs: PCARS2-AI/src/reference*.py,PCARS2-AI/src/**/*line*.py,PCARS2-AI/refs/**/*
+alwaysApply: false
+---
+# Reference Line
+
+Parametrizar por distancia de vuelta:
+distance → position / heading / curvature / speed / actions.
+
+Combinar CTE + heading error + lookahead. Una referencia mala enseña malos hábitos.
+
+Validar saltos de distancia, heading, muestras y vuelta incompleta antes de usarla como ground truth.

@@ -1,0 +1,20 @@
+---
+description: Reglas globales para PCARS2-AI en modo Teaching/Imitation
+alwaysApply: true
+---
+# ProjectIA — modo Teaching
+
+Objetivo inmediato: no depender de RL desde cero. Primero enseñar línea, steering, throttle y brake; después Imitation Learning y finalmente RL fine-tuning.
+
+Ruta objetivo:
+Teaching/Rules → Dataset → Behavior Cloning → PPO/RL → autonomía.
+
+Fuente: telemetría UDP de PCARS2 y la referencia `pcars2_udp_data_reference.md`. No inventar campos.
+
+Acciones: throttle, brake, steering. Mantener el contrato de `controller.py`.
+
+Principio: ESTADO → REGLA/OBJETIVO → ACCIÓN.
+
+Seguridad: datos frescos, límites de mando, detección de salida, wrong-way y stuck.
+
+No optimizar tiempo de vuelta antes de conseguir vueltas limpias.

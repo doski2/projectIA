@@ -1,0 +1,14 @@
+---
+description: RL posterior al aprendizaje supervisado
+globs: PCARS2-AI/src/main.py,PCARS2-AI/src/environment.py
+alwaysApply: false
+---
+# RL posterior
+
+RL es la segunda etapa.
+
+Preferir Teacher/BC → PPO fine-tuning.
+
+Reward: seguridad → pista → trazado → estabilidad → progreso → velocidad → tiempo de vuelta.
+
+No subir velocidad solo porque aumente reward.

@@ -1,0 +1,13 @@
+---
+description: Documentación fiable
+globs: PCARS2-AI/**/*.md,docs/**/*.md
+alwaysApply: false
+---
+# Documentación
+
+Documentar el modo real:
+Teaching → Imitation → RL.
+
+Cuando cambie una regla: qué hace, datos utilizados y cómo se valida.
+
+No convertir hipótesis de física/trazado en hechos.

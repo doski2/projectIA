@@ -453,14 +453,13 @@ def fix_fenced_code_language_v2(text: str) -> tuple[str, int]:
         if lang:
             out.append(lines[i])
             i += 1
-            block: list[str] = []
             while i < len(lines):
                 close = FENCE.match(lines[i].strip())
                 if close:
                     out.append(lines[i])
                     i += 1
                     break
-                block.append(lines[i])
+                out.append(lines[i])
                 i += 1
             continue
         block = []
@@ -589,6 +588,17 @@ def fix_emphasis_spaces(text: str) -> tuple[str, int]:
     return "\n".join(out), fixes
 
 
+def is_blank(line: str) -> bool:
+    return not line.strip()
+
+
+def next_non_blank_line(lines: list[str], idx: int) -> str | None:
+    for j in range(idx + 1, len(lines)):
+        if not is_blank(lines[j]):
+            return lines[j]
+    return None
+
+
 def fix_emphasis_headings(text: str) -> tuple[str, int]:
     lines = text.splitlines()
     out: list[str] = []
@@ -596,6 +606,10 @@ def fix_emphasis_headings(text: str) -> tuple[str, int]:
     for idx, line in enumerate(lines):
         title = parse_emphasis_heading(line)
         if title is None:
+            out.append(line)
+            continue
+        nxt = next_non_blank_line(lines, idx)
+        if nxt is not None and nxt.lstrip().startswith("→"):
             out.append(line)
             continue
         clean = TRAILING_PUNCT.sub("", title)
@@ -616,10 +630,6 @@ def fix_trailing_spaces(text: str) -> tuple[str, int]:
             fixes += 1
         out.append(trimmed)
     return "\n".join(out), fixes
-
-
-def is_blank(line: str) -> bool:
-    return not line.strip()
 
 
 def is_list_line(line: str) -> bool:

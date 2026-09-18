@@ -1,0 +1,21 @@
+---
+description: Controlador por reglas que enseña conducción
+globs: PCARS2-AI/src/**/teacher*.py,PCARS2-AI/src/**/rule*.py
+alwaysApply: false
+---
+# Teaching Controller
+
+Prioridad:
+1. seguridad,
+2. línea,
+3. velocidad objetivo,
+4. aceleración,
+5. frenada anticipada.
+
+Steering: combinar CTE + heading error + curvatura + lookahead. No usar solo CTE.
+
+Throttle: recta/velocidad baja → aumentar; curva/inestabilidad → limitar; salida → aumentar progresivamente; wheelspin → reducir.
+
+Brake: anticipar con velocidad futura y distancia; aplicar progresivamente; liberar progresivamente.
+
+El Teacher debe poder explicar cada acción.

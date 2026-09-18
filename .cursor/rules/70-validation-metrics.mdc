@@ -1,0 +1,14 @@
+---
+description: Validación de conducción
+globs: PCARS2-AI/tests/**,PCARS2-AI/METRICAS.md,PCARS2-AI/logs/**,PCARS2-AI/scripts/**/*
+alwaysApply: false
+---
+# Validación
+
+Orden:
+steering → throttle → brake → combinación → vuelta limpia → velocidad → optimización.
+
+Métricas:
+CTE, heading error, steering/throttle/brake error, velocidad vs referencia, pista, vueltas completas, crashes, wrong-way, stuck.
+
+`ep_rew_mean` por sí solo no valida conducción.

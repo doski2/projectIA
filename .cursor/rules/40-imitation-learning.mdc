@@ -1,0 +1,12 @@
+---
+description: Behavior Cloning e Imitation Learning
+globs: PCARS2-AI/src/pretrain.py,PCARS2-AI/src/**/imitation*.py,PCARS2-AI/models/**/*
+alwaysApply: false
+---
+# Imitation Learning
+
+Teacher/Demo → dataset limpio → BC → evaluación → política inicial para PPO.
+
+Medir MAE de steering/throttle/brake, CTE, heading error, vueltas completas y salidas de pista.
+
+Una loss baja no demuestra buena conducción.

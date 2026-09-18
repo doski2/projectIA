@@ -1,0 +1,13 @@
+---
+description: UDP y controlador virtual
+globs: PCARS2-AI/src/telemetry_udp.py,PCARS2-AI/src/controller.py,PCARS2-AI/src/environment.py
+alwaysApply: false
+---
+# Telemetría y control
+
+Separar:
+UDP → TelemetryFrame → Teacher/Environment → Action → Controller.
+
+Cada decisión debe corresponder a un CAR_PHYSICS fresco. Mantener el drenado de backlog y la sincronización existente.
+
+No cambiar action space sin revisar controller, pretrain y environment.
