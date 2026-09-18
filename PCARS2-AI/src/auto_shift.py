@@ -1,0 +1,127 @@
+"""
+auto_shift.py
+Gestión automática de marchas compartida entre teaching_driver y environment.
+
+PCARS2 en manual: no spamear RB/LB cada frame — cooldown y prioridad
+neutral/alta → 1ª antes de upshift en movimiento.
+"""
+
+from __future__ import annotations
+
+import time
+from dataclasses import dataclass
+from typing import Optional, Protocol
+
+from telemetry_udp import TelemetryFrame
+
+UPSHIFT_RPM_RATIO = 0.87
+DOWNSHIFT_RPM_RATIO = 0.40
+THROTTLE_ACTIVE = 0.05
+BRAKE_ACTIVE = 0.1
+STALL_SPEED_MS = 0.5
+SHIFT_COOLDOWN_S = 0.18
+
+
+class ShiftController(Protocol):
+    def press_button(self, button: str) -> None: ...
+    def apply_action(self, throttle: float, brake: float, steering: float) -> None: ...
+
+
+def rpm_ratio(telem: TelemetryFrame) -> float:
+    if telem.max_rpm <= 0:
+        return 0.0
+    return telem.rpm / telem.max_rpm
+
+
+@dataclass
+class AutoShifter:
+    """Estado de cambios: un botón por cooldown y sin RB/LB contradictorios."""
+
+    cooldown_s: float = SHIFT_COOLDOWN_S
+    last_shift_t: float = 0.0
+
+    def ready(self) -> bool:
+        return time.monotonic() - self.last_shift_t >= self.cooldown_s
+
+    def _press(self, controller: ShiftController, button: str) -> None:
+        controller.press_button(button)
+        self.last_shift_t = time.monotonic()
+
+    def shift(
+        self,
+        controller: ShiftController,
+        telem: TelemetryFrame,
+        throttle: float,
+        brake: float,
+    ) -> Optional[str]:
+        """
+        Devuelve: to_first, down_to_first, up, down, o None.
+        """
+        if telem.max_rpm == 0:
+            return None
+
+        ratio = rpm_ratio(telem)
+        gear = telem.gear
+        num_gears = telem.num_gears or 6
+        stalled = telem.speed < STALL_SPEED_MS
+
+        if not self.ready():
+            return None
+
+        # Parado: primero llegar a 1ª (nunca mezclar RB y LB en el mismo tick)
+        if stalled and throttle > THROTTLE_ACTIVE:
+            if gear > 1:
+                self._press(controller, "lb")
+                return "down_to_first"
+            if gear <= 0:
+                self._press(controller, "rb")
+                return "to_first"
+            return None
+
+        if throttle > THROTTLE_ACTIVE and ratio > UPSHIFT_RPM_RATIO and gear < num_gears:
+            self._press(controller, "rb")
+            return "up"
+
+        if brake > BRAKE_ACTIVE and gear > 1 and ratio < DOWNSHIFT_RPM_RATIO:
+            self._press(controller, "lb")
+            return "down"
+
+        return None
+
+
+def auto_shift(
+    controller: ShiftController,
+    telem: TelemetryFrame,
+    throttle: float,
+    brake: float,
+    shifter: Optional[AutoShifter] = None,
+) -> Optional[str]:
+    """Wrapper compatible; usa shifter compartido si no se pasa instancia."""
+    if shifter is None:
+        shifter = AutoShifter()
+    return shifter.shift(controller, telem, throttle, brake)
+
+
+def engage_first_gear(
+    controller: ShiftController,
+    shifter: AutoShifter,
+    get_telem,
+    sync_frame,
+    max_steps: int = 80,
+) -> bool:
+    """
+    Secuencia de arranque (como environment reset): gas + bajar a 1ª.
+    get_telem() → TelemetryFrame | None; sync_frame() → bool.
+    """
+    for _ in range(max_steps):
+        if not sync_frame():
+            continue
+        telem = get_telem()
+        if telem is None:
+            continue
+        if telem.gear == 1 and telem.speed >= STALL_SPEED_MS:
+            return True
+        controller.apply_action(0.45, 0.0, 0.0)
+        shifter.shift(controller, telem, 0.45, 0.0)
+    telem = get_telem()
+    return telem is not None and telem.gear == 1

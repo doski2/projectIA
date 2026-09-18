@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from .config import TrainingSettings, get_mode
+from .config import TeachingSettings, TrainingSettings, get_mode, get_teaching_mode
 
 _SRC = Path(__file__).resolve().parent.parent / "src"
 if str(_SRC) not in sys.path:
@@ -161,6 +161,76 @@ def launch_monitor(settings: TrainingSettings) -> None:
         )
     else:
         subprocess.Popen(argv, cwd=str(root))
+
+
+def build_teaching_argv(settings: TeachingSettings) -> List[str]:
+    root = project_root()
+    python = venv_python()
+    mode = get_teaching_mode(settings.mode_id)
+
+    if settings.mode_id in ("teacher", "record"):
+        script = root / "src" / "teaching_driver.py"
+        argv = [
+            str(python),
+            str(script),
+            "--mode",
+            settings.mode_id,
+            "--reference",
+            settings.reference,
+            "--speed-target",
+            str(settings.speed_target_kmh),
+            "--gamepad",
+            settings.gamepad,
+        ]
+        if settings.mode_id == "record":
+            argv.extend(["--output", settings.dataset_output])
+        if settings.max_laps > 0:
+            argv.extend(["--max-laps", str(settings.max_laps)])
+        return argv
+
+    script = root / "src" / "imitation_driver.py"
+    argv = [
+        str(python),
+        str(script),
+        "--mode",
+        settings.mode_id,
+        "--reference",
+        settings.reference,
+        "--model",
+        settings.bc_model_path,
+        "--speed-target",
+        str(settings.speed_target_kmh),
+        "--gamepad",
+        settings.gamepad,
+    ]
+    if settings.mode_id == "hybrid":
+        argv.extend(["--alpha", str(settings.hybrid_alpha)])
+    if settings.max_laps > 0:
+        argv.extend(["--max-laps", str(settings.max_laps)])
+    return argv
+
+
+def format_teaching_command(settings: TeachingSettings) -> str:
+    return subprocess.list2cmdline(build_teaching_argv(settings))
+
+
+def launch_teaching(settings: TeachingSettings, new_console: bool = True) -> None:
+    root = project_root()
+    argv = build_teaching_argv(settings)
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+
+    if new_console and sys.platform == "win32":
+        cmdline = subprocess.list2cmdline(argv)
+        subprocess.Popen(
+            f'start "PCARS2-AI Teaching" cmd /k {cmdline}',
+            shell=True,
+            cwd=str(root),
+            env=env,
+        )
+        return
+
+    subprocess.Popen(argv, cwd=str(root), env=env)
 
 
 def launch_tensorboard(combo: str) -> None:

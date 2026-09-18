@@ -12,6 +12,20 @@ from typing import Any, Dict, List, Optional
 
 
 @dataclass
+class TeachingSettings:
+    """Parámetros del Teaching Driver."""
+
+    reference: str = "src/refs/sugo_ai.json"
+    speed_target_kmh: float = 20.0
+    gamepad: str = "xbox"
+    mode_id: str = "teacher"
+    dataset_output: str = "data/sugo_teacher.jsonl"
+    bc_model_path: str = "models/teacher_bc"
+    hybrid_alpha: float = 0.7
+    max_laps: int = 0
+
+
+@dataclass
 class TrainingSettings:
     """Parámetros editables desde la GUI."""
 
@@ -40,6 +54,45 @@ class TrainingMode:
     description: str
     cli_flags: List[str] = field(default_factory=list)
     default_overrides: Dict[str, Any] = field(default_factory=dict)
+
+
+TEACHING_MODES: List[TrainingMode] = [
+    TrainingMode(
+        id="teacher",
+        label="Teacher — reglas puras",
+        description="Conduce con reglas (CTE + heading + curvatura) a velocidad objetivo.",
+        cli_flags=[],
+        default_overrides={"speed_target_kmh": 20.0},
+    ),
+    TrainingMode(
+        id="record",
+        label="Record — teacher + dataset",
+        description="Igual que Teacher pero graba demostraciones TEACHER en JSONL.",
+        cli_flags=[],
+        default_overrides={"speed_target_kmh": 20.0},
+    ),
+    TrainingMode(
+        id="bc_drive",
+        label="BC Drive — imitación con fallback",
+        description="Política BC en vivo; teacher interviene si sale de línea.",
+        cli_flags=[],
+        default_overrides={"speed_target_kmh": 20.0},
+    ),
+    TrainingMode(
+        id="hybrid",
+        label="Hybrid — mezcla BC + teacher",
+        description="Mezcla gradual; gradúa a autonomía tras vueltas limpias.",
+        cli_flags=[],
+        default_overrides={"speed_target_kmh": 20.0, "hybrid_alpha": 0.7},
+    ),
+    TrainingMode(
+        id="autonomous",
+        label="Autonomous — BC sin teacher",
+        description="Control total BC; teacher solo en emergencia.",
+        cli_flags=[],
+        default_overrides={"speed_target_kmh": 25.0},
+    ),
+]
 
 
 TRAINING_MODES: List[TrainingMode] = [
@@ -109,6 +162,13 @@ def get_mode(mode_id: str) -> TrainingMode:
         if mode.id == mode_id:
             return mode
     return TRAINING_MODES[0]
+
+
+def get_teaching_mode(mode_id: str) -> TrainingMode:
+    for mode in TEACHING_MODES:
+        if mode.id == mode_id:
+            return mode
+    return TEACHING_MODES[0]
 
 
 def apply_mode_defaults(settings: TrainingSettings) -> TrainingSettings:

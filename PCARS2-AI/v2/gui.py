@@ -14,15 +14,20 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from .config import (
+    TEACHING_MODES,
     TRAINING_MODES,
+    TeachingSettings,
     TrainingSettings,
     apply_mode_defaults,
     get_mode,
+    get_teaching_mode,
 )
 from .launcher import (
     find_latest_checkpoint,
     format_command,
+    format_teaching_command,
     launch_monitor,
+    launch_teaching,
     launch_tensorboard,
     launch_training,
     list_references,
@@ -38,6 +43,7 @@ class TrainingGui(tk.Tk):
         self.title("PCARS2-AI v2 — Entrenamiento")
         self.minsize(720, 620)
         self.settings = load_settings() or TrainingSettings()
+        self.teaching_settings = TeachingSettings()
 
         if not venv_python().is_file():
             messagebox.showwarning(
@@ -52,6 +58,7 @@ class TrainingGui(tk.Tk):
         self._populate_refs()
         self._apply_settings_to_ui()
         self._on_mode_change()
+        self._on_teaching_mode_change()
 
     def _build_ui(self) -> None:
         px, py = 10, 4
@@ -194,8 +201,45 @@ class TrainingGui(tk.Tk):
             command=self._on_fresh_toggle,
         ).pack(anchor="w")
 
+        # --- Teaching Driver ---
+        teach_frame = ttk.LabelFrame(self, text="Teaching Driver")
+        teach_frame.pack(fill="x", padx=12, pady=6)
+
+        self.teach_mode_var = tk.StringVar(value=self.teaching_settings.mode_id)
+        for mode in TEACHING_MODES:
+            ttk.Radiobutton(
+                teach_frame,
+                text=mode.label,
+                value=mode.id,
+                variable=self.teach_mode_var,
+                command=self._on_teaching_mode_change,
+            ).pack(anchor="w", padx=8, pady=2)
+
+        self.teach_desc = ttk.Label(teach_frame, text="", wraplength=680, foreground="#444")
+        self.teach_desc.pack(anchor="w", padx=8, pady=(2, 4))
+
+        teach_opts = ttk.Frame(teach_frame)
+        teach_opts.pack(fill="x", padx=8, pady=4)
+
+        ttk.Label(teach_opts, text="Dataset / BC:").pack(side="left")
+        self.teach_dataset_var = tk.StringVar(value=self.teaching_settings.dataset_output)
+        ttk.Entry(teach_opts, textvariable=self.teach_dataset_var, width=36).pack(
+            side="left", padx=4
+        )
+        self.teach_model_var = tk.StringVar(value=self.teaching_settings.bc_model_path)
+        ttk.Entry(teach_opts, textvariable=self.teach_model_var, width=24).pack(side="left", padx=4)
+
+        teach_btn = ttk.Frame(teach_frame)
+        teach_btn.pack(fill="x", padx=8, pady=(4, 8))
+        ttk.Button(
+            teach_btn, text="▶ Iniciar Teaching Driver", command=self._start_teaching
+        ).pack(side="left")
+
+        self.teach_cmd_text = tk.Text(teach_frame, height=2, wrap="word", font=("Consolas", 9))
+        self.teach_cmd_text.pack(fill="x", padx=8, pady=(0, 8))
+
         # --- Comando ---
-        cmd_frame = ttk.LabelFrame(self, text="Comando generado")
+        cmd_frame = ttk.LabelFrame(self, text="Comando generado (RL)")
         cmd_frame.pack(fill="both", expand=True, padx=12, pady=6)
 
         self.cmd_text = tk.Text(cmd_frame, height=4, wrap="word", font=("Consolas", 9))
@@ -254,6 +298,26 @@ class TrainingGui(tk.Tk):
             mode_id=self.mode_var.get(),
         )
 
+    def _collect_teaching_settings(self) -> TeachingSettings:
+        return TeachingSettings(
+            reference=self.ref_var.get().strip(),
+            speed_target_kmh=float(self.speed_var.get()),
+            gamepad="xbox",
+            mode_id=self.teach_mode_var.get(),
+            dataset_output=self.teach_dataset_var.get().strip(),
+            bc_model_path=self.teach_model_var.get().strip(),
+        )
+
+    def _on_teaching_mode_change(self) -> None:
+        mode = get_teaching_mode(self.teach_mode_var.get())
+        self.teach_desc.config(text=mode.description)
+        self._update_teaching_command()
+
+    def _update_teaching_command(self) -> None:
+        cmd = format_teaching_command(self._collect_teaching_settings())
+        self.teach_cmd_text.delete("1.0", "end")
+        self.teach_cmd_text.insert("1.0", cmd)
+
     def _on_mode_change(self) -> None:
         mode = get_mode(self.mode_var.get())
         self.mode_desc.config(text=mode.description)
@@ -267,9 +331,11 @@ class TrainingGui(tk.Tk):
             self.warmup_var.set(s.warmup_steps)
 
         self._update_command_preview()
+        self._update_teaching_command()
 
     def _on_speed_scale(self, _value: str) -> None:
         self._update_command_preview()
+        self._update_teaching_command()
 
     def _on_fresh_toggle(self) -> None:
         if self.fresh_var.get():
@@ -281,6 +347,7 @@ class TrainingGui(tk.Tk):
         cmd = format_command(settings)
         self.cmd_text.delete("1.0", "end")
         self.cmd_text.insert("1.0", cmd)
+        self._update_teaching_command()
 
     def _browse_reference(self) -> None:
         root = project_root()
@@ -333,6 +400,27 @@ class TrainingGui(tk.Tk):
                 f"No hay checkpoints en models/{settings.combo()}/",
             )
 
+    def _start_teaching(self) -> None:
+        settings = self._collect_teaching_settings()
+        ref_path = project_root() / settings.reference
+        if not ref_path.is_file():
+            messagebox.showerror("Error", f"Referencia no encontrada:\n{ref_path}")
+            return
+        if settings.mode_id in ("bc_drive", "hybrid", "autonomous"):
+            model_path = project_root() / f"{settings.bc_model_path}.zip"
+            if not model_path.is_file():
+                messagebox.showerror("Error", f"Modelo BC no encontrado:\n{model_path}")
+                return
+        if not venv_python().is_file():
+            messagebox.showerror("Error", f"Python del venv no encontrado:\n{venv_python()}")
+            return
+        launch_teaching(settings)
+        messagebox.showinfo(
+            "Teaching Driver",
+            "Se abrió una ventana de consola.\n"
+            "Asegúrate de que Project CARS 2 está EN PISTA.",
+        )
+
     def _start_training(self) -> None:
         settings = self._collect_settings()
         ref_path = project_root() / settings.reference
@@ -361,6 +449,7 @@ class TrainingGui(tk.Tk):
 def main() -> None:
     app = TrainingGui()
     app._update_command_preview()
+    app._update_teaching_command()
     app.mainloop()
 
 

@@ -31,24 +31,18 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
-# ---------------------------------------------------------------------------
-# Constantes — deben coincidir EXACTAMENTE con environment.py
-# ---------------------------------------------------------------------------
+from obs_builder import (
+    MAX_ANGULAR_VEL,
+    MAX_CURVATURE,
+    MAX_LAT_ACCEL,
+    MAX_LONG_ACCEL,
+    MAX_SPEED_MS,
+    MAX_TYRE_RPS,
+    TYRE_RADIUS,
+    encode_action,
+)
 
-MAX_SPEED_MS    = 97.0
-MAX_CTE         = 8.0
-MAX_SPEED_DELTA = 60.0
-MAX_ANGULAR_VEL = 5.0
-MAX_LAT_ACCEL   = 4.0
-MAX_LONG_ACCEL  = 50.0
-MAX_TYRE_RPS    = 200.0
-MAX_TYRE_TEMP   = 120.0
-MAX_RIDE_HEIGHT = 0.15
-MAX_SUSP_TRAVEL = 0.12
-MAX_HEADING_ERR = math.pi
-MAX_CURVATURE   = 0.05
-TYRE_RADIUS     = 0.33
-MAX_GEARS       = 6   # Formula Rookie tiene 6 marchas
+MAX_GEARS = 6   # Formula Rookie tiene 6 marchas
 
 
 # ---------------------------------------------------------------------------
@@ -197,12 +191,7 @@ def build_dataset(ref_path: str, augment: bool = True) -> tuple:
             progress,          # 18
         ], dtype=np.float32)
 
-        # Acción codificada en [-1,1] (inverso de decode_action en controller.py)
-        act = np.array([
-            2.0 * throttle - 1.0,
-            2.0 * brake    - 1.0,
-            steering,
-        ], dtype=np.float32)
+        act = encode_action(throttle, brake, steering)
 
         obs_list.append(obs)
         act_list.append(act)
@@ -211,6 +200,32 @@ def build_dataset(ref_path: str, augment: bool = True) -> tuple:
     act_array = np.array(act_list, dtype=np.float32)
 
     print(f"[BC] Dataset: {len(obs_array)} muestras × 19 observaciones")
+    return obs_array, act_array
+
+
+def build_dataset_from_jsonl(
+    dataset_path: str,
+    origin: str | None = None,
+    min_quality: float = 0.0,
+    min_confidence: float = 0.0,
+) -> tuple:
+    """Carga demostraciones TEACHER/DEMO/MIXED desde JSONL."""
+    from dataset_recorder import load_dataset
+
+    obs_array, act_array, meta = load_dataset(
+        dataset_path,
+        origin=origin,
+        min_quality=min_quality,
+        min_confidence=min_confidence,
+    )
+    if len(obs_array) == 0:
+        raise ValueError(f"Dataset vacío: {dataset_path}")
+
+    origins = {m.get("origin", "?") for m in meta}
+    print(
+        f"[BC] Dataset JSONL: {dataset_path}\n"
+        f"     {len(obs_array)} muestras | orígenes: {', '.join(sorted(origins))}"
+    )
     return obs_array, act_array
 
 
@@ -341,8 +356,14 @@ def parse_args() -> argparse.Namespace:
         description="PCARS2-AI — Pre-entrenamiento por Behavioral Cloning (19 obs)",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--reference", "-r", required=True, metavar="RUTA_JSON",
+    parser.add_argument("--reference", "-r", default=None, metavar="RUTA_JSON",
                         help="Ruta al JSON de referencia grabada.")
+    parser.add_argument("--dataset", "-d", default=None, metavar="RUTA_JSONL",
+                        help="Ruta al dataset JSONL (TEACHER/DEMO/MIXED).")
+    parser.add_argument("--origin", default=None,
+                        help="Filtrar dataset por origen (TEACHER, DEMO, MIXED).")
+    parser.add_argument("--min-quality", type=float, default=0.5)
+    parser.add_argument("--min-confidence", type=float, default=0.5)
     parser.add_argument("--base", "-b", default=None, metavar="RUTA_MODELO",
                         help="Modelo base existente para afinar (sin .zip).")
     parser.add_argument("--output", "-o", default="models/pretrained", metavar="RUTA_SALIDA",
@@ -362,8 +383,14 @@ def parse_args() -> argparse.Namespace:
 if __name__ == "__main__":
     args = parse_args()
 
-    if not os.path.isfile(args.reference):
+    if not args.reference and not args.dataset:
+        print("[Error] Indica --reference o --dataset.")
+        sys.exit(1)
+    if args.reference and not os.path.isfile(args.reference):
         print(f"[Error] Archivo de referencia no encontrado: {args.reference}")
+        sys.exit(1)
+    if args.dataset and not os.path.isfile(args.dataset):
+        print(f"[Error] Dataset no encontrado: {args.dataset}")
         sys.exit(1)
 
     # Fijar seeds para reproducibilidad
@@ -371,7 +398,15 @@ if __name__ == "__main__":
     torch.manual_seed(args.seed)
     print(f"[BC] Seed: {args.seed}")
 
-    obs_array, act_array = build_dataset(args.reference, augment=not args.no_augment)
+    if args.dataset:
+        obs_array, act_array = build_dataset_from_jsonl(
+            args.dataset,
+            origin=args.origin,
+            min_quality=args.min_quality,
+            min_confidence=args.min_confidence,
+        )
+    else:
+        obs_array, act_array = build_dataset(args.reference, augment=not args.no_augment)
 
     pretrain(
         obs_array     = obs_array,

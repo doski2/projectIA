@@ -11,10 +11,102 @@ Documentación operativa: modos, comandos, logs, revisión de sesiones y flujo s
 | Qué quieres                       | Cómo                                     |
 | --------------------------------- | ---------------------------------------- |
 | Lanzar entrenamiento con GUI      | `gui.bat`                                |
+| Teaching Driver (reglas)          | `teach.bat` o GUI → Teaching Driver      |
+| Validación Sugo F1–F4 + HTML      | `validar_f1.bat` … `validar_f4.bat` — [docs/VALIDACION_TEACHING_SUGO.md](docs/VALIDACION_TEACHING_SUGO.md) |
+| Regenerar HTML de sesión        | `report_sesion.bat logs\teaching\sesion.jsonl` |
+| Grabar demostraciones TEACHER     | `record.bat`                             |
+| Entrenar BC desde teacher         | `pretrain.bat` con `--dataset`           |
+| Evaluar BC offline                | `python src/eval_driver.py -d ... -m ...`|
+| BC / Hybrid / Autonomous en pista | GUI → Teaching Driver                    |
 | Ver progreso en vivo              | `monitor.bat` (otra terminal)            |
 | Curvas PPO                        | `tensorboard.bat`                        |
 | Revisar sesión (o pedir análisis) | `logs/formula_rookie__sugo/metricas.csv` |
 | Tests                             | `tests.bat`                              |
+
+---
+
+## Flujo Teaching → Imitation → RL
+
+Ruta recomendada antes de depender solo de PPO:
+
+1. **Referencia** — grabar línea con `reference_recorder.py` (prerrequisito).
+2. **Teacher** — `teach.bat` conduce a 20 km/h con reglas explicables.
+3. **Record** — `record.bat` graba ≥3 vueltas limpias en `data/*_teacher_*.jsonl`.
+4. **BC** — entrenar desde dataset:
+   ```bat
+   ..\.venv\Scripts\python.exe src\pretrain.py --dataset data\sugo_teacher.jsonl --output models\teacher_bc
+   ```
+5. **Eval** — comprobar MAE antes de pista:
+   ```bat
+   ..\.venv\Scripts\python.exe src\eval_driver.py -d data\sugo_teacher.jsonl -m models\teacher_bc
+   ```
+6. **BC Drive / Hybrid** — `imitation_driver.py` o GUI; teacher como fallback.
+7. **Autonomous** — tras 5 vueltas limpias en hybrid, o modo autonomous directo.
+8. **PPO fine-tune** — cuando BC sea estable:
+   ```bat
+   entrenar.bat src\refs\sugo_ai.json 150000 --base-model models\teacher_bc --basics --speed-target-kmh 25
+   ```
+
+### Modos Teaching Driver
+
+| Modo | Script | Quién conduce |
+| ---- | ------ | ------------- |
+| `teacher` | `teaching_driver.py` | Reglas puras |
+| `record` | `teaching_driver.py --mode record` | Reglas + JSONL |
+| `bc_drive` | `imitation_driver.py` | BC + fallback teacher |
+| `hybrid` | `imitation_driver.py --mode hybrid` | Mezcla BC/teacher |
+| `autonomous` | `imitation_driver.py --mode autonomous` | BC (emergencia solo) |
+
+Criterios de validación (teacher a 20 km/h): `avg_cte` < 5 m, vueltas completas,
+`pct_stuck` < 20%. Para BC: MAE steering < 0.15, MAE pedales < 0.20.
+
+---
+
+## Política universal (multi-pista + intención)
+
+El teacher enseña **cuándo / por qué / cómo** actuar. La política universal aprende
+`obs_geométrico + intención → acción`, válido en cualquier pista con su referencia local.
+
+### Grabar dataset universal
+
+```bat
+record.bat
+```
+
+Equivale a `teaching_driver.py --mode record --universal`. Cada muestra incluye:
+
+- `obs_schema: universal_v1` (17 features sin memoria de pedales de una vuelta)
+- `teacher_reason` + `reason_id`
+- `rule: { when, why, how }`
+
+Repite en **2–3 pistas** para generalizar.
+
+### Entrenar BC universal
+
+```bat
+..\.venv\Scripts\python.exe src\pretrain_universal.py ^
+  --dataset data\sugo_universal.jsonl ^
+  --dataset data\otra_pista_universal.jsonl ^
+  --output models\universal_bc.pt
+```
+
+### Evaluar
+
+```bat
+..\.venv\Scripts\python.exe src\eval_universal.py -d data\universal_teacher.jsonl -m models\universal_bc.pt
+```
+
+### Conducir en pista nueva
+
+Solo necesitas **referencia local** de esa pista (para CTE/curvatura). El modelo ya aprendió las reglas.
+
+```bat
+..\.venv\Scripts\python.exe src\imitation_driver.py --universal ^
+  --reference src\refs\nueva_pista.json ^
+  --model models\universal_bc.pt --mode bc_drive
+```
+
+Modo `autonomous`: predice intención desde obs (sin teacher en cada frame; teacher solo en emergencia).
 
 ---
 

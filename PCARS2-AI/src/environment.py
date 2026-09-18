@@ -25,6 +25,8 @@ import math
 import time
 from typing import Optional, Tuple
 
+from auto_shift import auto_shift
+
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
@@ -42,31 +44,23 @@ from telemetry_udp import (
 )
 from reference_recorder import ReferenceLine
 from controller import DS4Controller, decode_action
+from obs_builder import (
+    MAX_ANGULAR_VEL,
+    MAX_CTE,
+    MAX_CURVATURE,
+    MAX_HEADING_ERR,
+    MAX_LAT_ACCEL,
+    MAX_LONG_ACCEL,
+    MAX_SPEED_DELTA,
+    MAX_SPEED_MS,
+    MAX_TYRE_RPS,
+    TYRE_RADIUS,
+    build_obs,
+)
 
 # ---------------------------------------------------------------------------
 # Límites del espacio de observación
 # ---------------------------------------------------------------------------
-
-# Velocidad máxima esperada en m/s (~350 km/h)
-MAX_SPEED_MS       = 97.0
-
-# Cross-Track Error máximo antes de considerar salida de pista (metros)
-MAX_CTE            = 8.0
-
-# Velocidad angular máxima (rad/s) — para detectar sobreviraje
-MAX_ANGULAR_VEL    = 5.0
-
-# Diferencia de velocidad máxima vs referencia (m/s)
-MAX_SPEED_DELTA    = 60.0
-
-# Aceleración lateral máxima (G)
-MAX_LAT_ACCEL      = 4.0
-
-# Aceleración longitudinal máxima (m/s²) — frenada/aceleración brusca
-MAX_LONG_ACCEL     = 50.0
-
-# RPM de rueda máximas (RPS) — para detectar wheelspin / bloqueo
-MAX_TYRE_RPS       = 200.0
 
 # Temperatura máxima esperada de neumáticos (°C)
 MAX_TYRE_TEMP      = 120.0
@@ -76,15 +70,6 @@ MAX_RIDE_HEIGHT    = 0.15
 
 # Recorrido de suspensión máximo (m)
 MAX_SUSP_TRAVEL    = 0.12
-
-# Error de heading máximo (rad)
-MAX_HEADING_ERR    = math.pi
-
-# Curvatura máxima (1/radio_minimo, ej: radio de 20m → 0.05)
-MAX_CURVATURE      = 0.05
-
-# Radio de neumático aproximado (m) — para calcular velocidad esperada de rueda
-TYRE_RADIUS        = 0.33
 
 # ---------------------------------------------------------------------------
 # Parámetros de la función de recompensa
@@ -420,7 +405,8 @@ class PCARS2Env(gym.Env):
             # Gas a fondo desde 1ª (el downshift ya se hizo antes del reset de telem)
             for _ in range(self._warmup_steps):
                 self._controller.apply_action(1.0, 0.0, 0.0)
-                self._auto_shift(1.0, 0.0)
+                if self._last_telem is not None:
+                    auto_shift(self._controller, self._last_telem, 1.0, 0.0)
                 self._sync_physics_frame()
 
         self._physics_anchor = (
@@ -430,31 +416,6 @@ class PCARS2Env(gym.Env):
         self._start_lap = self._last_timings.current_lap
         obs = self._build_obs()
         return obs, {}
-
-    def _auto_shift(self, throttle: float, brake: float):
-        """
-        Gestión automática de marchas en modo manual.
-        Upshift:   throttle > 0 y rpm > 87 % del max_rpm
-        Downshift: freno activo o throttle bajo y rpm < 40 % del max_rpm
-                   (solo si estamos por encima de 1ª marcha)
-        """
-        t = self._last_telem
-        if t is None or t.max_rpm == 0:
-            return
-        rpm_ratio = t.rpm / t.max_rpm
-        gear      = t.gear          # 0=neutro, 1=1ª, …
-        num_gears = t.num_gears or 6
-
-        # Desde neutro o marcha atrás con throttle activo → subir hasta 1ª
-        # (No esperamos al redline: queremos 1ª inmediatamente al arrancar)
-        if throttle > 0.05 and gear <= 0:
-            self._controller.press_button('rb')
-            return
-
-        if throttle > 0.05 and rpm_ratio > 0.87 and gear < num_gears:
-            self._controller.press_button('rb')   # subir marcha
-        elif brake > 0.1 and gear > 1 and rpm_ratio < 0.40:
-            self._controller.press_button('lb')   # bajar marcha
 
     def step(self, action):
         throttle, brake, steering = decode_action(action)
@@ -466,7 +427,8 @@ class PCARS2Env(gym.Env):
         for _ in range(self._frame_skip):
             # 1. Enviar acción al mando
             self._controller.apply_action(throttle, brake, steering)
-            self._auto_shift(throttle, brake)
+            if self._last_telem is not None:
+                auto_shift(self._controller, self._last_telem, throttle, brake)
 
             # 2. Esperar un frame CAR_PHYSICS nuevo (no contar timeouts como frame)
             if not self._sync_physics_frame():
@@ -505,96 +467,7 @@ class PCARS2Env(gym.Env):
     def _build_obs(self) -> np.ndarray:
         if self._last_telem is None or self._last_timings is None:
             return np.zeros(19, dtype=np.float32)
-
-        t = self._last_telem
-        i = self._last_timings
-        d = i.lap_distance
-
-        # ── 0 · Velocidad normalizada ──────────────────────────────────────
-        speed_norm = np.clip(t.speed / MAX_SPEED_MS, 0.0, 1.0)
-
-        # ── 1 · Cross-Track Error ──────────────────────────────────────────
-        cte = self._ref.cross_track_error(t.position, d)
-        cte_norm = np.clip(cte / MAX_CTE, 0.0, 1.0)
-
-        # ── 2 · Delta velocidad vs referencia ─────────────────────────────
-        delta_norm = np.clip(self._ref.speed_delta(t.speed, d) / MAX_SPEED_DELTA, -1.0, 1.0)
-
-        # ── 3 · Slip angle ────────────────────────────────────────────────
-        vx = t.local_velocity[0]
-        vz = t.local_velocity[2]
-        slip = math.atan2(vz, max(abs(vx), 0.1))
-        slip_norm = np.clip(slip / math.pi, -1.0, 1.0)
-
-        # ── 4 · Yaw rate (sobreviraje) ────────────────────────────────────
-        yaw_norm = np.clip(t.angular_velocity[1] / MAX_ANGULAR_VEL, -1.0, 1.0)
-
-        # ── 5 · Aceleración lateral (G) ──────────────────────────────────
-        # Nota: se usa local_acceleration[2] (eje lateral del coche), no velocity.
-        lat_norm = np.clip(t.local_acceleration[2] / (MAX_LAT_ACCEL * 9.81), -1.0, 1.0)
-
-        # ── 6 · Aceleración longitudinal (G) ──────────────────────────────
-        long_norm = np.clip(t.local_acceleration[0] / MAX_LONG_ACCEL, -1.0, 1.0)
-
-        # ── 7 · RPM normalizado ───────────────────────────────────────────
-        rpm_norm = np.clip(t.rpm / max(t.max_rpm, 1), 0.0, 1.0)
-
-        # ── 8 · Marcha normalizada ────────────────────────────────────────
-        gear_norm = np.clip(t.gear / max(t.num_gears, 1), 0.0, 1.0)
-
-        # ── 9 · Heading error ─────────────────────────────────────────
-        h_err = self._ref.heading_error(t.world_velocity, d)
-        heading_err_norm = np.clip(h_err / MAX_HEADING_ERR, -1.0, 1.0)
-
-        # ── 12 · Curvatura ────────────────────────────────────────────────
-        curv = self._ref.curvature(d)
-        curv_norm = np.clip(curv / MAX_CURVATURE, -1.0, 1.0)
-
-        # ── 13-14 · Velocidad de referencia a +50m y +100m ────────────────
-        spd_lk50  = np.clip(self._ref.speed_lookahead(d,  50.0) / MAX_SPEED_MS, 0.0, 1.0)
-        spd_lk100 = np.clip(self._ref.speed_lookahead(d, 100.0) / MAX_SPEED_MS, 0.0, 1.0)
-
-        # ── 15-16 · Throttle y brake de referencia ────────────────────────
-        ref_thr = self._ref.reference_throttle(d)
-        ref_brk = self._ref.reference_brake(d)
-
-        # ── 17-18 · Wheelspin trasero / bloqueo delantero ─────────────────
-        # RPS esperado en base a la velocidad actual del coche
-        expected_rps = t.speed / (2.0 * math.pi * TYRE_RADIUS)
-        rear_rps_avg  = (t.tyre_rps[2] + t.tyre_rps[3]) / 2.0
-        front_rps_avg = (t.tyre_rps[0] + t.tyre_rps[1]) / 2.0
-        wheelspin_norm = np.clip((rear_rps_avg  - expected_rps) / MAX_TYRE_RPS, -1.0, 1.0)
-        lockup_norm    = np.clip((expected_rps  - front_rps_avg) / MAX_TYRE_RPS, -1.0, 1.0)
-
-        # ── 17 · Throttle filtrado actual ─────────────────────────────────
-        throttle_cur_norm = t.throttle / 255.0
-
-        # ── 18 · Progreso en la vuelta ────────────────────────────────────
-        progress = 0.0
-        if self._ref.track_length > 0:
-            progress = np.clip(d / self._ref.track_length, 0.0, 1.0)
-
-        return np.array([
-            speed_norm,        # 0
-            cte_norm,          # 1
-            delta_norm,        # 2
-            slip_norm,         # 3
-            yaw_norm,          # 4
-            lat_norm,          # 5
-            long_norm,         # 6
-            rpm_norm,          # 7
-            gear_norm,         # 8
-            heading_err_norm,  # 9
-            curv_norm,         # 10
-            spd_lk50,          # 11
-            spd_lk100,         # 12
-            ref_thr,           # 13
-            ref_brk,           # 14
-            wheelspin_norm,    # 15
-            lockup_norm,       # 16
-            throttle_cur_norm, # 17
-            progress,          # 18
-        ], dtype=np.float32)
+        return build_obs(self._last_telem, self._last_timings, self._ref)
 
     # ------------------------------------------------------------------
     # Función de recompensa
