@@ -7,8 +7,16 @@ se fusionan con los defaults del modo seleccionado.
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass, field, asdict
+from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+_CURR_SRC = Path(__file__).resolve().parent.parent / "src"
+if str(_CURR_SRC) not in sys.path:
+    sys.path.insert(0, str(_CURR_SRC))
+
+from learning_curriculum import LEARN_STAGES, SPEED_BANDS_KMH  # noqa: E402
 
 
 @dataclass
@@ -200,16 +208,11 @@ class LearnSettings:
     learn_every: int = 1
     max_laps: int = 0
     open_report: bool = True
-    speed_target_kmh: float = 0.0  # 0 = automática por etapa L1–L5
+    speed_target_kmh: float = 0.0  # 0 = usa banda; >0 = override fino (avanzado)
+    speed_band_kmh: float = 20.0  # banda fija L1–L7 (teacher a este objetivo)
 
 
-LEARN_STAGE_IDS: List[str] = [
-    "l1_linea",
-    "l2_velocidad",
-    "l3_frenar",
-    "l4_combinado",
-    "l5_rapido",
-]
+LEARN_STAGE_IDS: List[str] = list(LEARN_STAGES.keys())
 
 
 def learn_settings_from_dict(data: Dict[str, Any]) -> LearnSettings:

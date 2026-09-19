@@ -44,6 +44,7 @@ class DatasetSample:
     rule: Optional[dict] = None
     track_name: str = ""
     learn_stage: str = ""
+    speed_band_kmh: float = 0.0
 
     def to_dict(self) -> dict:
         d = {
@@ -66,6 +67,8 @@ class DatasetSample:
             d["track_name"] = self.track_name
         if self.learn_stage:
             d["learn_stage"] = self.learn_stage
+        if self.speed_band_kmh > 0:
+            d["speed_band_kmh"] = self.speed_band_kmh
         if self.mix_alpha is not None:
             d["mix_alpha"] = self.mix_alpha
         return d
@@ -112,6 +115,7 @@ class DatasetRecorder:
         obs_schema: str = "legacy_19",
         track_name: str = "",
         learn_stage: str = "",
+        speed_band_kmh: float = 0.0,
     ) -> bool:
         if self._file is None:
             return False
@@ -144,6 +148,7 @@ class DatasetRecorder:
             obs_schema=obs_schema,
             track_name=track_name,
             learn_stage=learn_stage,
+            speed_band_kmh=speed_band_kmh,
         )
         self._file.write(json.dumps(sample.to_dict()) + "\n")
         self._file.flush()
@@ -205,6 +210,7 @@ def load_universal_dataset(
     min_quality: float = 0.0,
     min_confidence: float = 0.0,
     learn_stage: Optional[str] = None,
+    speed_band_kmh: Optional[float] = None,
 ) -> tuple:
     """Carga JSONL universal_v1 → (obs, act, reason_ids, meta)."""
     obs_list: List[np.ndarray] = []
@@ -228,6 +234,10 @@ def load_universal_dataset(
                 continue
             if learn_stage is not None and row.get("learn_stage") != learn_stage:
                 continue
+            if speed_band_kmh is not None:
+                row_band = row.get("speed_band_kmh")
+                if row_band is None or float(row_band) != float(speed_band_kmh):
+                    continue
             obs_list.append(np.array(row["obs"], dtype=np.float32))
             act_list.append(_normalize_action(row["action"]))
             rid = row.get("reason_id")

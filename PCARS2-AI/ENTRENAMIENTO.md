@@ -18,7 +18,7 @@ Documentación operativa: modos, comandos, logs, revisión de sesiones y flujo s
 | Entrenar BC universal             | `entrenar_bc.bat`                        |
 | Evaluar BC offline                | `eval_bc.bat`                            |
 | Probar BC en pista (HTML)         | `imitar_bc.bat`                          |
-| Aprender online (currículo L1–L5) | `aprender.bat`                           |
+| Aprender online (L1–L7 por banda) | `aprender.bat` — [docs/CURRICULO_VELOCIDAD.md](docs/CURRICULO_VELOCIDAD.md) |
 | Hybrid / autonomía                | `imitar_hybrid.bat` / `imitar_autonomo.bat` |
 | Entrenar BC clásico (PPO obs)     | `pretrain.bat` con `--dataset`           |
 | BC / Hybrid / Autonomous en pista | GUI → Teaching Driver                    |
@@ -102,7 +102,11 @@ Repite en **2–3 pistas** para generalizar.
 
 ### Conducir en pista nueva
 
-Solo necesitas **referencia local** de esa pista (para CTE/curvatura). El modelo ya aprendió las reglas.
+Solo necesitas **referencia local** de esa pista (para CTE/curvatura). El modelo ya aprendió las reglas.  
+Válido para cualquier circuito grabado con el mismo enfoque (coche/setup/condiciones similares al dataset).
+
+**Futuro (no implementar aún):** temperatura, combustible, desgaste, setup, diferenciales…  
+Plan por capas tras dominar el currículo L1→L7: [docs/ROADMAP_CONDICIONES.md](docs/ROADMAP_CONDICIONES.md)
 
 ```bat
 ..\.venv\Scripts\python.exe src\imitation_driver.py --universal ^

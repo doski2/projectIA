@@ -22,16 +22,29 @@ from session_log import load_session_ticks
 from validation_phases import PHASES, evaluate_phase
 
 
+def _session_speed_band(session: Optional[dict]) -> float:
+    if not session:
+        return 0.0
+    try:
+        return float(session.get("speed_band_kmh") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def resolve_evaluation(
     phase_id: str,
     ticks: List[dict],
     laps_completed: int,
     lap_events: Optional[List[dict]] = None,
     clean_streak: int = 0,
+    speed_band_kmh: float = 0.0,
 ) -> dict:
     if phase_id in LEARN_STAGES:
         laps = lap_events or compute_lap_times_from_ticks(ticks)
-        return evaluate_learn_session(ticks, laps_completed, phase_id, laps, clean_streak)
+        return evaluate_learn_session(
+            ticks, laps_completed, phase_id, laps, clean_streak,
+            speed_band_kmh=speed_band_kmh,
+        )
     if phase_id.startswith("imit_"):
         ev = evaluate_phase("f4_combinado", ticks, laps_completed)
         ev["phase_id"] = phase_id
@@ -49,8 +62,12 @@ def summarize_ticks(
     phase_id: str,
     lap_events: Optional[List[dict]] = None,
     clean_streak: int = 0,
+    speed_band_kmh: float = 0.0,
 ) -> dict:
-    evaluation = resolve_evaluation(phase_id, ticks, laps_completed, lap_events, clean_streak)
+    evaluation = resolve_evaluation(
+        phase_id, ticks, laps_completed, lap_events, clean_streak,
+        speed_band_kmh=speed_band_kmh,
+    )
     reasons = Counter(t.get("teacher_reason", "?") for t in ticks)
     safety_events = Counter(
         t.get("safety_event") for t in ticks if t.get("safety_event")
@@ -137,6 +154,7 @@ def write_html_replay(
         return None
 
     phase_id = (session or {}).get("phase", "f1_linea")
+    speed_band_kmh = _session_speed_band(session)
     phase = PHASES.get(phase_id)
     learn_stage = LEARN_STAGES.get(phase_id)
     if learn_stage:
@@ -152,9 +170,15 @@ def write_html_replay(
     if existing_summary and "evaluation" in existing_summary:
         evaluation = existing_summary["evaluation"]
     else:
-        evaluation = resolve_evaluation(phase_id, ticks, laps_completed, lap_events, clean_streak)
+        evaluation = resolve_evaluation(
+            phase_id, ticks, laps_completed, lap_events, clean_streak,
+            speed_band_kmh=speed_band_kmh,
+        )
 
-    summary = summarize_ticks(ticks, laps_completed, phase_id, lap_events, clean_streak)
+    summary = summarize_ticks(
+        ticks, laps_completed, phase_id, lap_events, clean_streak,
+        speed_band_kmh=speed_band_kmh,
+    )
     lt = lap_time_stats(lap_events)
     ref_lap_s = (session or {}).get("reference_lap_s")
     ref_lap_fmt = format_lap_time(ref_lap_s) if ref_lap_s else "—"
@@ -216,6 +240,10 @@ def write_html_replay(
     if phase_id.startswith("imit_"):
         report_title = "Imitation"
 
+    band_meta = ""
+    if speed_band_kmh > 0:
+        band_meta = f" · Banda: <b>{speed_band_kmh:.0f} km/h</b>"
+
     data_json = json.dumps(
         {"session": session, "evaluation": evaluation, "series": series, "lap_events": lap_events},
         ensure_ascii=False,
@@ -276,7 +304,7 @@ def write_html_replay(
 <h1>{report_title} — {phase_label}</h1>
 <p class="meta">
   Pista: <b>{session.get('track', '—') if session else '—'}</b> ·
-  Fase: <b>{phase_id}</b> ·
+  Fase: <b>{phase_id}</b>{band_meta} ·
   {metrics.get('n_ticks', len(ticks))} ticks ·
   {metrics.get('duration_s', round(duration, 1))} s ·
   {metrics.get('laps_completed', laps_completed)} vueltas
@@ -327,9 +355,13 @@ def finalize_session_report(
         or (session_stats or {}).get("clean_streak", 0)
     )
     phase_id = (session or {}).get("phase", "f1_linea")
+    speed_band_kmh = _session_speed_band(session)
     if not lap_events:
         lap_events = compute_lap_times_from_ticks(ticks)
-    evaluation = resolve_evaluation(phase_id, ticks, laps_completed, lap_events, clean_streak)
+    evaluation = resolve_evaluation(
+        phase_id, ticks, laps_completed, lap_events, clean_streak,
+        speed_band_kmh=speed_band_kmh,
+    )
 
     summary_row = {
         "type": "summary",

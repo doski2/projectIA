@@ -18,10 +18,11 @@ _SRC = Path(__file__).resolve().parent.parent / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-from learning_curriculum import get_learn_stage, resolve_stage_speed, stage_blurb  # noqa: E402
+from learning_curriculum import get_learn_stage, resolve_learn_speed, stage_blurb  # noqa: E402
 
 from .config import (
     LEARN_STAGE_IDS,
+    SPEED_BANDS_KMH,
     TRAINING_MODES,
     LearnSettings,
     TeachingSettings,
@@ -57,6 +58,7 @@ class TrainingGui(tk.Tk):
         self.settings = load_settings() or TrainingSettings()
         self.teaching_settings = TeachingSettings()
         self.learn_settings = load_learn_settings() or LearnSettings()
+        self._normalize_learn_settings()
 
         if not venv_python().is_file():
             messagebox.showwarning(
@@ -260,8 +262,8 @@ class TrainingGui(tk.Tk):
             text=(
                 "1) Graba al teacher conduciendo bien  ·  "
                 "2) Entrena el modelo BC  ·  "
-                "3) Aprende en pista (L1→L5): domina cada etapa antes de avanzar  ·  "
-                "4) Prueba Hybrid cuando L5 esté estable"
+                "3) Aprende en pista (L1→L7 por banda 20→60 km/h)  ·  "
+                "4) Prueba Hybrid al dominar L7 en cada banda"
             ),
             wraplength=700,
             justify="left",
@@ -272,7 +274,7 @@ class TrainingGui(tk.Tk):
         ttk.Button(setup_row, text="Grabar teacher", command=self._start_record).pack(side="left", padx=2)
         ttk.Button(setup_row, text="Entrenar BC", command=self._start_pretrain_bc).pack(side="left", padx=2)
 
-        session = ttk.LabelFrame(parent, text="Sesión en pista — elige etapa y velocidad")
+        session = ttk.LabelFrame(parent, text="Sesión en pista — banda de velocidad y etapa")
         session.pack(fill="x", padx=4, pady=6)
 
         grid = ttk.Frame(session)
@@ -290,7 +292,26 @@ class TrainingGui(tk.Tk):
             learn_ref_row, text="…", width=3, command=self._browse_learn_reference,
         ).grid(row=0, column=1, padx=(4, 0))
 
-        ttk.Label(grid, text="Etapa (L1→L5):").grid(row=1, column=0, sticky="w", padx=px, pady=py)
+        ttk.Label(grid, text="Banda (km/h):").grid(row=1, column=0, sticky="w", padx=px, pady=py)
+        band_row = ttk.Frame(grid)
+        band_row.grid(row=1, column=1, sticky="w", padx=px, pady=py)
+        self.learn_band_var = tk.DoubleVar(value=self.learn_settings.speed_band_kmh)
+        band_combo = ttk.Combobox(
+            band_row,
+            textvariable=self.learn_band_var,
+            values=[str(int(b)) for b in SPEED_BANDS_KMH],
+            state="readonly",
+            width=6,
+        )
+        band_combo.pack(side="left")
+        band_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_learn_band_change())
+        ttk.Label(
+            band_row,
+            text="Teacher a esta velocidad en L1–L7",
+            foreground="#666",
+        ).pack(side="left", padx=8)
+
+        ttk.Label(grid, text="Etapa (L1→L7):").grid(row=2, column=0, sticky="w", padx=px, pady=py)
         self.learn_stage_var = tk.StringVar(value=self.learn_settings.stage_id)
         stage_combo = ttk.Combobox(
             grid,
@@ -299,25 +320,11 @@ class TrainingGui(tk.Tk):
             state="readonly",
             width=22,
         )
-        stage_combo.grid(row=1, column=1, sticky="w", padx=px, pady=py)
+        stage_combo.grid(row=2, column=1, sticky="w", padx=px, pady=py)
         stage_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_learn_stage_change())
 
-        ttk.Label(grid, text="Velocidad (km/h):").grid(row=2, column=0, sticky="w", padx=px, pady=py)
-        speed_row = ttk.Frame(grid)
-        speed_row.grid(row=2, column=1, sticky="w", padx=px, pady=py)
-        self.learn_speed_var = tk.DoubleVar(value=self.learn_settings.speed_target_kmh)
-        ttk.Spinbox(
-            speed_row,
-            from_=0,
-            to=60,
-            increment=5,
-            width=6,
-            textvariable=self.learn_speed_var,
-            command=self._on_learn_speed_change,
-        ).pack(side="left")
-        ttk.Label(speed_row, text="0 = automática de la etapa").pack(side="left", padx=8)
-        self.learn_speed_hint = ttk.Label(speed_row, text="", foreground="#666")
-        self.learn_speed_hint.pack(side="left")
+        self.learn_speed_hint = ttk.Label(grid, text="", foreground="#666")
+        self.learn_speed_hint.grid(row=3, column=1, sticky="w", padx=px, pady=py)
 
         self.learn_stage_desc = ttk.Label(
             session, text="", wraplength=700, foreground="#444", justify="left",
@@ -363,6 +370,23 @@ class TrainingGui(tk.Tk):
             row=1, column=1, sticky="ew", padx=px, pady=py,
         )
 
+        ttk.Label(adv, text="Override velocidad (km/h):").grid(
+            row=2, column=0, sticky="w", padx=px, pady=py,
+        )
+        override_row = ttk.Frame(adv)
+        override_row.grid(row=2, column=1, sticky="w", padx=px, pady=py)
+        self.learn_speed_var = tk.DoubleVar(value=self.learn_settings.speed_target_kmh)
+        ttk.Spinbox(
+            override_row,
+            from_=0,
+            to=60,
+            increment=5,
+            width=6,
+            textvariable=self.learn_speed_var,
+            command=self._on_learn_speed_change,
+        ).pack(side="left")
+        ttk.Label(override_row, text="0 = usa banda (normalmente no tocar)").pack(side="left", padx=8)
+
         adv_btn = ttk.Frame(advanced)
         adv_btn.pack(fill="x", padx=8, pady=(0, 4))
         ttk.Button(adv_btn, text="Eval BC (offline)", command=self._start_eval_bc).pack(side="left")
@@ -372,6 +396,7 @@ class TrainingGui(tk.Tk):
 
         for var in (
             self.learn_ref_var,
+            self.learn_band_var,
             self.learn_stage_var,
             self.learn_model_var,
             self.learn_dataset_var,
@@ -379,6 +404,14 @@ class TrainingGui(tk.Tk):
         ):
             if hasattr(var, "trace_add"):
                 var.trace_add("write", lambda *_a: self._on_learn_settings_change())
+
+    def _normalize_learn_settings(self) -> None:
+        """Migrar ajustes antiguos: velocidad principal → banda; override solo si difiere."""
+        s = self.learn_settings
+        if s.speed_band_kmh <= 0:
+            s.speed_band_kmh = 20.0
+        if s.speed_target_kmh > 0 and abs(s.speed_target_kmh - s.speed_band_kmh) < 0.5:
+            s.speed_target_kmh = 0.0
 
     def _populate_refs(self) -> None:
         refs = list_references()
@@ -403,6 +436,7 @@ class TrainingGui(tk.Tk):
         self.fresh_var.set(self.settings.fresh_start)
         if hasattr(self, "learn_ref_var"):
             self.learn_ref_var.set(self.learn_settings.reference)
+            self.learn_band_var.set(self.learn_settings.speed_band_kmh)
             self.learn_stage_var.set(self.learn_settings.stage_id)
             self.learn_speed_var.set(self.learn_settings.speed_target_kmh)
             self.learn_model_var.set(self.learn_settings.model_path)
@@ -424,8 +458,9 @@ class TrainingGui(tk.Tk):
 
     def _effective_learn_speed(self) -> float:
         stage_id = self.learn_stage_var.get().strip()
+        band = float(self.learn_band_var.get())
         override = float(self.learn_speed_var.get())
-        return resolve_stage_speed(stage_id, override)
+        return resolve_learn_speed(stage_id, band, override)
 
     def _collect_learn_settings(self) -> LearnSettings:
         return LearnSettings(
@@ -435,19 +470,44 @@ class TrainingGui(tk.Tk):
             dataset_path=self.learn_dataset_var.get().strip(),
             gamepad="xbox",
             open_report=True,
+            speed_band_kmh=float(self.learn_band_var.get()),
             speed_target_kmh=float(self.learn_speed_var.get()),
         )
 
     def _persist_learn_settings(self) -> None:
         save_learn_settings(self._collect_learn_settings())
 
+    def _current_learn_band(self) -> float:
+        try:
+            return float(self.learn_band_var.get())
+        except (tk.TclError, ValueError):
+            return 20.0
+
+    def _update_learn_speed_hint(self) -> None:
+        stage_id = self.learn_stage_var.get().strip()
+        band = self._current_learn_band()
+        override = float(self.learn_speed_var.get())
+        effective = resolve_learn_speed(stage_id, band, override)
+        if override > 0:
+            self.learn_speed_hint.config(
+                text=f"Teacher a {effective:.0f} km/h (override; banda {band:.0f})",
+            )
+        else:
+            self.learn_speed_hint.config(text=f"Teacher a {effective:.0f} km/h (banda fija)")
+
+    def _on_learn_band_change(self) -> None:
+        band = self._current_learn_band()
+        stage_id = self.learn_stage_var.get().strip()
+        self.learn_stage_desc.config(text=stage_blurb(stage_id, band))
+        self._update_learn_speed_hint()
+        self._persist_learn_settings()
+        self._update_learn_command()
+
     def _on_learn_stage_change(self) -> None:
         stage_id = self.learn_stage_var.get().strip()
-        stage = get_learn_stage(stage_id)
-        self.learn_stage_desc.config(text=stage_blurb(stage_id))
-        self.learn_speed_hint.config(
-            text=f"Etapa usa {stage.speed_target_kmh:.0f} km/h",
-        )
+        band = self._current_learn_band()
+        self.learn_stage_desc.config(text=stage_blurb(stage_id, band))
+        self._update_learn_speed_hint()
         self._persist_learn_settings()
         self._update_learn_command()
 
@@ -456,15 +516,9 @@ class TrainingGui(tk.Tk):
 
     def _on_learn_settings_change(self) -> None:
         stage_id = self.learn_stage_var.get().strip()
-        override = float(self.learn_speed_var.get())
-        if override > 0:
-            self.learn_speed_hint.config(
-                text=f"Override {override:.0f} km/h (etapa {get_learn_stage(stage_id).speed_target_kmh:.0f})",
-            )
-        else:
-            self.learn_speed_hint.config(
-                text=f"Etapa usa {get_learn_stage(stage_id).speed_target_kmh:.0f} km/h",
-            )
+        band = self._current_learn_band()
+        self.learn_stage_desc.config(text=stage_blurb(stage_id, band))
+        self._update_learn_speed_hint()
         self._persist_learn_settings()
         self._update_learn_command()
 

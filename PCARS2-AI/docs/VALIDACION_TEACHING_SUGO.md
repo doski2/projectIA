@@ -175,22 +175,20 @@ Métricas alineadas con la sesión larga (`190548Z`); basta **1 vuelta** para AP
 | 3. Evaluar offline | `eval_bc.bat` | MAE en consola |
 | 4. Probar red (sin aprender) | `imitar_bc.bat` | HTML en `logs/imitation/` |
 | 5. **Aprender en pista** | `aprender.bat` | fine-tune cada vuelta + HTML en `logs/learning/` |
-| 6. Hybrid / autonomía | `imitar_hybrid.bat` → `imitar_autonomo.bat` | cuando L5 o vueltas limpias |
+| 6. Hybrid / autonomía | `imitar_hybrid.bat` → `imitar_autonomo.bat` | cuando L7 por banda o vueltas limpias |
 
 F1–F4 = **reglas**. F5 = la red aprende del teacher.
 
 ### Currículo online (`aprender.bat`)
 
-| Etapa | Objetivo | Velocidad | Graduar |
-|-------|----------|-----------|---------|
-| **L1** línea | Trazado, lógica básica | 15 km/h | 2 vueltas limpias |
-| **L2** velocidad | Mantener ritmo | 20 km/h | 2 vueltas limpias |
-| **L3** frenar | Física de frenada | 20 km/h | 2 vueltas limpias |
-| **L4** combinado | Todo junto | 25 km/h | 2 vueltas limpias |
-| **L5** rápido | Sin límites artificiales | 35 km/h | 3 vueltas → **autonomía** |
+**Documento detallado:** [CURRICULO_VELOCIDAD.md](CURRICULO_VELOCIDAD.md)
 
-Cada vuelta: BC conduce, teacher corrige → buffer → **fine-tune** del modelo.  
-Autonomía total solo cuando domine varias condiciones (`imitar_autonomo.bat`).
+| Banda | Etapas | Graduar banda |
+|-------|--------|---------------|
+| 20 → 30 → 40 → 50 → 60 km/h | **L1→L7** en cada banda | L7 dominada → siguiente banda, reinicia L1 |
+
+Cada vuelta: BC conduce, teacher corrige → buffer (`learn_stage` + `speed_band_kmh`) → **fine-tune**.  
+Hybrid/autonomía cuando L7 esté estable en la banda actual.
 
 El **HTML** (`logs/learning/`) muestra:
 - **Objetivos** de la etapa (CTE, freno, vueltas limpias…)
@@ -205,6 +203,23 @@ entrenar_bc.bat
 eval_bc.bat
 aprender.bat        rem aprende vuelta a vuelta, abre HTML al salir
 ```
+
+---
+
+## F6 — Condiciones avanzadas (planificado, no ahora)
+
+**Estado:** documentado para más adelante · **Prerrequisito:** F5 estable (L7 por banda, Hybrid/Autónomo limpios, opcional multi-pista).
+
+| Capa | Qué incluye | Cuándo |
+|------|------------|--------|
+| **F5 actual** | Línea, ritmo, técnica · `universal_v1` · multi-pista con referencia local | **Ahora** |
+| **F6a** | Temp. neumático/pista, combustible, desgaste (UDP en vivo) | Tras base sólida |
+| **F6b** | Setup, diferenciales, compuesto (metadata de sesión + efectos en telemetría) | Tras F6a |
+| **F7** | RL / optimización de stint | Tras BC estable en condiciones |
+
+Detalle completo: **[ROADMAP_CONDICIONES.md](ROADMAP_CONDICIONES.md)**
+
+> La base universal actual sirve para **todos los circuitos con referencia grabada**, siempre que coche y condiciones sean similares al entrenamiento. Lluvia, desgaste u otro setup requieren datos y currículo propios.
 
 ---
 

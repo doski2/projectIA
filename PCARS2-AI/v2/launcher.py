@@ -275,6 +275,8 @@ def build_learn_argv(settings: LearnSettings) -> List[str]:
         argv.append("--open-report")
     if settings.max_laps > 0:
         argv.extend(["--max-laps", str(settings.max_laps)])
+    if settings.speed_band_kmh > 0:
+        argv.extend(["--speed-band", str(int(settings.speed_band_kmh))])
     if settings.speed_target_kmh > 0:
         argv.extend(["--speed-target", str(settings.speed_target_kmh)])
     return argv

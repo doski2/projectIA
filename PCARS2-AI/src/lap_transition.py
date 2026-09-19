@@ -8,6 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
+from lap_session import LAP_DISTANCE_WRAP_DROP_M, lap_rollover_detected
+
 
 @dataclass
 class SettleDecision:
@@ -23,7 +25,7 @@ class LapTransitionGuard:
     """Mantiene control seguro tras meta o mientras el BC entrena."""
 
     DEFAULT_SETTLE_FRAMES = 90
-    WRAP_DROP_M = 80.0
+    WRAP_DROP_M = LAP_DISTANCE_WRAP_DROP_M
 
     def __init__(self, track_length: float = 0.0, settle_frames: int = DEFAULT_SETTLE_FRAMES):
         self.track_length = track_length
@@ -53,12 +55,10 @@ class LapTransitionGuard:
 
     def on_frame(self, current_lap: int, lap_distance: float) -> bool:
         """Detecta meta / salto de lap_distance. Devuelve True si settle activo."""
-        if self._prev_lap >= 0 and current_lap > self._prev_lap:
-            self.trigger_settle()
-        elif (
-            self._prev_d > 0.0
-            and lap_distance < self._prev_d - self.WRAP_DROP_M
-        ):
+        rolled, _ = lap_rollover_detected(
+            self._prev_lap, self._prev_d, current_lap, lap_distance, self.WRAP_DROP_M,
+        )
+        if rolled:
             self.trigger_settle()
 
         self._prev_lap = current_lap

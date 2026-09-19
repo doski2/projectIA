@@ -2,9 +2,9 @@
 cd /d "%~dp0"
 echo.
 echo  Aprendizaje online — BC conduce, teacher corrige, fine-tune cada vuelta
-echo  Curriculo L1 -^> L5: domina cada etapa antes de avanzar
-echo  Etapa: ultima guardada en v2\user_learn_settings.json
-echo  Forzar L1: --stage l1_linea   Velocidad: --speed-target 20
+echo  Curriculo L1 -^> L7 por banda 20/30/40/50/60 km/h
+echo  Etapa y banda: v2\user_learn_settings.json
+echo  Forzar: --stage l1_linea --speed-band 20
 echo  HTML: logs\learning\   Buffer: data\online_buffer.jsonl
 echo.
 pause

@@ -20,7 +20,12 @@ from controller import DS4Controller, decode_action
 from dataset_recorder import ORIGIN_MIXED, DatasetRecorder
 from drive_actions import blend_actions
 from drive_session import DriveSession
-from lap_session import make_lap_buffer_tick, process_lap_rollover, rotate_lap_buffer
+from lap_session import (
+    LapCompletionTracker,
+    make_lap_buffer_tick,
+    process_lap_rollover,
+    rotate_lap_buffer,
+)
 from lap_transition import LapTransitionGuard
 from lap_tracker import format_lap_time
 from obs_builder import build_obs, encoded_action_tuple
@@ -123,6 +128,7 @@ def run(args: argparse.Namespace) -> int:
     controller = DS4Controller(mode=args.gamepad)
     shifter = AutoShifter()
     start_lap = session.last_timings.current_lap if session.last_timings else 0
+    lap_completion = LapCompletionTracker()
     laps_done = 0
     frame = 0
     lap_ticks: List[dict] = []
@@ -142,10 +148,9 @@ def run(args: argparse.Namespace) -> int:
         "Imitation",
     )
 
-    lap_guard.reset(
-        start_lap,
-        session.last_timings.lap_distance if session.last_timings else 0.0,
-    )
+    _init_dist = session.last_timings.lap_distance if session.last_timings else 0.0
+    lap_guard.reset(start_lap, _init_dist)
+    lap_completion.reset(start_lap, _init_dist)
 
     try:
         while True:
@@ -273,11 +278,11 @@ def run(args: argparse.Namespace) -> int:
                 )
 
             lap_result = process_lap_rollover(
-                lap_ticks, timings.current_lap, start_lap, laps_done,
-                phase_id, session_rec,
+                lap_ticks, timings.current_lap, timings.lap_distance,
+                lap_completion, phase_id, session_rec,
             )
             if lap_result is not None:
-                laps_done = lap_result.laps_done
+                laps_done = lap_completion.laps_done
                 if lap_result.clean:
                     clean_laps += 1
                 else:

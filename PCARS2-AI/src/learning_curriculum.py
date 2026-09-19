@@ -117,17 +117,52 @@ LEARN_STAGES: Dict[str, LearnStage] = {
         max_lap_cte=3.5,
         max_lap_override_pct=5.0,
         min_brake_pct=2.0,
-        next_stage=None,
-        autonomous_ready=True,
+        next_stage="l6_sostenido",
+        autonomous_ready=False,
         objectives=_objs(
             LearnObjective("linea", "CTE medio", "avg_cte", 3.5, "m", "le"),
             LearnObjective("ritmo", "Mejorar tiempo vs 1ª vuelta", "lap_delta_first_s", 0.0, "s", "le"),
-            LearnObjective("autonomia", "Vueltas limpias para graduar", "clean_streak", 3, "", "ge"),
+            LearnObjective("concepto", "Vueltas limpias seguidas", "clean_streak", 3, "", "ge"),
+        ),
+    ),
+    "l6_sostenido": LearnStage(
+        id="l6_sostenido",
+        label="L6 — Ritmo sostenido",
+        description="Mantener línea y frenada de forma estable a lo largo de varias vueltas.",
+        speed_target_kmh=35.0,
+        clean_laps_required=2,
+        max_lap_cte=3.3,
+        max_lap_override_pct=5.0,
+        min_brake_pct=2.0,
+        next_stage="l7_banda",
+        objectives=_objs(
+            LearnObjective("linea", "CTE medio", "avg_cte", 3.3, "m", "le"),
+            LearnObjective("frenada", "Uso de freno", "pct_brake", 2.0, "%", "ge"),
+            LearnObjective("concepto", "Vueltas limpias seguidas", "clean_streak", 2, "", "ge"),
+        ),
+    ),
+    "l7_banda": LearnStage(
+        id="l7_banda",
+        label="L7 — Banda dominada",
+        description="Validar la banda de velocidad actual antes de subir al siguiente escalón.",
+        speed_target_kmh=35.0,
+        clean_laps_required=3,
+        max_lap_cte=3.2,
+        max_lap_override_pct=4.0,
+        min_brake_pct=2.0,
+        next_stage=None,
+        autonomous_ready=True,
+        objectives=_objs(
+            LearnObjective("linea", "CTE medio", "avg_cte", 3.2, "m", "le"),
+            LearnObjective("autonomia", "Vueltas limpias para graduar banda", "clean_streak", 3, "", "ge"),
         ),
     ),
 }
 
 DEFAULT_LEARN_STAGE = "l1_linea"
+DEFAULT_SPEED_BAND_KMH = 20.0
+SPEED_BANDS_KMH = [20.0, 30.0, 40.0, 50.0, 60.0]
+MAX_SPEED_BAND_KMH = 60.0
 
 
 def get_learn_stage(stage_id: str) -> LearnStage:
@@ -135,32 +170,70 @@ def get_learn_stage(stage_id: str) -> LearnStage:
 
 
 def resolve_stage_speed(stage_id: str, speed_override_kmh: float = 0.0) -> float:
-    """0 = velocidad definida por la etapa; >0 = override manual (GUI/CLI)."""
+    """Compat: usar resolve_learn_speed con banda 0."""
+    return resolve_learn_speed(stage_id, 0.0, speed_override_kmh)
+
+
+def resolve_learn_speed(
+    stage_id: str,
+    speed_band_kmh: float = 0.0,
+    speed_override_kmh: float = 0.0,
+) -> float:
+    """Prioridad: override fino > banda fija > velocidad nominal de etapa."""
     if speed_override_kmh > 0:
         return speed_override_kmh
+    if speed_band_kmh > 0:
+        return speed_band_kmh
     return get_learn_stage(stage_id).speed_target_kmh
 
 
-def stage_blurb(stage_id: str) -> str:
-    """Texto breve para GUI: qué dominar antes de pasar de etapa."""
+def effective_min_avg_speed(stage: LearnStage, speed_band_kmh: float) -> Optional[float]:
+    """Escala el mínimo de velocidad media de la etapa a la banda actual."""
+    if stage.min_avg_speed_kmh is None:
+        return None
+    if speed_band_kmh <= 0 or stage.speed_target_kmh <= 0:
+        return stage.min_avg_speed_kmh
+    ratio = stage.min_avg_speed_kmh / stage.speed_target_kmh
+    return round(speed_band_kmh * ratio, 1)
+
+
+def next_speed_band(current_band_kmh: float) -> Optional[float]:
+    bands = sorted(SPEED_BANDS_KMH)
+    for b in bands:
+        if b > current_band_kmh:
+            return b
+    return None
+
+
+def stage_blurb(stage_id: str, speed_band_kmh: float = DEFAULT_SPEED_BAND_KMH) -> str:
+    """Texto breve para GUI: qué dominar antes de pasar de etapa o banda."""
     s = get_learn_stage(stage_id)
+    min_avg = effective_min_avg_speed(s, speed_band_kmh)
     lines = [
         s.description,
-        f"Velocidad de la etapa: {s.speed_target_kmh:.0f} km/h.",
+        f"Banda de velocidad actual: {speed_band_kmh:.0f} km/h (teacher a ese objetivo).",
         (
-            f"Para avanzar: {s.clean_laps_required} vueltas limpias seguidas "
-            f"(CTE ≤ {s.max_lap_cte} m, teacher interviene ≤ {s.max_lap_override_pct:.0f}%)."
+            f"Para avanzar de etapa: {s.clean_laps_required} vueltas limpias seguidas "
+            f"(CTE ≤ {s.max_lap_cte} m, teacher ≤ {s.max_lap_override_pct:.0f}%)."
         ),
     ]
-    if s.min_avg_speed_kmh is not None:
-        lines.append(f"Velocidad media de la vuelta ≥ {s.min_avg_speed_kmh:.0f} km/h.")
+    if min_avg is not None:
+        lines.append(f"Velocidad media de la vuelta ≥ {min_avg:.0f} km/h.")
     if s.min_brake_pct is not None:
         lines.append(f"Uso de freno en la vuelta ≥ {s.min_brake_pct:.0f}%.")
-    if s.autonomous_ready:
-        lines.append("Al dominar L5, prueba Hybrid y luego Autónomo.")
+    if stage_id == "l7_banda":
+        nxt = next_speed_band(speed_band_kmh)
+        if nxt:
+            lines.append(
+                f"Al dominar L7 en {speed_band_kmh:.0f} km/h, la banda sube automáticamente "
+                f"a {nxt:.0f} km/h y reinicia en L1."
+            )
+        else:
+            lines.append("Banda máxima del currículo — prueba Hybrid y Autónomo.")
+    elif s.autonomous_ready:
+        lines.append("Al dominar esta etapa, prueba Hybrid en la misma banda.")
     lines.append(
-        "No subas velocidad hasta pasar la etapa: el BC aprende el comportamiento "
-        "del teacher a ese ritmo; ir más rápido sin dominar la fase suele empeorar el aprendizaje."
+        "Completa L1→L7 en cada banda antes de subir velocidad; el buffer guarda etapa + banda."
     )
     return " ".join(lines)
 
@@ -178,9 +251,11 @@ def evaluate_objectives(
     session_metrics: dict,
     lap_events: List[dict],
     clean_streak: int = 0,
+    speed_band_kmh: float = 0.0,
 ) -> List[dict]:
     """Estado de objetivos pedagógicos (seguimiento; BC no optimiza tiempo directamente)."""
     stage = get_learn_stage(stage_id)
+    scaled_min_speed = effective_min_avg_speed(stage, speed_band_kmh)
     lt = lap_time_stats(lap_events)
     values = {
         "avg_cte": float(session_metrics.get("avg_cte", 99)),
@@ -195,7 +270,10 @@ def evaluate_objectives(
     rows: List[dict] = []
     for obj in stage.objectives:
         val = values.get(obj.metric, 0.0)
-        ok = _check_objective(val, obj.target, obj.compare)
+        target = obj.target
+        if obj.metric == "avg_speed_kmh" and scaled_min_speed is not None:
+            target = scaled_min_speed
+        ok = _check_objective(val, target, obj.compare)
         display = val
         if obj.metric == "lap_delta_first_s" and lt["delta_last_vs_first_s"] is not None:
             display = lt["delta_last_vs_first_s"]
@@ -207,7 +285,7 @@ def evaluate_objectives(
         else:
             display_str = str(int(display)) if obj.metric in ("clean_streak", "lap_count") else str(display)
 
-        thresh = obj.target
+        thresh = target
         if obj.unit == "s":
             thresh_str = f"≤ {thresh}s vs 1ª vuelta"
         elif obj.unit:
@@ -225,9 +303,14 @@ def evaluate_objectives(
     return rows
 
 
-def evaluate_lap(ticks: List[dict], stage_id: str) -> dict:
-    """Evalúa una vuelta para graduación de etapa."""
+def evaluate_lap(
+    ticks: List[dict],
+    stage_id: str,
+    speed_band_kmh: float = 0.0,
+) -> dict:
+    """Evalúa una vuelta para graduación de etapa (opcionalmente en una banda de velocidad)."""
     stage = get_learn_stage(stage_id)
+    min_avg = effective_min_avg_speed(stage, speed_band_kmh)
     m = compute_lap_metrics(ticks)
     if m["n"] == 0:
         return {
@@ -255,8 +338,8 @@ def evaluate_lap(ticks: List[dict], stage_id: str) -> dict:
     )
     if stage.min_brake_pct is not None:
         clean = clean and pct_brake >= stage.min_brake_pct
-    if stage.min_avg_speed_kmh is not None:
-        clean = clean and avg_speed >= stage.min_avg_speed_kmh
+    if min_avg is not None:
+        clean = clean and avg_speed >= min_avg
 
     issues = []
     if avg_cte > stage.max_lap_cte:
@@ -265,7 +348,7 @@ def evaluate_lap(ticks: List[dict], stage_id: str) -> dict:
         issues.append(f"overrides {pct_override}%")
     if stage.min_brake_pct and pct_brake < stage.min_brake_pct:
         issues.append(f"freno {pct_brake}%")
-    if stage.min_avg_speed_kmh and avg_speed < stage.min_avg_speed_kmh:
+    if min_avg is not None and avg_speed < min_avg:
         issues.append(f"vel {avg_speed} km/h")
 
     return {
@@ -288,6 +371,7 @@ def evaluate_learn_session(
     stage_id: str,
     lap_events: Optional[List[dict]] = None,
     clean_streak: int = 0,
+    speed_band_kmh: float = 0.0,
 ) -> dict:
     """Evaluación HTML de sesión de aprendizaje (similar a teaching)."""
     stage = get_learn_stage(stage_id)
@@ -326,7 +410,7 @@ def evaluate_learn_session(
         "pct_safety_override": pct_override,
         "avg_speed_kmh": avg_speed,
         "pct_brake_reason": pct_brake,
-    }, laps, clean_streak=clean_streak)
+    }, laps, clean_streak=clean_streak, speed_band_kmh=speed_band_kmh)
 
     for obj in objectives:
         add(obj["id"], obj["ok"], obj["value"], obj["threshold"])
@@ -354,6 +438,7 @@ def evaluate_learn_session(
             "pct_brake_reason": pct_brake,
             "learn_stage": stage_id,
             "speed_target_kmh": stage.speed_target_kmh,
+            "speed_band_kmh": speed_band_kmh if speed_band_kmh > 0 else None,
             "autonomous_ready": stage.autonomous_ready,
             "best_lap_s": lt["best_s"],
             "best_lap_fmt": lt["best_fmt"],
@@ -380,11 +465,46 @@ def try_advance_stage(
             f"Etapa {stage.id}: {clean_streak}/{stage.clean_laps_required} vueltas limpias"
         )
     if not stage.next_stage:
+        if stage_id == "l7_banda":
+            if clean_streak == stage.clean_laps_required:
+                return stage_id, False, (
+                    f"L7 completada — banda {stage.clean_laps_required} vueltas limpias "
+                    f"(siguiente banda si aplica, o prueba Hybrid)."
+                )
+            return stage_id, False, (
+                f"L7: {clean_streak}/{stage.clean_laps_required} vueltas limpias"
+            )
         return stage_id, False, (
-            f"Etapa {stage.id} completada — listo para autonomía total "
+            f"Etapa {stage.id} completada "
             f"({stage.clean_laps_required} vueltas limpias)"
         )
     nxt = get_learn_stage(stage.next_stage)
     return stage.next_stage, True, (
-        f"Graduado a {nxt.id} ({nxt.label}) @ {nxt.speed_target_kmh:.0f} km/h"
+        f"Graduado a {nxt.id} ({nxt.label})"
+    )
+
+
+def try_advance_speed_band(
+    speed_band_kmh: float,
+    stage_id: str,
+    clean_streak: int,
+) -> tuple[float, bool, str, str]:
+    """
+    Tras dominar L7 en una banda, sube al siguiente escalón y reinicia en L1.
+    Devuelve (nueva_banda, avanzó, nuevo_stage_id, mensaje).
+    """
+    if stage_id != "l7_banda":
+        return speed_band_kmh, False, stage_id, ""
+    stage = get_learn_stage(stage_id)
+    if clean_streak < stage.clean_laps_required:
+        return speed_band_kmh, False, stage_id, ""
+    if clean_streak > stage.clean_laps_required:
+        return speed_band_kmh, False, stage_id, ""
+    nxt = next_speed_band(speed_band_kmh)
+    if nxt is None:
+        return speed_band_kmh, False, stage_id, (
+            f"Banda {speed_band_kmh:.0f} km/h dominada — máximo del currículo ({MAX_SPEED_BAND_KMH:.0f} km/h)"
+        )
+    return nxt, True, DEFAULT_LEARN_STAGE, (
+        f"*** Banda {speed_band_kmh:.0f} → {nxt:.0f} km/h — reinicia en L1 ***"
     )

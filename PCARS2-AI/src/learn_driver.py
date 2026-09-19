@@ -1,6 +1,6 @@
 """
 learn_driver.py
-Aprendizaje online: BC conduce, teacher corrige, fine-tune cada N vueltas + currículo L1→L5.
+Aprendizaje online: BC conduce, teacher corrige, fine-tune cada N vueltas + currículo L1→L7 por banda.
 
 Uso:
     python learn_driver.py --reference src/refs/sugo_ai.json --model models/universal_bc.pt
@@ -21,14 +21,21 @@ import numpy as np
 
 from dataset_recorder import ORIGIN_TEACHER, DatasetRecorder, load_universal_dataset
 from drive_session import DriveSession
-from lap_session import make_lap_buffer_tick, process_lap_rollover, rotate_lap_buffer
+from lap_session import (
+    LapCompletionTracker,
+    make_lap_buffer_tick,
+    process_lap_rollover,
+    rotate_lap_buffer,
+)
 from lap_transition import LapTransitionGuard
 from lap_tracker import format_lap_time
-from learn_progress import read_saved_stage, save_learn_progress
+from learn_progress import read_saved_speed_band, read_saved_stage, save_learn_progress
 from learning_curriculum import (
     DEFAULT_LEARN_STAGE,
+    LEARN_STAGES,
     get_learn_stage,
-    resolve_stage_speed,
+    resolve_learn_speed,
+    try_advance_speed_band,
     try_advance_stage,
 )
 from obs_builder import encoded_action_tuple
@@ -55,11 +62,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--stage",
         default=None,
-        choices=["l1_linea", "l2_velocidad", "l3_frenar", "l4_combinado", "l5_rapido"],
+        choices=list(LEARN_STAGES.keys()),
         help="Etapa inicial (omitir = última guardada en v2/user_learn_settings.json)",
     )
+    parser.add_argument("--speed-band", type=float, default=0.0,
+                        help="Banda fija km/h (0 = última guardada o 20)")
     parser.add_argument("--speed-target", type=float, default=0.0,
-                        help="km/h (0 = velocidad automática de la etapa)")
+                        help="Override fino km/h (0 = usa banda de velocidad)")
     parser.add_argument("--learn-every", type=int, default=1,
                         help="Fine-tune cada N vueltas completas")
     parser.add_argument("--fine-tune-epochs", type=int, default=8)
@@ -95,8 +104,13 @@ def _concat_universal_chunks(chunks: list) -> tuple:
     return np.concatenate(obs_parts), np.concatenate(act_parts), np.concatenate(rid_parts), meta
 
 
-def _load_training_data(buffer_path: str, base_path: str, stage_id: str) -> tuple:
-    """Base teacher sin filtro de etapa; buffer online solo de la etapa actual."""
+def _load_training_data(
+    buffer_path: str,
+    base_path: str,
+    stage_id: str,
+    speed_band_kmh: float,
+) -> tuple:
+    """Base teacher sin filtro; buffer online filtrado por etapa + banda."""
     chunks = []
     if os.path.isfile(base_path):
         chunks.append(load_universal_dataset(base_path, min_quality=FINE_TUNE_MIN_QUALITY))
@@ -105,12 +119,14 @@ def _load_training_data(buffer_path: str, base_path: str, stage_id: str) -> tupl
             buffer_path,
             min_quality=FINE_TUNE_MIN_QUALITY,
             learn_stage=stage_id,
+            speed_band_kmh=speed_band_kmh,
         ))
     if not chunks:
         return load_universal_dataset(
             buffer_path,
             min_quality=FINE_TUNE_MIN_QUALITY,
             learn_stage=stage_id,
+            speed_band_kmh=speed_band_kmh,
         )
     if len(chunks) == 1:
         return chunks[0]
@@ -119,9 +135,10 @@ def _load_training_data(buffer_path: str, base_path: str, stage_id: str) -> tupl
 
 def run(args: argparse.Namespace) -> int:
     stage_id = args.stage or read_saved_stage(DEFAULT_LEARN_STAGE)
+    speed_band = args.speed_band if args.speed_band > 0 else read_saved_speed_band()
     ref = ReferenceLine.load(args.reference)
     stage = get_learn_stage(stage_id)
-    effective_speed = resolve_stage_speed(stage_id, args.speed_target)
+    effective_speed = resolve_learn_speed(stage_id, speed_band, args.speed_target)
     teacher = TeachingController(ref, TeacherConfig(speed_target_kmh=effective_speed))
     safety = SafetyMonitor(ref=ref)
     session = DriveSession()
@@ -145,6 +162,7 @@ def run(args: argparse.Namespace) -> int:
         "track": ref.track_name or "sugo",
         "reference": args.reference,
         "speed_target_kmh": effective_speed,
+        "speed_band_kmh": speed_band,
         "stage_speed_kmh": stage.speed_target_kmh,
         "speed_override_kmh": args.speed_target if args.speed_target > 0 else None,
         "model": args.model,
@@ -152,13 +170,14 @@ def run(args: argparse.Namespace) -> int:
         "reference_lap_s": round(ref.lap_time, 3) if ref.lap_time else None,
     })
 
-    speed_note = (
-        f"{effective_speed:.0f} km/h (override; etapa={stage.speed_target_kmh:.0f})"
-        if args.speed_target > 0
-        else f"{effective_speed:.0f} km/h"
-    )
+    if args.speed_target > 0:
+        speed_note = f"{effective_speed:.0f} km/h (override fino)"
+    else:
+        speed_note = f"banda {speed_band:.0f} km/h"
     if args.stage is None:
         print(f"[Learn] Etapa guardada: {stage_id}")
+    if args.speed_band <= 0:
+        print(f"[Learn] Banda guardada: {speed_band:.0f} km/h")
     print(f"[Learn] Etapa: {stage.label} @ {speed_note}")
     print(f"[Learn] Fine-tune cada {args.learn_every} vuelta(s) | Buffer: {args.buffer}")
     print(f"[Learn] Session log: {log_path}")
@@ -171,6 +190,7 @@ def run(args: argparse.Namespace) -> int:
     controller = DS4Controller(mode=args.gamepad)
     shifter = AutoShifter()
     start_lap = session.last_timings.current_lap if session.last_timings else 0
+    lap_completion = LapCompletionTracker()
     laps_done = 0
     laps_since_learn = 0
     clean_streak = 0
@@ -178,6 +198,7 @@ def run(args: argparse.Namespace) -> int:
     lap_ticks: List[dict] = []
     frame = 0
     current_stage_id = stage_id
+    current_speed_band = speed_band
     autonomy_announced = False
     max_clean_streak = 0
     lap_guard = LapTransitionGuard(track_length=ref.track_length)
@@ -204,7 +225,7 @@ def run(args: argparse.Namespace) -> int:
 
     def _run_fine_tune() -> None:
         obs, act, rid, _ = _load_training_data(
-            args.buffer, args.base_dataset, current_stage_id,
+            args.buffer, args.base_dataset, current_stage_id, current_speed_band,
         )
         result = fine_tune_universal(
             model_path=args.model,
@@ -245,10 +266,9 @@ def run(args: argparse.Namespace) -> int:
         finally:
             lap_guard.set_fine_tuning(False)
 
-    lap_guard.reset(
-        start_lap,
-        session.last_timings.lap_distance if session.last_timings else 0.0,
-    )
+    _init_dist = session.last_timings.lap_distance if session.last_timings else 0.0
+    lap_guard.reset(start_lap, _init_dist)
+    lap_completion.reset(start_lap, _init_dist)
 
     try:
         while True:
@@ -262,8 +282,8 @@ def run(args: argparse.Namespace) -> int:
             frame += 1
 
             stage = get_learn_stage(current_stage_id)
-            teacher.config.speed_target_kmh = resolve_stage_speed(
-                current_stage_id, args.speed_target,
+            teacher.config.speed_target_kmh = resolve_learn_speed(
+                current_stage_id, current_speed_band, args.speed_target,
             )
 
             status = safety.update(telem, timings)
@@ -312,6 +332,7 @@ def run(args: argparse.Namespace) -> int:
                     obs_schema=OBS_SCHEMA,
                     track_name=ref.track_name or "",
                     learn_stage=current_stage_id,
+                    speed_band_kmh=current_speed_band,
                 )
 
             off_track, stuck = session_tick_flags(status, decision.cte)
@@ -350,16 +371,17 @@ def run(args: argparse.Namespace) -> int:
             if frame % args.log_every == 0:
                 print(
                     f"  f={frame} | {telem.speed * 3.6:5.1f} km/h | "
-                    f"CTE={decision.cte:4.1f}m | {current_stage_id} | "
+                    f"CTE={decision.cte:4.1f}m | {current_stage_id}@{current_speed_band:.0f} | "
                     f"src={drive_source} | ovr={override_count}"
                 )
 
             lap_result = process_lap_rollover(
-                lap_ticks, timings.current_lap, start_lap, laps_done,
-                current_stage_id, session_rec,
+                lap_ticks, timings.current_lap, timings.lap_distance,
+                lap_completion, current_stage_id, session_rec,
+                speed_band_kmh=current_speed_band,
             )
             if lap_result is not None:
-                laps_done = lap_result.laps_done
+                laps_done = lap_completion.laps_done
                 lap_eval = lap_result.lap_eval
                 if lap_result.clean:
                     clean_streak += 1
@@ -383,10 +405,29 @@ def run(args: argparse.Namespace) -> int:
                         stage_id=current_stage_id,
                         reference=args.reference,
                         speed_target_kmh=args.speed_target,
+                        speed_band_kmh=current_speed_band,
                     )
                     print(f"[Learn] *** {msg} ***")
                 else:
                     print(f"[Learn] {msg}")
+
+                new_band, band_advanced, band_stage, band_msg = try_advance_speed_band(
+                    current_speed_band, current_stage_id, clean_streak,
+                )
+                if band_advanced:
+                    current_speed_band = new_band
+                    current_stage_id = band_stage
+                    clean_streak = 0
+                    autonomy_announced = False
+                    save_learn_progress(
+                        stage_id=current_stage_id,
+                        reference=args.reference,
+                        speed_target_kmh=args.speed_target,
+                        speed_band_kmh=current_speed_band,
+                    )
+                    print(f"[Learn] *** {band_msg} ***")
+                elif band_msg:
+                    print(f"[Learn] {band_msg}")
 
                 laps_since_learn += 1
                 teacher.reset()
@@ -417,6 +458,7 @@ def run(args: argparse.Namespace) -> int:
             stage_id=current_stage_id,
             reference=args.reference,
             speed_target_kmh=args.speed_target,
+            speed_band_kmh=current_speed_band,
         )
         controller.release()
         buffer_rec.close()
@@ -425,6 +467,7 @@ def run(args: argparse.Namespace) -> int:
             "clean_streak": clean_streak,
             "max_clean_streak": max_clean_streak,
             "final_stage": current_stage_id,
+            "speed_band_kmh": current_speed_band,
             "laps_completed": laps_done,
         })
         report = session_rec.finish(laps_completed=laps_done, open_browser=args.open_report)

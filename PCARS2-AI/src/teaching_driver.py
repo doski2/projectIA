@@ -17,7 +17,12 @@ from auto_shift import AutoShifter, auto_shift, maybe_engage_first_gear, rpm_rat
 from controller import DS4Controller
 from dataset_recorder import ORIGIN_TEACHER, DatasetRecorder
 from drive_session import DriveSession
-from lap_session import make_lap_buffer_tick, process_lap_rollover, rotate_lap_buffer
+from lap_session import (
+    LapCompletionTracker,
+    make_lap_buffer_tick,
+    process_lap_rollover,
+    rotate_lap_buffer,
+)
 from lap_tracker import format_lap_time
 from teaching_diag import TeachingDiagnostics
 from obs_builder import build_obs, encoded_action_tuple
@@ -108,6 +113,7 @@ def run(args: argparse.Namespace) -> int:
     shifter = AutoShifter()
     diag = TeachingDiagnostics(log_every=args.log_every)
     start_lap = session.last_timings.current_lap if session.last_timings else 0
+    lap_completion = LapCompletionTracker()
     laps_done = 0
     cte_sum = 0.0
     cte_count = 0
@@ -116,6 +122,10 @@ def run(args: argparse.Namespace) -> int:
     safety.reset(
         lap_distance=session.last_timings.lap_distance if session.last_timings else 0.0,
         current_lap=start_lap,
+    )
+    lap_completion.reset(
+        start_lap,
+        session.last_timings.lap_distance if session.last_timings else 0.0,
     )
 
     maybe_engage_first_gear(
@@ -220,11 +230,11 @@ def run(args: argparse.Namespace) -> int:
             )
 
             lap_result = process_lap_rollover(
-                lap_ticks, timings.current_lap, start_lap, laps_done,
-                phase.id, session_rec,
+                lap_ticks, timings.current_lap, timings.lap_distance,
+                lap_completion, phase.id, session_rec,
             )
             if lap_result is not None:
-                laps_done = lap_result.laps_done
+                laps_done = lap_completion.laps_done
                 print(
                     f"[Teacher] Vuelta {laps_done} | {format_lap_time(lap_result.lap_time_s)} | "
                     f"{lap_result.lap_eval['summary']} | CTE={lap_result.lap_eval['avg_cte']}m"

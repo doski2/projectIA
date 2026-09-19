@@ -5,8 +5,10 @@ from pathlib import Path
 
 import pytest
 
+from learning_curriculum import LEARN_STAGES, SPEED_BANDS_KMH as CURR_SPEED_BANDS
+
 from v2.config import apply_mode_defaults, get_mode, TrainingSettings, TRAINING_MODES
-from v2.config import LearnSettings, TeachingSettings
+from v2.config import LEARN_STAGE_IDS, LearnSettings, SPEED_BANDS_KMH, TeachingSettings
 from v2.launcher import (
     build_argv,
     build_learn_argv,
@@ -16,6 +18,11 @@ from v2.launcher import (
     project_root,
     save_learn_settings,
 )
+
+
+def test_learn_stage_ids_match_curriculum():
+    assert LEARN_STAGE_IDS == list(LEARN_STAGES.keys())
+    assert SPEED_BANDS_KMH == CURR_SPEED_BANDS
 
 
 def test_training_modes_include_basico():
@@ -104,9 +111,12 @@ def test_save_and_load_learn_settings(tmp_path, monkeypatch):
 def test_build_learn_argv_speed_override():
     s = LearnSettings(
         stage_id="l2_velocidad",
+        speed_band_kmh=30.0,
         speed_target_kmh=18.0,
     )
     argv = build_learn_argv(s)
+    assert "--speed-band" in argv
+    assert "30" in argv
     assert "--speed-target" in argv
     assert "18.0" in argv
 
