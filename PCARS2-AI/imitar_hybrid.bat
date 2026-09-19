@@ -1,0 +1,3 @@
+@echo off
+cd /d "%~dp0"
+..\.venv\Scripts\python.exe src\imitation_driver.py --universal --reference src\refs\sugo_ai.json --model models\universal_bc.pt --mode hybrid --open-report %*

@@ -94,12 +94,28 @@ def auto_shift(
     telem: TelemetryFrame,
     throttle: float,
     brake: float,
-    shifter: Optional[AutoShifter] = None,
+    shifter: AutoShifter,
 ) -> Optional[str]:
-    """Wrapper compatible; usa shifter compartido si no se pasa instancia."""
-    if shifter is None:
-        shifter = AutoShifter()
     return shifter.shift(controller, telem, throttle, brake)
+
+
+def maybe_engage_first_gear(
+    controller: ShiftController,
+    shifter: AutoShifter,
+    get_telem,
+    sync_frame,
+    enabled: bool,
+    label: str = "Driver",
+) -> None:
+    """Arranque compartido teaching / imitation."""
+    if not enabled:
+        return
+    telem = get_telem()
+    if telem is None or telem.gear == 1:
+        return
+    print(f"[{label}] Engaging 1st gear (current gear={telem.gear})...")
+    ok = engage_first_gear(controller, shifter, get_telem, sync_frame)
+    print(f"[{label}] 1st gear: {'OK' if ok else 'still trying — check manual mode'}")
 
 
 def engage_first_gear(

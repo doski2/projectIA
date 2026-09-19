@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from .config import TeachingSettings, TrainingSettings, get_mode, get_teaching_mode
+from .config import LearnSettings, TeachingSettings, TrainingSettings, get_mode, get_teaching_mode
 
 _SRC = Path(__file__).resolve().parent.parent / "src"
 if str(_SRC) not in sys.path:
@@ -32,6 +32,10 @@ def settings_file() -> Path:
     return Path(__file__).resolve().parent / "user_settings.json"
 
 
+def learn_settings_file() -> Path:
+    return Path(__file__).resolve().parent / "user_learn_settings.json"
+
+
 def save_settings(settings: TrainingSettings) -> None:
     path = settings_file()
     path.write_text(json.dumps(settings_to_dict(settings), indent=2), encoding="utf-8")
@@ -44,6 +48,25 @@ def load_settings() -> Optional[TrainingSettings]:
     from .config import settings_from_dict
 
     return settings_from_dict(json.loads(path.read_text(encoding="utf-8")))
+
+
+def save_learn_settings(settings: LearnSettings) -> None:
+    from .config import learn_settings_to_dict
+
+    path = learn_settings_file()
+    path.write_text(
+        json.dumps(learn_settings_to_dict(settings), indent=2),
+        encoding="utf-8",
+    )
+
+
+def load_learn_settings() -> Optional[LearnSettings]:
+    path = learn_settings_file()
+    if not path.is_file():
+        return None
+    from .config import learn_settings_from_dict
+
+    return learn_settings_from_dict(json.loads(path.read_text(encoding="utf-8")))
 
 
 def settings_to_dict(settings: TrainingSettings) -> dict:
@@ -118,17 +141,15 @@ def format_command(settings: TrainingSettings) -> str:
     return subprocess.list2cmdline(argv)
 
 
-def launch_training(settings: TrainingSettings, new_console: bool = True) -> None:
-    save_settings(settings)
+def _launch_argv(argv: List[str], window_title: str, new_console: bool = True) -> None:
     root = project_root()
-    argv = build_argv(settings)
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
 
     if new_console and sys.platform == "win32":
         cmdline = subprocess.list2cmdline(argv)
         subprocess.Popen(
-            f'start "PCARS2-AI Entrenamiento" cmd /k {cmdline}',
+            f'start "{window_title}" cmd /k {cmdline}',
             shell=True,
             cwd=str(root),
             env=env,
@@ -136,6 +157,11 @@ def launch_training(settings: TrainingSettings, new_console: bool = True) -> Non
         return
 
     subprocess.Popen(argv, cwd=str(root), env=env)
+
+
+def launch_training(settings: TrainingSettings, new_console: bool = True) -> None:
+    save_settings(settings)
+    _launch_argv(build_argv(settings), "PCARS2-AI Entrenamiento", new_console)
 
 
 def launch_monitor(settings: TrainingSettings) -> None:
@@ -183,12 +209,14 @@ def build_teaching_argv(settings: TeachingSettings) -> List[str]:
             settings.gamepad,
         ]
         if settings.mode_id == "record":
-            argv.extend(["--output", settings.dataset_output])
+            argv.extend(["--output", settings.dataset_output, "--universal"])
         if settings.max_laps > 0:
             argv.extend(["--max-laps", str(settings.max_laps)])
         return argv
 
     script = root / "src" / "imitation_driver.py"
+    model = settings.bc_model_path.strip()
+    use_universal = model.endswith(".pt")
     argv = [
         str(python),
         str(script),
@@ -196,13 +224,16 @@ def build_teaching_argv(settings: TeachingSettings) -> List[str]:
         settings.mode_id,
         "--reference",
         settings.reference,
-        "--model",
-        settings.bc_model_path,
         "--speed-target",
         str(settings.speed_target_kmh),
         "--gamepad",
         settings.gamepad,
+        "--open-report",
     ]
+    if use_universal:
+        argv.extend(["--universal", "--model", model])
+    else:
+        argv.extend(["--model", model])
     if settings.mode_id == "hybrid":
         argv.extend(["--alpha", str(settings.hybrid_alpha)])
     if settings.max_laps > 0:
@@ -215,22 +246,85 @@ def format_teaching_command(settings: TeachingSettings) -> str:
 
 
 def launch_teaching(settings: TeachingSettings, new_console: bool = True) -> None:
+    _launch_argv(build_teaching_argv(settings), "PCARS2-AI Teaching", new_console)
+
+
+def build_learn_argv(settings: LearnSettings) -> List[str]:
     root = project_root()
-    argv = build_teaching_argv(settings)
-    env = os.environ.copy()
-    env["PYTHONUNBUFFERED"] = "1"
+    python = venv_python()
+    script = root / "src" / "learn_driver.py"
+    argv = [
+        str(python),
+        str(script),
+        "--reference",
+        settings.reference,
+        "--model",
+        settings.model_path,
+        "--base-dataset",
+        settings.dataset_path,
+        "--buffer",
+        settings.buffer_path,
+        "--stage",
+        settings.stage_id,
+        "--learn-every",
+        str(settings.learn_every),
+        "--gamepad",
+        settings.gamepad,
+    ]
+    if settings.open_report:
+        argv.append("--open-report")
+    if settings.max_laps > 0:
+        argv.extend(["--max-laps", str(settings.max_laps)])
+    if settings.speed_target_kmh > 0:
+        argv.extend(["--speed-target", str(settings.speed_target_kmh)])
+    return argv
 
-    if new_console and sys.platform == "win32":
-        cmdline = subprocess.list2cmdline(argv)
-        subprocess.Popen(
-            f'start "PCARS2-AI Teaching" cmd /k {cmdline}',
-            shell=True,
-            cwd=str(root),
-            env=env,
-        )
-        return
 
-    subprocess.Popen(argv, cwd=str(root), env=env)
+def format_learn_command(settings: LearnSettings) -> str:
+    return subprocess.list2cmdline(build_learn_argv(settings))
+
+
+def launch_learn(settings: LearnSettings, new_console: bool = True) -> None:
+    save_learn_settings(settings)
+    _launch_argv(build_learn_argv(settings), "PCARS2-AI Aprendizaje", new_console)
+
+
+def launch_pretrain_bc(
+    dataset: str = "data/universal_teacher.jsonl",
+    output: str = "models/universal_bc.pt",
+    new_console: bool = True,
+) -> None:
+    root = project_root()
+    python = venv_python()
+    script = root / "src" / "pretrain_universal.py"
+    argv = [
+        str(python),
+        str(script),
+        "--dataset",
+        dataset,
+        "--output",
+        output,
+    ]
+    _launch_argv(argv, "PCARS2-AI Entrenar BC", new_console)
+
+
+def launch_eval_bc(
+    dataset: str = "data/universal_teacher.jsonl",
+    model: str = "models/universal_bc.pt",
+    new_console: bool = True,
+) -> None:
+    root = project_root()
+    python = venv_python()
+    script = root / "src" / "eval_universal.py"
+    argv = [
+        str(python),
+        str(script),
+        "--dataset",
+        dataset,
+        "--model",
+        model,
+    ]
+    _launch_argv(argv, "PCARS2-AI Eval BC", new_console)
 
 
 def launch_tensorboard(combo: str) -> None:

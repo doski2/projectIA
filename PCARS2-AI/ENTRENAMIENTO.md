@@ -15,8 +15,12 @@ Documentación operativa: modos, comandos, logs, revisión de sesiones y flujo s
 | Validación Sugo F1–F4 + HTML      | `validar_f1.bat` … `validar_f4.bat` — [docs/VALIDACION_TEACHING_SUGO.md](docs/VALIDACION_TEACHING_SUGO.md) |
 | Regenerar HTML de sesión        | `report_sesion.bat logs\teaching\sesion.jsonl` |
 | Grabar demostraciones TEACHER     | `record.bat`                             |
-| Entrenar BC desde teacher         | `pretrain.bat` con `--dataset`           |
-| Evaluar BC offline                | `python src/eval_driver.py -d ... -m ...`|
+| Entrenar BC universal             | `entrenar_bc.bat`                        |
+| Evaluar BC offline                | `eval_bc.bat`                            |
+| Probar BC en pista (HTML)         | `imitar_bc.bat`                          |
+| Aprender online (currículo L1–L5) | `aprender.bat`                           |
+| Hybrid / autonomía                | `imitar_hybrid.bat` / `imitar_autonomo.bat` |
+| Entrenar BC clásico (PPO obs)     | `pretrain.bat` con `--dataset`           |
 | BC / Hybrid / Autonomous en pista | GUI → Teaching Driver                    |
 | Ver progreso en vivo              | `monitor.bat` (otra terminal)            |
 | Curvas PPO                        | `tensorboard.bat`                        |

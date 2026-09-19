@@ -11,10 +11,14 @@ from __future__ import annotations
 
 import argparse
 import sys
-from auto_shift import AutoShifter, auto_shift, engage_first_gear, rpm_ratio
+from typing import List
+
+from auto_shift import AutoShifter, auto_shift, maybe_engage_first_gear, rpm_ratio
 from controller import DS4Controller
 from dataset_recorder import ORIGIN_TEACHER, DatasetRecorder
 from drive_session import DriveSession
+from lap_session import make_lap_buffer_tick, process_lap_rollover, rotate_lap_buffer
+from lap_tracker import format_lap_time
 from teaching_diag import TeachingDiagnostics
 from obs_builder import build_obs, encoded_action_tuple
 from obs_universal import OBS_SCHEMA, build_obs_universal
@@ -86,6 +90,7 @@ def run(args: argparse.Namespace) -> int:
         "reference": args.reference,
         "speed_target_kmh": speed_target,
         "universal_schema": args.universal,
+        "reference_lap_s": round(ref.lap_time, 3) if ref.lap_time else None,
     })
     print(f"[Teacher] Session log: {log_path}")
 
@@ -106,23 +111,21 @@ def run(args: argparse.Namespace) -> int:
     laps_done = 0
     cte_sum = 0.0
     cte_count = 0
+    lap_ticks: List[dict] = []
 
     safety.reset(
         lap_distance=session.last_timings.lap_distance if session.last_timings else 0.0,
         current_lap=start_lap,
     )
 
-    if args.auto_shift and session.last_telem is not None:
-        g = session.last_telem.gear
-        if g != 1:
-            print(f"[Teacher] Engaging 1st gear (current gear={g})...")
-            ok = engage_first_gear(
-                controller,
-                shifter,
-                lambda: session.last_telem,
-                session.sync_physics_frame,
-            )
-            print(f"[Teacher] 1st gear: {'OK' if ok else 'still trying — check manual mode'}")
+    maybe_engage_first_gear(
+        controller,
+        shifter,
+        lambda: session.last_telem,
+        session.sync_physics_frame,
+        args.auto_shift,
+        "Teacher",
+    )
 
     try:
         while True:
@@ -151,6 +154,15 @@ def run(args: argparse.Namespace) -> int:
 
             off_track, stuck = session_tick_flags(status, decision.cte)
             rpm_pct = rpm_ratio(telem) * 100.0
+            lap_ticks.append(make_lap_buffer_tick(
+                session_rec.elapsed_s(),
+                telem.speed * 3.6,
+                decision.cte,
+                decision.safety_override,
+                off_track,
+                stuck,
+                decision.reason,
+            ))
             session_rec.record_tick(
                 telem_speed_kmh=telem.speed * 3.6,
                 lap=timings.current_lap,
@@ -207,9 +219,17 @@ def run(args: argparse.Namespace) -> int:
                 dataset_rec.samples_written if dataset_rec else None,
             )
 
-            if timings.current_lap > start_lap + laps_done:
-                laps_done = timings.current_lap - start_lap
-                print(f"[Teacher] Vuelta {laps_done} completada | avg_cte={cte_sum / max(cte_count, 1):.2f}m")
+            lap_result = process_lap_rollover(
+                lap_ticks, timings.current_lap, start_lap, laps_done,
+                phase.id, session_rec,
+            )
+            if lap_result is not None:
+                laps_done = lap_result.laps_done
+                print(
+                    f"[Teacher] Vuelta {laps_done} | {format_lap_time(lap_result.lap_time_s)} | "
+                    f"{lap_result.lap_eval['summary']} | CTE={lap_result.lap_eval['avg_cte']}m"
+                )
+                lap_ticks = rotate_lap_buffer(lap_ticks)
                 cte_sum = 0.0
                 cte_count = 0
                 teacher.reset()

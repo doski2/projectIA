@@ -35,10 +35,10 @@ def _git_hash() -> str:
         return ""
 
 
-def default_log_path(track: str, phase_id: str) -> Path:
+def default_log_path(track: str, phase_id: str, category: str = "teaching") -> Path:
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     safe_track = (track or "track").replace(" ", "_").lower()
-    return Path("logs") / "teaching" / f"{ts}_{safe_track}_{phase_id}.jsonl"
+    return Path("logs") / category / f"{ts}_{safe_track}_{phase_id}.jsonl"
 
 
 class TeachingSessionRecorder:
@@ -74,6 +74,8 @@ class TeachingSessionRecorder:
         if self._t0 is None:
             self._t0 = now
         row = {"t_s": round(now - self._t0, 3), **event}
+        if "type" not in row:
+            row["type"] = "event"
         self._file.write(json.dumps(row, ensure_ascii=False) + "\n")
 
     def record_tick(
@@ -89,6 +91,8 @@ class TeachingSessionRecorder:
         steering: float,
         teacher_reason: str,
         rule: Optional[dict] = None,
+        drive_source: Optional[str] = None,
+        learn_stage: Optional[str] = None,
         safety_override: bool = False,
         safety_event: Optional[str] = None,
         off_track: bool = False,
@@ -120,6 +124,8 @@ class TeachingSessionRecorder:
             "brake": round(brake, 3),
             "steering": round(steering, 3),
             "teacher_reason": teacher_reason,
+            "drive_source": drive_source,
+            "learn_stage": learn_stage,
             "safety_override": safety_override,
             "off_track": off_track,
             "stuck": stuck,
@@ -150,7 +156,7 @@ class TeachingSessionRecorder:
         self._file.close()
         self._file = None
 
-        _, _, existing = load_session_ticks(self.path)
+        _, _, existing, _, _ = load_session_ticks(self.path)
         if existing is None:
             from session_report import finalize_session_report
             return finalize_session_report(
@@ -170,14 +176,23 @@ class TeachingSessionRecorder:
     def tick_count(self) -> int:
         return self._tick
 
+    def elapsed_s(self) -> float:
+        if self._t0 is None:
+            return 0.0
+        return round(time.monotonic() - self._t0, 3)
 
-def load_session_ticks(path: Path) -> tuple[Optional[dict], List[dict], Optional[dict]]:
-    """Carga session, ticks y summary (si existe) desde JSONL."""
+
+def load_session_ticks(
+    path: Path,
+) -> tuple[Optional[dict], List[dict], Optional[dict], List[dict], Optional[dict]]:
+    """Carga session, ticks, summary, eventos de vuelta y session_stats desde JSONL."""
     session: Optional[dict] = None
     ticks: List[dict] = []
     summary: Optional[dict] = None
+    lap_events: List[dict] = []
+    session_stats: Optional[dict] = None
     if not path.is_file():
-        return session, ticks, summary
+        return session, ticks, summary, lap_events, session_stats
     for line in path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
@@ -187,6 +202,10 @@ def load_session_ticks(path: Path) -> tuple[Optional[dict], List[dict], Optional
             session = row
         elif t == "tick":
             ticks.append(row)
+        elif t == "lap":
+            lap_events.append(row)
         elif t == "summary":
             summary = row
-    return session, ticks, summary
+        elif t == "session_stats":
+            session_stats = row
+    return session, ticks, summary, lap_events, session_stats

@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-from obs_builder import MAX_TYRE_RPS, TYRE_RADIUS, wheelspin_norm
+from obs_builder import wheelspin_norm
 from obs_universal import signed_lateral_error
 from reference_recorder import ReferenceLine
 from safety_monitor import CTE_SAFE_M, SafetyMonitor, SafetyStatus

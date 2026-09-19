@@ -19,8 +19,8 @@ class TeachingSettings:
     speed_target_kmh: float = 20.0
     gamepad: str = "xbox"
     mode_id: str = "teacher"
-    dataset_output: str = "data/sugo_teacher.jsonl"
-    bc_model_path: str = "models/teacher_bc"
+    dataset_output: str = "data/universal_teacher.jsonl"
+    bc_model_path: str = "models/universal_bc.pt"
     hybrid_alpha: float = 0.7
     max_laps: int = 0
 
@@ -181,6 +181,43 @@ def apply_mode_defaults(settings: TrainingSettings) -> TrainingSettings:
 
 def settings_to_dict(settings: TrainingSettings) -> Dict[str, Any]:
     return asdict(settings)
+
+
+def learn_settings_to_dict(settings: LearnSettings) -> Dict[str, Any]:
+    return asdict(settings)
+
+
+@dataclass
+class LearnSettings:
+    """Parámetros del pipeline Aprendizaje BC (F5)."""
+
+    reference: str = "src/refs/sugo_ai.json"
+    stage_id: str = "l1_linea"
+    model_path: str = "models/universal_bc.pt"
+    dataset_path: str = "data/universal_teacher.jsonl"
+    buffer_path: str = "data/online_buffer.jsonl"
+    gamepad: str = "xbox"
+    learn_every: int = 1
+    max_laps: int = 0
+    open_report: bool = True
+    speed_target_kmh: float = 0.0  # 0 = automática por etapa L1–L5
+
+
+LEARN_STAGE_IDS: List[str] = [
+    "l1_linea",
+    "l2_velocidad",
+    "l3_frenar",
+    "l4_combinado",
+    "l5_rapido",
+]
+
+
+def learn_settings_from_dict(data: Dict[str, Any]) -> LearnSettings:
+    s = LearnSettings()
+    for key, value in data.items():
+        if hasattr(s, key):
+            setattr(s, key, value)
+    return s
 
 
 def settings_from_dict(data: Dict[str, Any]) -> TrainingSettings:

@@ -144,6 +144,159 @@ def _p95(values: List[float]) -> float:
     return round(s[idx], 2)
 
 
+def compute_lap_metrics(ticks: List[dict]) -> dict:
+    """Métricas agregadas de una vuelta (compartido teaching / learn / imitation)."""
+    n = len(ticks)
+    if n == 0:
+        return {
+            "n": 0,
+            "avg_cte": 0.0,
+            "avg_speed_kmh": 0.0,
+            "cte_p95": 0.0,
+            "pct_override": 0.0,
+            "pct_off_track": 0.0,
+            "pct_stuck": 0.0,
+            "pct_brake": 0.0,
+            "pct_accel": 0.0,
+            "override_count": 0,
+        }
+
+    ctes = [abs(float(t.get("cte", 0.0))) for t in ticks]
+    speeds = [float(t.get("speed_kmh", 0.0)) for t in ticks]
+    reasons = [t.get("teacher_reason", "") for t in ticks]
+    return {
+        "n": n,
+        "avg_cte": round(sum(ctes) / n, 2),
+        "avg_speed_kmh": round(sum(speeds) / n, 1) if speeds else 0.0,
+        "cte_p95": _p95(ctes),
+        "pct_override": _pct(sum(1 for t in ticks if t.get("safety_override")), n),
+        "pct_off_track": _pct(sum(1 for t in ticks if t.get("off_track")), n),
+        "pct_stuck": _pct(sum(1 for t in ticks if t.get("stuck")), n),
+        "pct_brake": _pct(sum(1 for r in reasons if r in BRAKE_REASONS), n),
+        "pct_accel": _pct(sum(1 for r in reasons if r in ACCEL_REASONS), n),
+        "override_count": sum(1 for t in ticks if t.get("safety_override")),
+    }
+
+
+def evaluate_imitation_lap(ticks: List[dict]) -> dict:
+    """Criterios para graduación hybrid → autonomous (sin exigir % freno/acel)."""
+    m = compute_lap_metrics(ticks)
+    if m["n"] == 0:
+        return {
+            "clean": False,
+            "avg_cte": 0.0,
+            "pct_override": 0.0,
+            "pct_brake": 0.0,
+            "summary": "Sin ticks",
+        }
+
+    avg_cte = m["avg_cte"]
+    p95_cte = m["cte_p95"]
+    pct_override = m["pct_override"]
+    pct_off = m["pct_off_track"]
+    pct_stuck = m["pct_stuck"]
+
+    clean = (
+        avg_cte <= 5.5
+        and p95_cte <= 9.0
+        and pct_override <= 18.0
+        and pct_off <= 8.0
+        and pct_stuck <= 12.0
+    )
+
+    issues: List[str] = []
+    if avg_cte > 5.5:
+        issues.append(f"CTE {avg_cte}m")
+    if p95_cte > 9.0:
+        issues.append(f"CTE p95 {p95_cte}m")
+    if pct_override > 18.0:
+        issues.append(f"overrides {pct_override}%")
+    if pct_off > 8.0:
+        issues.append(f"off-track {pct_off}%")
+    if pct_stuck > 12.0:
+        issues.append(f"stuck {pct_stuck}%")
+
+    return {
+        "clean": clean,
+        "avg_cte": avg_cte,
+        "avg_speed_kmh": m["avg_speed_kmh"],
+        "cte_p95": p95_cte,
+        "pct_override": pct_override,
+        "pct_off_track": pct_off,
+        "pct_brake": m["pct_brake"],
+        "pct_accel": m["pct_accel"],
+        "pct_stuck": pct_stuck,
+        "summary": "vuelta limpia" if clean else f"revisar: {', '.join(issues)}",
+    }
+
+
+def evaluate_teaching_lap(ticks: List[dict], phase_id: str) -> dict:
+    """Evalúa una sola vuelta contra criterios de fase Teaching (F1–F4)."""
+    phase = get_phase(phase_id)
+    crit = phase.criteria
+    m = compute_lap_metrics(ticks)
+    if m["n"] == 0:
+        return {
+            "clean": False,
+            "avg_cte": 0.0,
+            "pct_override": 0.0,
+            "pct_brake": 0.0,
+            "summary": "Sin ticks",
+        }
+
+    avg_cte = m["avg_cte"]
+    avg_speed = m["avg_speed_kmh"]
+    p95_cte = m["cte_p95"]
+    pct_override = m["pct_override"]
+    pct_off = m["pct_off_track"]
+    pct_stuck = m["pct_stuck"]
+    pct_brake = m["pct_brake"]
+    pct_accel = m["pct_accel"]
+
+    clean = True
+    issues: List[str] = []
+    if crit.avg_cte_max is not None and avg_cte > crit.avg_cte_max:
+        clean = False
+        issues.append(f"CTE {avg_cte}m")
+    if crit.cte_p95_max is not None and p95_cte > crit.cte_p95_max:
+        clean = False
+        issues.append(f"CTE p95 {p95_cte}m")
+    if crit.pct_off_track_max is not None and pct_off > crit.pct_off_track_max:
+        clean = False
+        issues.append(f"off-track {pct_off}%")
+    if crit.pct_stuck_max is not None and pct_stuck > crit.pct_stuck_max:
+        clean = False
+        issues.append(f"stuck {pct_stuck}%")
+    if crit.max_safety_override_pct is not None and pct_override > crit.max_safety_override_pct:
+        clean = False
+        issues.append(f"overrides {pct_override}%")
+    if crit.avg_speed_min_kmh is not None and avg_speed < crit.avg_speed_min_kmh:
+        clean = False
+        issues.append(f"vel {avg_speed} km/h")
+    if crit.avg_speed_max_kmh is not None and avg_speed > crit.avg_speed_max_kmh:
+        clean = False
+        issues.append(f"vel {avg_speed} km/h")
+    if crit.min_brake_reason_pct is not None and pct_brake < crit.min_brake_reason_pct:
+        clean = False
+        issues.append(f"freno {pct_brake}%")
+    if crit.min_accel_reason_pct is not None and pct_accel < crit.min_accel_reason_pct:
+        clean = False
+        issues.append(f"acel {pct_accel}%")
+
+    return {
+        "clean": clean,
+        "avg_cte": avg_cte,
+        "avg_speed_kmh": avg_speed,
+        "cte_p95": p95_cte,
+        "pct_override": pct_override,
+        "pct_off_track": pct_off,
+        "pct_brake": pct_brake,
+        "pct_accel": pct_accel,
+        "pct_stuck": pct_stuck,
+        "summary": "vuelta limpia" if clean else f"revisar: {', '.join(issues)}",
+    }
+
+
 def evaluate_phase(phase_id: str, ticks: List[dict], laps_completed: int) -> dict:
     """Evalúa criterios de una fase. Devuelve dict con passed y checks."""
     phase = get_phase(phase_id)

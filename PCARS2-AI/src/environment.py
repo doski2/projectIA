@@ -25,7 +25,7 @@ import math
 import time
 from typing import Optional, Tuple
 
-from auto_shift import auto_shift
+from auto_shift import AutoShifter, auto_shift
 
 import numpy as np
 import gymnasium as gym
@@ -255,6 +255,7 @@ class PCARS2Env(gym.Env):
         # --- Componentes de hardware ---
         self._listener   = UDPListener()
         self._controller = DS4Controller(mode=gamepad_mode)
+        self._shifter = AutoShifter()
         self._udp_timeout = udp_timeout
         self._frame_skip  = max(1, frame_skip)
 
@@ -406,7 +407,7 @@ class PCARS2Env(gym.Env):
             for _ in range(self._warmup_steps):
                 self._controller.apply_action(1.0, 0.0, 0.0)
                 if self._last_telem is not None:
-                    auto_shift(self._controller, self._last_telem, 1.0, 0.0)
+                    auto_shift(self._controller, self._last_telem, 1.0, 0.0, self._shifter)
                 self._sync_physics_frame()
 
         self._physics_anchor = (
@@ -428,7 +429,7 @@ class PCARS2Env(gym.Env):
             # 1. Enviar acción al mando
             self._controller.apply_action(throttle, brake, steering)
             if self._last_telem is not None:
-                auto_shift(self._controller, self._last_telem, throttle, brake)
+                auto_shift(self._controller, self._last_telem, throttle, brake, self._shifter)
 
             # 2. Esperar un frame CAR_PHYSICS nuevo (no contar timeouts como frame)
             if not self._sync_physics_frame():

@@ -16,15 +16,41 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, List, Optional
 
+from lap_tracker import compute_lap_times_from_ticks, format_lap_time, lap_time_stats
+from learning_curriculum import LEARN_STAGES, evaluate_learn_session
 from session_log import load_session_ticks
 from validation_phases import PHASES, evaluate_phase
+
+
+def resolve_evaluation(
+    phase_id: str,
+    ticks: List[dict],
+    laps_completed: int,
+    lap_events: Optional[List[dict]] = None,
+    clean_streak: int = 0,
+) -> dict:
+    if phase_id in LEARN_STAGES:
+        laps = lap_events or compute_lap_times_from_ticks(ticks)
+        return evaluate_learn_session(ticks, laps_completed, phase_id, laps, clean_streak)
+    if phase_id.startswith("imit_"):
+        ev = evaluate_phase("f4_combinado", ticks, laps_completed)
+        ev["phase_id"] = phase_id
+        ev["phase_label"] = f"Imitation — {phase_id.replace('imit_', '')}"
+        return ev
+    return evaluate_phase(phase_id, ticks, laps_completed)
 
 MIN_HTML_TICKS = 15
 MIN_HTML_DURATION_S = 5.0
 
 
-def summarize_ticks(ticks: List[dict], laps_completed: int, phase_id: str) -> dict:
-    evaluation = evaluate_phase(phase_id, ticks, laps_completed)
+def summarize_ticks(
+    ticks: List[dict],
+    laps_completed: int,
+    phase_id: str,
+    lap_events: Optional[List[dict]] = None,
+    clean_streak: int = 0,
+) -> dict:
+    evaluation = resolve_evaluation(phase_id, ticks, laps_completed, lap_events, clean_streak)
     reasons = Counter(t.get("teacher_reason", "?") for t in ticks)
     safety_events = Counter(
         t.get("safety_event") for t in ticks if t.get("safety_event")
@@ -97,7 +123,13 @@ def write_html_replay(
     html_path: Optional[Path] = None,
     laps_completed: int = 0,
 ) -> Optional[Path]:
-    session, ticks, existing_summary = load_session_ticks(jsonl_path)
+    session, ticks, existing_summary, lap_events, session_stats = load_session_ticks(jsonl_path)
+    clean_streak = int(
+        (session_stats or {}).get("max_clean_streak")
+        or (session_stats or {}).get("clean_streak", 0)
+    )
+    if not lap_events:
+        lap_events = compute_lap_times_from_ticks(ticks)
     if len(ticks) < MIN_HTML_TICKS:
         return None
     duration = ticks[-1].get("t_s", 0) - ticks[0].get("t_s", 0)
@@ -106,14 +138,50 @@ def write_html_replay(
 
     phase_id = (session or {}).get("phase", "f1_linea")
     phase = PHASES.get(phase_id)
-    phase_label = phase.label if phase else phase_id
+    learn_stage = LEARN_STAGES.get(phase_id)
+    if learn_stage:
+        phase_label = learn_stage.label
+        phase_desc = learn_stage.description
+    elif phase:
+        phase_label = phase.label
+        phase_desc = phase.description
+    else:
+        phase_label = phase_id
+        phase_desc = ""
 
     if existing_summary and "evaluation" in existing_summary:
         evaluation = existing_summary["evaluation"]
     else:
-        evaluation = evaluate_phase(phase_id, ticks, laps_completed)
+        evaluation = resolve_evaluation(phase_id, ticks, laps_completed, lap_events, clean_streak)
 
-    summary = summarize_ticks(ticks, laps_completed, phase_id)
+    summary = summarize_ticks(ticks, laps_completed, phase_id, lap_events, clean_streak)
+    lt = lap_time_stats(lap_events)
+    ref_lap_s = (session or {}).get("reference_lap_s")
+    ref_lap_fmt = format_lap_time(ref_lap_s) if ref_lap_s else "—"
+
+    objectives = evaluation.get("objectives") or []
+
+    lap_rows = ""
+    best_s = lt["best_s"]
+    for ev in lap_events:
+        t_s = ev.get("lap_time_s")
+        delta = ""
+        if t_s is not None and best_s is not None:
+            d = t_s - best_s
+            delta = f"{d:+.3f}s" if d else "mejor"
+        lap_rows += (
+            f"<tr><td>{ev.get('lap_num', '—')}</td>"
+            f"<td>{ev.get('lap_time_fmt', format_lap_time(t_s or 0))}</td>"
+            f"<td>{ev.get('avg_cte', '—')}</td>"
+            f"<td>{'✓' if ev.get('clean') else '—'}</td>"
+            f"<td>{delta}</td></tr>"
+        )
+
+    obj_rows = "".join(
+        f"<tr><td>{o['label']}</td><td>{o['value']}</td><td>{o['threshold']}</td>"
+        f"<td class=\"{'ok' if o['ok'] else 'bad'}\">{'OK' if o['ok'] else '—'}</td></tr>"
+        for o in objectives
+    )
     series = _downsample([
         {
             "t": t.get("t_s", 0.0),
@@ -144,10 +212,41 @@ def write_html_replay(
     )
 
     chart_svg = _svg_chart(series)
+    report_title = "Aprendizaje" if phase_id in LEARN_STAGES else "Teaching validation"
+    if phase_id.startswith("imit_"):
+        report_title = "Imitation"
+
     data_json = json.dumps(
-        {"session": session, "evaluation": evaluation, "series": series},
+        {"session": session, "evaluation": evaluation, "series": series, "lap_events": lap_events},
         ensure_ascii=False,
     )
+
+    lap_section = ""
+    if lap_events or phase_id in LEARN_STAGES or phase_id.startswith("imit_"):
+        lap_section = f"""
+<h2>Tiempos por vuelta</h2>
+<div class="stats">
+  <div class="stat"><b>{lt['best_fmt']}</b><span>Mejor vuelta</span></div>
+  <div class="stat"><b>{lt['avg_fmt']}</b><span>Media sesión</span></div>
+  <div class="stat"><b>{lt['last_fmt']}</b><span>Última vuelta</span></div>
+  <div class="stat"><b>{ref_lap_fmt}</b><span>Ref. teacher (informative)</span></div>
+</div>
+<table>
+  <thead><tr><th>Vuelta</th><th>Tiempo</th><th>CTE</th><th>Limpia</th><th>Δ vs mejor</th></tr></thead>
+  <tbody>{lap_rows or '<tr><td colspan="5">Sin vueltas completas</td></tr>'}</tbody>
+</table>
+<p class="meta">El tiempo de vuelta es <b>seguimiento</b> en BC; la red aprende línea y reglas. RL optimiza ritmo.</p>
+"""
+
+    obj_section = ""
+    if objectives:
+        obj_section = f"""
+<h2>Objetivos de la etapa</h2>
+<table>
+  <thead><tr><th>Objetivo</th><th>Valor</th><th>Meta</th><th>Estado</th></tr></thead>
+  <tbody>{obj_rows}</tbody>
+</table>
+"""
 
     html = f"""<!DOCTYPE html>
 <html lang="es"><head>
@@ -174,7 +273,7 @@ def write_html_replay(
   .chart-wrap {{ overflow-x: auto; margin: 1rem 0; }}
   .phase-desc {{ background: #1a1f28; padding: .75rem 1rem; border-radius: 8px; border-left: 3px solid #7eb6ff; max-width: 960px; }}
 </style></head><body>
-<h1>Teaching validation — {phase_label}</h1>
+<h1>{report_title} — {phase_label}</h1>
 <p class="meta">
   Pista: <b>{session.get('track', '—') if session else '—'}</b> ·
   Fase: <b>{phase_id}</b> ·
@@ -183,7 +282,7 @@ def write_html_replay(
   {metrics.get('laps_completed', laps_completed)} vueltas
 </p>
 <div class="banner {status_cls}">{status_txt} — {evaluation.get('summary', '')}</div>
-<div class="phase-desc">{phase.description if phase else ''}</div>
+<div class="phase-desc">{phase_desc}</div>
 <div class="stats">
   <div class="stat"><b>{metrics.get('avg_cte', '—')}</b><span>CTE medio (m)</span></div>
   <div class="stat"><b>{metrics.get('avg_speed_kmh', '—')}</b><span>Vel. media (km/h)</span></div>
@@ -191,7 +290,10 @@ def write_html_replay(
   <div class="stat"><b>{metrics.get('pct_stuck', 0)}%</b><span>Stuck</span></div>
   <div class="stat"><b>{metrics.get('pct_accel_reason', 0)}%</b><span>Accel intents</span></div>
   <div class="stat"><b>{metrics.get('pct_brake_reason', 0)}%</b><span>Brake intents</span></div>
+  <div class="stat"><b>{metrics.get('best_lap_fmt', lt['best_fmt'])}</b><span>Mejor vuelta</span></div>
 </div>
+{obj_section}
+{lap_section}
 <h2>Gráfico de sesión</h2>
 <div class="chart-wrap">{chart_svg}</div>
 <h2>Criterios de fase</h2>
@@ -219,14 +321,21 @@ def finalize_session_report(
     laps_completed: int = 0,
     open_browser: bool = False,
 ) -> dict:
-    session, ticks, _ = load_session_ticks(jsonl_path)
+    session, ticks, _, lap_events, session_stats = load_session_ticks(jsonl_path)
+    clean_streak = int(
+        (session_stats or {}).get("max_clean_streak")
+        or (session_stats or {}).get("clean_streak", 0)
+    )
     phase_id = (session or {}).get("phase", "f1_linea")
-    evaluation = evaluate_phase(phase_id, ticks, laps_completed)
+    if not lap_events:
+        lap_events = compute_lap_times_from_ticks(ticks)
+    evaluation = resolve_evaluation(phase_id, ticks, laps_completed, lap_events, clean_streak)
 
     summary_row = {
         "type": "summary",
         "evaluation": evaluation,
         "laps_completed": laps_completed,
+        "lap_events": lap_events,
     }
     with open(jsonl_path, "a", encoding="utf-8") as f:
         f.write(json.dumps(summary_row, ensure_ascii=False) + "\n")
@@ -263,7 +372,7 @@ def main() -> None:
         raise SystemExit(1)
 
     if args.force:
-        session, ticks, summary = load_session_ticks(path)
+        session, ticks, summary, lap_events, _ = load_session_ticks(path)
         phase_id = (session or {}).get("phase", "f1_linea")
         laps = args.laps or (summary or {}).get("laps_completed", 0)
         out = write_html_replay(path, laps_completed=laps)

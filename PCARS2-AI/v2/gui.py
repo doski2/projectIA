@@ -8,31 +8,43 @@ Uso:
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+_SRC = Path(__file__).resolve().parent.parent / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
+from learning_curriculum import get_learn_stage, resolve_stage_speed, stage_blurb  # noqa: E402
+
 from .config import (
-    TEACHING_MODES,
+    LEARN_STAGE_IDS,
     TRAINING_MODES,
+    LearnSettings,
     TeachingSettings,
     TrainingSettings,
     apply_mode_defaults,
     get_mode,
-    get_teaching_mode,
 )
 from .launcher import (
     find_latest_checkpoint,
     format_command,
-    format_teaching_command,
+    format_learn_command,
+    launch_eval_bc,
+    launch_learn,
     launch_monitor,
+    launch_pretrain_bc,
     launch_teaching,
     launch_tensorboard,
     launch_training,
     list_references,
+    load_learn_settings,
     load_settings,
     project_root,
+    save_learn_settings,
     venv_python,
 )
 
@@ -40,10 +52,11 @@ from .launcher import (
 class TrainingGui(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
-        self.title("PCARS2-AI v2 — Entrenamiento")
-        self.minsize(720, 620)
+        self.title("PCARS2-AI v2 — Entrenamiento y Aprendizaje")
+        self.minsize(760, 680)
         self.settings = load_settings() or TrainingSettings()
         self.teaching_settings = TeachingSettings()
+        self.learn_settings = load_learn_settings() or LearnSettings()
 
         if not venv_python().is_file():
             messagebox.showwarning(
@@ -58,11 +71,9 @@ class TrainingGui(tk.Tk):
         self._populate_refs()
         self._apply_settings_to_ui()
         self._on_mode_change()
-        self._on_teaching_mode_change()
+        self._on_learn_stage_change()
 
     def _build_ui(self) -> None:
-        px, py = 10, 4
-
         header = ttk.Label(
             self,
             text="PCARS2-AI v2",
@@ -72,32 +83,44 @@ class TrainingGui(tk.Tk):
 
         subtitle = ttk.Label(
             self,
-            text="Elige modo y velocidad objetivo. Más ajustes se irán añadiendo aquí.",
+            text="RL (PPO) o Aprendizaje BC (Teaching → dataset → BC → online).",
             font=("Segoe UI", 9),
         )
         subtitle.pack(anchor="w", padx=12, pady=(0, 8))
 
-        # --- Modo ---
-        mode_frame = ttk.LabelFrame(self, text="Modo de entrenamiento")
-        mode_frame.pack(fill="x", padx=12, pady=6)
+        notebook = ttk.Notebook(self)
+        notebook.pack(fill="both", expand=True, padx=12, pady=6)
+
+        self.rl_tab = ttk.Frame(notebook)
+        self.learn_tab = ttk.Frame(notebook)
+        notebook.add(self.rl_tab, text="RL (PPO)")
+        notebook.add(self.learn_tab, text="Aprendizaje (BC)")
+
+        self._build_rl_tab()
+        self._build_learn_tab()
+
+    def _build_rl_tab(self) -> None:
+        px, py = 10, 4
+        parent = self.rl_tab
+
+        mode_frame = ttk.LabelFrame(parent, text="Modo de entrenamiento")
+        mode_frame.pack(fill="x", padx=4, pady=6)
 
         self.mode_var = tk.StringVar(value=self.settings.mode_id)
         for mode in TRAINING_MODES:
-            rb = ttk.Radiobutton(
+            ttk.Radiobutton(
                 mode_frame,
                 text=mode.label,
                 value=mode.id,
                 variable=self.mode_var,
                 command=self._on_mode_change,
-            )
-            rb.pack(anchor="w", padx=8, pady=2)
+            ).pack(anchor="w", padx=8, pady=2)
 
-        self.mode_desc = ttk.Label(mode_frame, text="", wraplength=680, foreground="#444")
+        self.mode_desc = ttk.Label(mode_frame, text="", wraplength=700, foreground="#444")
         self.mode_desc.pack(anchor="w", padx=8, pady=(4, 8))
 
-        # --- Velocidad (destacado) ---
-        speed_frame = ttk.LabelFrame(self, text="Velocidad objetivo (km/h)")
-        speed_frame.pack(fill="x", padx=12, pady=6)
+        speed_frame = ttk.LabelFrame(parent, text="Velocidad objetivo (km/h)")
+        speed_frame.pack(fill="x", padx=4, pady=6)
 
         row = ttk.Frame(speed_frame)
         row.pack(fill="x", padx=8, pady=8)
@@ -131,9 +154,8 @@ class TrainingGui(tk.Tk):
             foreground="#666",
         ).pack(anchor="w", padx=8, pady=(0, 6))
 
-        # --- Ajustes principales ---
-        opts = ttk.LabelFrame(self, text="Ajustes")
-        opts.pack(fill="x", padx=12, pady=6)
+        opts = ttk.LabelFrame(parent, text="Ajustes")
+        opts.pack(fill="x", padx=4, pady=6)
 
         grid = ttk.Frame(opts)
         grid.pack(fill="x", padx=8, pady=8)
@@ -201,53 +223,14 @@ class TrainingGui(tk.Tk):
             command=self._on_fresh_toggle,
         ).pack(anchor="w")
 
-        # --- Teaching Driver ---
-        teach_frame = ttk.LabelFrame(self, text="Teaching Driver")
-        teach_frame.pack(fill="x", padx=12, pady=6)
-
-        self.teach_mode_var = tk.StringVar(value=self.teaching_settings.mode_id)
-        for mode in TEACHING_MODES:
-            ttk.Radiobutton(
-                teach_frame,
-                text=mode.label,
-                value=mode.id,
-                variable=self.teach_mode_var,
-                command=self._on_teaching_mode_change,
-            ).pack(anchor="w", padx=8, pady=2)
-
-        self.teach_desc = ttk.Label(teach_frame, text="", wraplength=680, foreground="#444")
-        self.teach_desc.pack(anchor="w", padx=8, pady=(2, 4))
-
-        teach_opts = ttk.Frame(teach_frame)
-        teach_opts.pack(fill="x", padx=8, pady=4)
-
-        ttk.Label(teach_opts, text="Dataset / BC:").pack(side="left")
-        self.teach_dataset_var = tk.StringVar(value=self.teaching_settings.dataset_output)
-        ttk.Entry(teach_opts, textvariable=self.teach_dataset_var, width=36).pack(
-            side="left", padx=4
-        )
-        self.teach_model_var = tk.StringVar(value=self.teaching_settings.bc_model_path)
-        ttk.Entry(teach_opts, textvariable=self.teach_model_var, width=24).pack(side="left", padx=4)
-
-        teach_btn = ttk.Frame(teach_frame)
-        teach_btn.pack(fill="x", padx=8, pady=(4, 8))
-        ttk.Button(
-            teach_btn, text="▶ Iniciar Teaching Driver", command=self._start_teaching
-        ).pack(side="left")
-
-        self.teach_cmd_text = tk.Text(teach_frame, height=2, wrap="word", font=("Consolas", 9))
-        self.teach_cmd_text.pack(fill="x", padx=8, pady=(0, 8))
-
-        # --- Comando ---
-        cmd_frame = ttk.LabelFrame(self, text="Comando generado (RL)")
-        cmd_frame.pack(fill="both", expand=True, padx=12, pady=6)
+        cmd_frame = ttk.LabelFrame(parent, text="Comando generado (RL)")
+        cmd_frame.pack(fill="both", expand=True, padx=4, pady=6)
 
         self.cmd_text = tk.Text(cmd_frame, height=4, wrap="word", font=("Consolas", 9))
         self.cmd_text.pack(fill="both", expand=True, padx=8, pady=8)
 
-        # --- Botones ---
-        btn_row = ttk.Frame(self)
-        btn_row.pack(fill="x", padx=12, pady=10)
+        btn_row = ttk.Frame(parent)
+        btn_row.pack(fill="x", padx=4, pady=8)
 
         ttk.Button(
             btn_row, text="▶ Iniciar entrenamiento", command=self._start_training
@@ -265,12 +248,147 @@ class TrainingGui(tk.Tk):
             if hasattr(var, "trace_add"):
                 var.trace_add("write", lambda *_a: self._update_command_preview())
 
+    def _build_learn_tab(self) -> None:
+        px, py = 10, 4
+        parent = self.learn_tab
+
+        guide = ttk.LabelFrame(parent, text="Aprendizaje BC — pasos (solo la 1ª vez hace falta preparar)")
+        guide.pack(fill="x", padx=4, pady=6)
+
+        ttk.Label(
+            guide,
+            text=(
+                "1) Graba al teacher conduciendo bien  ·  "
+                "2) Entrena el modelo BC  ·  "
+                "3) Aprende en pista (L1→L5): domina cada etapa antes de avanzar  ·  "
+                "4) Prueba Hybrid cuando L5 esté estable"
+            ),
+            wraplength=700,
+            justify="left",
+        ).pack(anchor="w", padx=8, pady=(8, 4))
+
+        setup_row = ttk.Frame(guide)
+        setup_row.pack(fill="x", padx=8, pady=(0, 8))
+        ttk.Button(setup_row, text="Grabar teacher", command=self._start_record).pack(side="left", padx=2)
+        ttk.Button(setup_row, text="Entrenar BC", command=self._start_pretrain_bc).pack(side="left", padx=2)
+
+        session = ttk.LabelFrame(parent, text="Sesión en pista — elige etapa y velocidad")
+        session.pack(fill="x", padx=4, pady=6)
+
+        grid = ttk.Frame(session)
+        grid.pack(fill="x", padx=8, pady=8)
+        grid.grid_columnconfigure(index=1, weight=1)
+
+        ttk.Label(grid, text="Referencia:").grid(row=0, column=0, sticky="w", padx=px, pady=py)
+        self.learn_ref_var = tk.StringVar(value=self.learn_settings.reference)
+        learn_ref_row = ttk.Frame(grid)
+        learn_ref_row.grid(row=0, column=1, sticky="ew", padx=px, pady=py)
+        learn_ref_row.grid_columnconfigure(index=0, weight=1)
+        self.learn_ref_combo = ttk.Combobox(learn_ref_row, textvariable=self.learn_ref_var)
+        self.learn_ref_combo.grid(row=0, column=0, sticky="ew")
+        ttk.Button(
+            learn_ref_row, text="…", width=3, command=self._browse_learn_reference,
+        ).grid(row=0, column=1, padx=(4, 0))
+
+        ttk.Label(grid, text="Etapa (L1→L5):").grid(row=1, column=0, sticky="w", padx=px, pady=py)
+        self.learn_stage_var = tk.StringVar(value=self.learn_settings.stage_id)
+        stage_combo = ttk.Combobox(
+            grid,
+            textvariable=self.learn_stage_var,
+            values=LEARN_STAGE_IDS,
+            state="readonly",
+            width=22,
+        )
+        stage_combo.grid(row=1, column=1, sticky="w", padx=px, pady=py)
+        stage_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_learn_stage_change())
+
+        ttk.Label(grid, text="Velocidad (km/h):").grid(row=2, column=0, sticky="w", padx=px, pady=py)
+        speed_row = ttk.Frame(grid)
+        speed_row.grid(row=2, column=1, sticky="w", padx=px, pady=py)
+        self.learn_speed_var = tk.DoubleVar(value=self.learn_settings.speed_target_kmh)
+        ttk.Spinbox(
+            speed_row,
+            from_=0,
+            to=60,
+            increment=5,
+            width=6,
+            textvariable=self.learn_speed_var,
+            command=self._on_learn_speed_change,
+        ).pack(side="left")
+        ttk.Label(speed_row, text="0 = automática de la etapa").pack(side="left", padx=8)
+        self.learn_speed_hint = ttk.Label(speed_row, text="", foreground="#666")
+        self.learn_speed_hint.pack(side="left")
+
+        self.learn_stage_desc = ttk.Label(
+            session, text="", wraplength=700, foreground="#444", justify="left",
+        )
+        self.learn_stage_desc.pack(anchor="w", padx=8, pady=(0, 8))
+
+        action_row = ttk.Frame(session)
+        action_row.pack(fill="x", padx=8, pady=(0, 8))
+        ttk.Button(
+            action_row,
+            text="▶ Aprender en pista",
+            command=self._start_learn,
+        ).pack(side="left", padx=(0, 8))
+        ttk.Button(
+            action_row,
+            text="Probar Hybrid",
+            command=self._start_hybrid,
+        ).pack(side="left", padx=2)
+
+        ttk.Label(
+            session,
+            text="Avanza solo con vueltas limpias. Al cruzar meta el coche frena mientras el BC se actualiza.",
+            foreground="#666",
+            wraplength=700,
+        ).pack(anchor="w", padx=8, pady=(0, 8))
+
+        advanced = ttk.LabelFrame(parent, text="Avanzado (rutas; normalmente no hace falta tocar)")
+        advanced.pack(fill="both", expand=True, padx=4, pady=6)
+
+        adv = ttk.Frame(advanced)
+        adv.pack(fill="x", padx=8, pady=8)
+        adv.grid_columnconfigure(index=1, weight=1)
+
+        ttk.Label(adv, text="Modelo BC (.pt):").grid(row=0, column=0, sticky="w", padx=px, pady=py)
+        self.learn_model_var = tk.StringVar(value=self.learn_settings.model_path)
+        ttk.Entry(adv, textvariable=self.learn_model_var).grid(
+            row=0, column=1, sticky="ew", padx=px, pady=py,
+        )
+
+        ttk.Label(adv, text="Dataset teacher:").grid(row=1, column=0, sticky="w", padx=px, pady=py)
+        self.learn_dataset_var = tk.StringVar(value=self.learn_settings.dataset_path)
+        ttk.Entry(adv, textvariable=self.learn_dataset_var).grid(
+            row=1, column=1, sticky="ew", padx=px, pady=py,
+        )
+
+        adv_btn = ttk.Frame(advanced)
+        adv_btn.pack(fill="x", padx=8, pady=(0, 4))
+        ttk.Button(adv_btn, text="Eval BC (offline)", command=self._start_eval_bc).pack(side="left")
+
+        self.learn_cmd_text = tk.Text(advanced, height=2, wrap="word", font=("Consolas", 9))
+        self.learn_cmd_text.pack(fill="x", padx=8, pady=(4, 8))
+
+        for var in (
+            self.learn_ref_var,
+            self.learn_stage_var,
+            self.learn_model_var,
+            self.learn_dataset_var,
+            self.learn_speed_var,
+        ):
+            if hasattr(var, "trace_add"):
+                var.trace_add("write", lambda *_a: self._on_learn_settings_change())
+
     def _populate_refs(self) -> None:
         refs = list_references()
         if refs:
             self.ref_combo["values"] = refs
+            self.learn_ref_combo["values"] = refs
             if self.settings.reference not in refs:
                 self.ref_var.set(refs[0])
+            if self.learn_settings.reference not in refs:
+                self.learn_ref_var.set(refs[0])
 
     def _apply_settings_to_ui(self) -> None:
         self.mode_var.set(self.settings.mode_id)
@@ -283,6 +401,12 @@ class TrainingGui(tk.Tk):
         self.track_var.set(self.settings.track)
         self.model_var.set(self.settings.model_path)
         self.fresh_var.set(self.settings.fresh_start)
+        if hasattr(self, "learn_ref_var"):
+            self.learn_ref_var.set(self.learn_settings.reference)
+            self.learn_stage_var.set(self.learn_settings.stage_id)
+            self.learn_speed_var.set(self.learn_settings.speed_target_kmh)
+            self.learn_model_var.set(self.learn_settings.model_path)
+            self.learn_dataset_var.set(self.learn_settings.dataset_path)
 
     def _collect_settings(self) -> TrainingSettings:
         return TrainingSettings(
@@ -298,25 +422,56 @@ class TrainingGui(tk.Tk):
             mode_id=self.mode_var.get(),
         )
 
-    def _collect_teaching_settings(self) -> TeachingSettings:
-        return TeachingSettings(
-            reference=self.ref_var.get().strip(),
-            speed_target_kmh=float(self.speed_var.get()),
+    def _effective_learn_speed(self) -> float:
+        stage_id = self.learn_stage_var.get().strip()
+        override = float(self.learn_speed_var.get())
+        return resolve_stage_speed(stage_id, override)
+
+    def _collect_learn_settings(self) -> LearnSettings:
+        return LearnSettings(
+            reference=self.learn_ref_var.get().strip(),
+            stage_id=self.learn_stage_var.get().strip(),
+            model_path=self.learn_model_var.get().strip(),
+            dataset_path=self.learn_dataset_var.get().strip(),
             gamepad="xbox",
-            mode_id=self.teach_mode_var.get(),
-            dataset_output=self.teach_dataset_var.get().strip(),
-            bc_model_path=self.teach_model_var.get().strip(),
+            open_report=True,
+            speed_target_kmh=float(self.learn_speed_var.get()),
         )
 
-    def _on_teaching_mode_change(self) -> None:
-        mode = get_teaching_mode(self.teach_mode_var.get())
-        self.teach_desc.config(text=mode.description)
-        self._update_teaching_command()
+    def _persist_learn_settings(self) -> None:
+        save_learn_settings(self._collect_learn_settings())
 
-    def _update_teaching_command(self) -> None:
-        cmd = format_teaching_command(self._collect_teaching_settings())
-        self.teach_cmd_text.delete("1.0", "end")
-        self.teach_cmd_text.insert("1.0", cmd)
+    def _on_learn_stage_change(self) -> None:
+        stage_id = self.learn_stage_var.get().strip()
+        stage = get_learn_stage(stage_id)
+        self.learn_stage_desc.config(text=stage_blurb(stage_id))
+        self.learn_speed_hint.config(
+            text=f"Etapa usa {stage.speed_target_kmh:.0f} km/h",
+        )
+        self._persist_learn_settings()
+        self._update_learn_command()
+
+    def _on_learn_speed_change(self) -> None:
+        self._on_learn_settings_change()
+
+    def _on_learn_settings_change(self) -> None:
+        stage_id = self.learn_stage_var.get().strip()
+        override = float(self.learn_speed_var.get())
+        if override > 0:
+            self.learn_speed_hint.config(
+                text=f"Override {override:.0f} km/h (etapa {get_learn_stage(stage_id).speed_target_kmh:.0f})",
+            )
+        else:
+            self.learn_speed_hint.config(
+                text=f"Etapa usa {get_learn_stage(stage_id).speed_target_kmh:.0f} km/h",
+            )
+        self._persist_learn_settings()
+        self._update_learn_command()
+
+    def _update_learn_command(self) -> None:
+        cmd = format_learn_command(self._collect_learn_settings())
+        self.learn_cmd_text.delete("1.0", "end")
+        self.learn_cmd_text.insert("1.0", cmd)
 
     def _on_mode_change(self) -> None:
         mode = get_mode(self.mode_var.get())
@@ -331,11 +486,10 @@ class TrainingGui(tk.Tk):
             self.warmup_var.set(s.warmup_steps)
 
         self._update_command_preview()
-        self._update_teaching_command()
+        self._update_learn_command()
 
     def _on_speed_scale(self, _value: str) -> None:
         self._update_command_preview()
-        self._update_teaching_command()
 
     def _on_fresh_toggle(self) -> None:
         if self.fresh_var.get():
@@ -347,9 +501,15 @@ class TrainingGui(tk.Tk):
         cmd = format_command(settings)
         self.cmd_text.delete("1.0", "end")
         self.cmd_text.insert("1.0", cmd)
-        self._update_teaching_command()
+        self._update_learn_command()
 
     def _browse_reference(self) -> None:
+        self._pick_reference_file(self.ref_var, self._update_command_preview)
+
+    def _browse_learn_reference(self) -> None:
+        self._pick_reference_file(self.learn_ref_var, self._on_learn_settings_change)
+
+    def _pick_reference_file(self, var: tk.StringVar, on_set) -> None:
         root = project_root()
         path = filedialog.askopenfilename(
             title="Archivo de referencia",
@@ -359,10 +519,10 @@ class TrainingGui(tk.Tk):
         if path:
             try:
                 rel = Path(path).resolve().relative_to(root.resolve())
-                self.ref_var.set(str(rel).replace("\\", "/"))
+                var.set(str(rel).replace("\\", "/"))
             except ValueError:
-                self.ref_var.set(path)
-            self._update_command_preview()
+                var.set(path)
+            on_set()
 
     def _browse_model(self) -> None:
         root = project_root()
@@ -400,35 +560,100 @@ class TrainingGui(tk.Tk):
                 f"No hay checkpoints en models/{settings.combo()}/",
             )
 
-    def _start_teaching(self) -> None:
-        settings = self._collect_teaching_settings()
-        ref_path = project_root() / settings.reference
-        if not ref_path.is_file():
-            messagebox.showerror("Error", f"Referencia no encontrada:\n{ref_path}")
-            return
-        if settings.mode_id in ("bc_drive", "hybrid", "autonomous"):
-            model_path = project_root() / f"{settings.bc_model_path}.zip"
-            if not model_path.is_file():
-                messagebox.showerror("Error", f"Modelo BC no encontrado:\n{model_path}")
-                return
+    def _check_venv(self) -> bool:
         if not venv_python().is_file():
             messagebox.showerror("Error", f"Python del venv no encontrado:\n{venv_python()}")
+            return False
+        return True
+
+    def _check_reference(self, reference: str) -> bool:
+        ref_path = project_root() / reference
+        if not ref_path.is_file():
+            messagebox.showerror("Error", f"Referencia no encontrada:\n{ref_path}")
+            return False
+        return True
+
+    def _check_bc_model(self, model_path: str) -> bool:
+        path = project_root() / model_path
+        if model_path.endswith(".pt"):
+            if not path.is_file():
+                messagebox.showerror("Error", f"Modelo BC no encontrado:\n{path}")
+                return False
+            return True
+        zip_path = project_root() / f"{model_path}.zip"
+        if not zip_path.is_file():
+            messagebox.showerror("Error", f"Modelo BC no encontrado:\n{zip_path}")
+            return False
+        return True
+
+    def _start_record(self) -> None:
+        self._persist_learn_settings()
+        settings = TeachingSettings(
+            reference=self.learn_ref_var.get().strip(),
+            speed_target_kmh=self._effective_learn_speed(),
+            mode_id="record",
+            dataset_output=self.learn_dataset_var.get().strip(),
+        )
+        if not self._check_reference(settings.reference) or not self._check_venv():
+            return
+        launch_teaching(settings)
+        messagebox.showinfo("Record", "Consola abierta. Graba demostraciones del teacher.")
+
+    def _start_pretrain_bc(self) -> None:
+        if not self._check_venv():
+            return
+        dataset = self.learn_dataset_var.get().strip()
+        model = self.learn_model_var.get().strip()
+        ds_path = project_root() / dataset
+        if not ds_path.is_file():
+            messagebox.showerror("Error", f"Dataset no encontrado:\n{ds_path}")
+            return
+        launch_pretrain_bc(dataset=dataset, output=model)
+        messagebox.showinfo("Entrenar BC", "Entrenamiento offline en consola.")
+
+    def _start_eval_bc(self) -> None:
+        if not self._check_venv():
+            return
+        dataset = self.learn_dataset_var.get().strip()
+        model = self.learn_model_var.get().strip()
+        if not self._check_bc_model(model):
+            return
+        launch_eval_bc(dataset=dataset, model=model)
+        messagebox.showinfo("Eval BC", "Evaluación offline en consola.")
+
+    def _start_learn(self) -> None:
+        settings = self._collect_learn_settings()
+        if not self._check_reference(settings.reference) or not self._check_venv():
+            return
+        launch_learn(settings)
+        messagebox.showinfo(
+            "Aprendizaje online",
+            "Consola abierta.\nAl cruzar meta el coche frena hasta que el BC termine de actualizar.",
+        )
+
+    def _start_hybrid(self) -> None:
+        self._persist_learn_settings()
+        model = self.learn_model_var.get().strip()
+        settings = TeachingSettings(
+            reference=self.learn_ref_var.get().strip(),
+            speed_target_kmh=self._effective_learn_speed(),
+            gamepad="xbox",
+            mode_id="hybrid",
+            bc_model_path=model,
+        )
+        if not self._check_reference(settings.reference) or not self._check_venv():
+            return
+        if not self._check_bc_model(model):
             return
         launch_teaching(settings)
         messagebox.showinfo(
-            "Teaching Driver",
-            "Se abrió una ventana de consola.\n"
-            "Asegúrate de que Project CARS 2 está EN PISTA.",
+            "Hybrid",
+            "BC + teacher en consola.\nGradúa a autónomo tras vueltas limpias.",
         )
 
     def _start_training(self) -> None:
         settings = self._collect_settings()
-        ref_path = project_root() / settings.reference
-        if not ref_path.is_file():
-            messagebox.showerror("Error", f"Referencia no encontrada:\n{ref_path}")
-            return
-        if not venv_python().is_file():
-            messagebox.showerror("Error", f"Python del venv no encontrado:\n{venv_python()}")
+        if not self._check_reference(settings.reference) or not self._check_venv():
             return
         launch_training(settings)
         messagebox.showinfo(
@@ -449,7 +674,7 @@ class TrainingGui(tk.Tk):
 def main() -> None:
     app = TrainingGui()
     app._update_command_preview()
-    app._update_teaching_command()
+    app._update_learn_command()
     app.mainloop()
 
 

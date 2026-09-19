@@ -6,7 +6,16 @@ from pathlib import Path
 import pytest
 
 from v2.config import apply_mode_defaults, get_mode, TrainingSettings, TRAINING_MODES
-from v2.launcher import build_argv, find_latest_checkpoint, project_root
+from v2.config import LearnSettings, TeachingSettings
+from v2.launcher import (
+    build_argv,
+    build_learn_argv,
+    build_teaching_argv,
+    find_latest_checkpoint,
+    load_learn_settings,
+    project_root,
+    save_learn_settings,
+)
 
 
 def test_training_modes_include_basico():
@@ -70,6 +79,51 @@ def test_build_argv_with_model_ignores_fresh():
     assert "--model" in argv
     assert "models/foo/pcars2_foo_1000_steps" in argv
     assert "--fresh" not in argv
+
+
+def test_build_teaching_argv_record_uses_universal():
+    s = TeachingSettings(
+        mode_id="record",
+        dataset_output="data/universal_teacher.jsonl",
+    )
+    argv = build_teaching_argv(s)
+    assert "--universal" in argv
+    assert "data/universal_teacher.jsonl" in argv
+
+
+def test_save_and_load_learn_settings(tmp_path, monkeypatch):
+    monkeypatch.setattr("v2.launcher.learn_settings_file", lambda: tmp_path / "learn.json")
+    s = LearnSettings(stage_id="l4_combinado", reference="src/refs/sugo_ai.json", speed_target_kmh=0.0)
+    save_learn_settings(s)
+    loaded = load_learn_settings()
+    assert loaded is not None
+    assert loaded.stage_id == "l4_combinado"
+    assert loaded.reference == "src/refs/sugo_ai.json"
+
+
+def test_build_learn_argv_speed_override():
+    s = LearnSettings(
+        stage_id="l2_velocidad",
+        speed_target_kmh=18.0,
+    )
+    argv = build_learn_argv(s)
+    assert "--speed-target" in argv
+    assert "18.0" in argv
+
+
+def test_build_learn_argv_includes_stage_and_universal_model():
+    s = LearnSettings(
+        reference="src/refs/sugo_ai.json",
+        stage_id="l3_frenar",
+        model_path="models/universal_bc.pt",
+    )
+    argv = build_learn_argv(s)
+    assert "learn_driver.py" in " ".join(argv)
+    assert "--stage" in argv
+    assert "l3_frenar" in argv
+    assert "--model" in argv
+    assert "models/universal_bc.pt" in argv
+    assert "--open-report" in argv
 
 
 def test_find_latest_checkpoint_missing_dir():

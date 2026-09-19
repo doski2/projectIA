@@ -5,7 +5,13 @@ import tempfile
 from pathlib import Path
 
 from session_report import write_html_replay
-from validation_phases import evaluate_phase, get_phase
+from validation_phases import (
+    compute_lap_metrics,
+    evaluate_imitation_lap,
+    evaluate_phase,
+    evaluate_teaching_lap,
+    get_phase,
+)
 
 
 def _synthetic_ticks(n: int = 120, lap_reason: str = "accel_straight") -> list:
@@ -63,3 +69,24 @@ def test_html_report_generated():
 def test_get_phase_defaults():
     p = get_phase("unknown")
     assert p.id == "f1_linea"
+
+
+def test_teaching_lap_eval():
+    ticks = _synthetic_ticks(80)
+    ev = evaluate_teaching_lap(ticks, "f1_linea")
+    assert ev["clean"] is True
+    assert ev["avg_cte"] <= 6.0
+
+
+def test_imitation_lap_more_permissive_than_f4():
+    ticks = _synthetic_ticks(80)
+    imit = evaluate_imitation_lap(ticks)
+    f4 = evaluate_teaching_lap(ticks, "f4_combinado")
+    assert imit["clean"] is True
+    assert f4["clean"] is False
+
+
+def test_compute_lap_metrics():
+    m = compute_lap_metrics(_synthetic_ticks(50))
+    assert m["n"] == 50
+    assert m["avg_cte"] > 0

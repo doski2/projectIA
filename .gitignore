@@ -12,6 +12,10 @@ env/
 
 # Project specific
 PCARS2-AI/logs/
+PCARS2-AI/data/*.jsonl
+PCARS2-AI/models/*.pt
+PCARS2-AI/v2/user_learn_settings.json
+PCARS2-AI/v2/user_settings.json
 PCARS2-AI/models/*/pcars2_*_steps.zip
 PCARS2-AI/models/*/vecnormalize.pkl
 !PCARS2-AI/models/*/pcars2_*_final.zip

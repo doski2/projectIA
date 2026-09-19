@@ -43,6 +43,7 @@ class DatasetSample:
     reason_id: int = 0
     rule: Optional[dict] = None
     track_name: str = ""
+    learn_stage: str = ""
 
     def to_dict(self) -> dict:
         d = {
@@ -63,6 +64,8 @@ class DatasetSample:
             d["rule"] = self.rule
         if self.track_name:
             d["track_name"] = self.track_name
+        if self.learn_stage:
+            d["learn_stage"] = self.learn_stage
         if self.mix_alpha is not None:
             d["mix_alpha"] = self.mix_alpha
         return d
@@ -108,6 +111,7 @@ class DatasetRecorder:
         mix_alpha: Optional[float] = None,
         obs_schema: str = "legacy_19",
         track_name: str = "",
+        learn_stage: str = "",
     ) -> bool:
         if self._file is None:
             return False
@@ -139,6 +143,7 @@ class DatasetRecorder:
             mix_alpha=mix_alpha,
             obs_schema=obs_schema,
             track_name=track_name,
+            learn_stage=learn_stage,
         )
         self._file.write(json.dumps(sample.to_dict()) + "\n")
         self._file.flush()
@@ -199,6 +204,7 @@ def load_universal_dataset(
     origin: Optional[str] = None,
     min_quality: float = 0.0,
     min_confidence: float = 0.0,
+    learn_stage: Optional[str] = None,
 ) -> tuple:
     """Carga JSONL universal_v1 → (obs, act, reason_ids, meta)."""
     obs_list: List[np.ndarray] = []
@@ -219,6 +225,8 @@ def load_universal_dataset(
             if row.get("quality", 0.0) < min_quality:
                 continue
             if row.get("confidence", 0.0) < min_confidence:
+                continue
+            if learn_stage is not None and row.get("learn_stage") != learn_stage:
                 continue
             obs_list.append(np.array(row["obs"], dtype=np.float32))
             act_list.append(_normalize_action(row["action"]))

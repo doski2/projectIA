@@ -24,6 +24,7 @@ from obs_builder import (
     MAX_SPEED_MS,
     MAX_TYRE_RPS,
     TYRE_RADIUS,
+    wheelspin_norm,
 )
 
 if TYPE_CHECKING:
@@ -113,9 +114,8 @@ def build_obs_universal(
     long_norm = np.clip(telem.local_acceleration[0] / MAX_LONG_ACCEL, -1.0, 1.0)
 
     expected_rps = speed / (2.0 * math.pi * TYRE_RADIUS)
-    rear_rps = (telem.tyre_rps[2] + telem.tyre_rps[3]) / 2.0
     front_rps = (telem.tyre_rps[0] + telem.tyre_rps[1]) / 2.0
-    wheelspin_norm = np.clip((rear_rps - expected_rps) / MAX_TYRE_RPS, -1.0, 1.0)
+    wheelspin_norm_val = np.clip(wheelspin_norm(telem), -1.0, 1.0)
     lockup_norm = np.clip((expected_rps - front_rps) / MAX_TYRE_RPS, -1.0, 1.0)
 
     throttle_cur_norm = telem.throttle / 255.0
@@ -135,7 +135,7 @@ def build_obs_universal(
         yaw_norm,
         lat_norm,
         long_norm,
-        wheelspin_norm,
+        wheelspin_norm_val,
         lockup_norm,
         throttle_cur_norm,
         target_speed_norm,
