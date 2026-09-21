@@ -3,8 +3,12 @@
 from lap_session import (
     LapCompletionTracker,
     completed_lap_ticks,
+    driving_ticks_for_lap_eval,
+    driving_ticks_for_session_eval,
     evaluate_lap_for_phase,
     lap_rollover_detected,
+    lap_tick_safety_flags,
+    make_lap_buffer_tick,
     process_lap_rollover,
     try_complete_lap,
 )
@@ -104,6 +108,86 @@ def test_process_lap_rollover_on_distance_wrap():
     assert rec.events[0]["type"] == "lap"
 
 
+def test_lap_event_includes_failure_summary():
+    from lap_session import LapCompleteResult, lap_event_from_result
+
+    result = LapCompleteResult(
+        laps_done=1,
+        lap_eval={
+            "clean": False,
+            "avg_cte": 5.1,
+            "pct_override": 18.0,
+            "pct_off_track": 0.0,
+            "pct_stuck": 0.0,
+            "summary": "revisar: CTE 5.1m, overrides 18%",
+        },
+        lap_time_s=90.0,
+        lap_overrides=42,
+    )
+    ev = lap_event_from_result(result, stage_id="l1_linea", speed_band_kmh=20.0)
+    assert ev["clean"] is False
+    assert "overrides" in ev["summary"]
+    assert ev["pct_override"] == 18.0
+
+
+def test_lap_tick_safety_flags_clear_when_settling():
+    from safety_monitor import SafetyStatus
+
+    status = SafetyStatus()
+    status.reason = "stuck"
+    status.stuck_steps = 99
+    off, stuck = lap_tick_safety_flags(status, 3.0, settling=True)
+    assert off is False and stuck is False
+
+
 def test_lap_rollover_detected_same_completed_lap_num():
     assert lap_rollover_detected(2, 3400.0, 2, 20.0) == (True, 2)
     assert lap_rollover_detected(2, 20.0, 3, 50.0) == (True, 2)
+
+
+def test_driving_ticks_for_lap_eval_excludes_settling():
+    ticks = [
+        make_lap_buffer_tick(0, 40.0, 2.0, False, False, False, "maintain_speed"),
+        make_lap_buffer_tick(1, 0.0, 2.0, False, False, False, "maintain_speed", settling=True),
+        make_lap_buffer_tick(2, 38.0, 2.0, False, False, False, "maintain_speed"),
+    ]
+    driving = driving_ticks_for_lap_eval(ticks)
+    assert len(driving) == 2
+    assert driving[0]["speed_kmh"] == 40.0
+
+
+def test_try_complete_lap_ignores_settling_for_l2_speed():
+    buf = []
+    for i in range(50):
+        buf.append(make_lap_buffer_tick(
+            float(i), 38.0, 2.0, False, False, False, "maintain_speed",
+        ))
+    for i in range(50, 70):
+        buf.append(make_lap_buffer_tick(
+            float(i), 0.0, 2.0, False, False, False, "maintain_speed", settling=True,
+        ))
+    buf.append(make_lap_buffer_tick(70.0, 38.0, 2.0, False, False, False, "maintain_speed"))
+    result = try_complete_lap(buf, 1, "l2_velocidad", speed_band_kmh=40.0)
+    assert result.lap_eval["avg_speed_kmh"] == 38.0
+    assert result.clean is True
+
+
+def test_driving_ticks_for_session_eval_excludes_settle():
+    ticks = [
+        {"drive_source": "bc", "stuck": False},
+        {"drive_source": "settle:finish_line", "stuck": True},
+        {"drive_source": "settle:fine_tune", "stuck": True},
+        {"drive_source": "teacher", "stuck": False},
+    ]
+    driving = driving_ticks_for_session_eval(ticks)
+    assert len(driving) == 2
+    assert all(not t.get("stuck") for t in driving)
+
+
+def test_driving_ticks_for_lap_eval_also_filters_drive_source():
+    ticks = [
+        make_lap_buffer_tick(0, 40.0, 2.0, False, False, False, "maintain_speed"),
+        {"t_s": 1, "speed_kmh": 0.0, "drive_source": "settle:fine_tune"},
+        make_lap_buffer_tick(2, 38.0, 2.0, False, False, False, "maintain_speed"),
+    ]
+    assert len(driving_ticks_for_lap_eval(ticks)) == 2

@@ -3,6 +3,7 @@
 from learning_curriculum import (
     DEFAULT_SPEED_BAND_KMH,
     evaluate_lap,
+    evaluate_learn_session,
     evaluate_objectives,
     effective_min_avg_speed,
     get_learn_stage,
@@ -90,6 +91,44 @@ def test_objectives_l1():
     )
     assert len(objs) == 3
     assert all(o["ok"] for o in objs)
+
+
+def test_dirty_lap_reports_stuck_in_summary():
+    ticks = [_lap_tick() for _ in range(50)]
+    for t in ticks[:10]:
+        t["stuck"] = True
+    ev = evaluate_lap(ticks, "l1_linea")
+    assert ev["clean"] is False
+    assert "stuck" in ev["summary"]
+
+
+def test_evaluate_learn_session_ignores_settle_ticks():
+    ticks = []
+    for _ in range(100):
+        ticks.append({
+            "t_s": len(ticks) * 0.1,
+            "cte": 2.0,
+            "speed_kmh": 20.0,
+            "safety_override": False,
+            "off_track": False,
+            "stuck": False,
+            "teacher_reason": "hold",
+            "drive_source": "bc",
+        })
+    for _ in range(20):
+        ticks.append({
+            "t_s": len(ticks) * 0.1,
+            "cte": 2.0,
+            "speed_kmh": 5.0,
+            "safety_override": False,
+            "off_track": False,
+            "stuck": True,
+            "teacher_reason": "hold",
+            "drive_source": "settle:finish_line",
+        })
+
+    ev = evaluate_learn_session(ticks, 1, "l1_linea", clean_streak=2)
+    assert ev["metrics"]["pct_stuck"] == 0.0
 
 
 def test_objectives_l2_speed_band_scales_target():

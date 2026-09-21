@@ -17,9 +17,9 @@ from pathlib import Path
 from typing import Any, List, Optional
 
 from lap_tracker import compute_lap_times_from_ticks, format_lap_time, lap_time_stats
-from learning_curriculum import LEARN_STAGES, evaluate_learn_session
+from learning_curriculum import LEARN_STAGES, evaluate_learn_session, get_learn_stage
 from session_log import load_session_ticks
-from validation_phases import PHASES, evaluate_phase
+from validation_phases import PHASES, evaluate_imitation_session, evaluate_phase
 
 
 def _session_speed_band(session: Optional[dict]) -> float:
@@ -46,10 +46,7 @@ def resolve_evaluation(
             speed_band_kmh=speed_band_kmh,
         )
     if phase_id.startswith("imit_"):
-        ev = evaluate_phase("f4_combinado", ticks, laps_completed)
-        ev["phase_id"] = phase_id
-        ev["phase_label"] = f"Imitation — {phase_id.replace('imit_', '')}"
-        return ev
+        return evaluate_imitation_session(ticks, laps_completed, phase_id=phase_id)
     return evaluate_phase(phase_id, ticks, laps_completed)
 
 MIN_HTML_TICKS = 15
@@ -63,11 +60,13 @@ def summarize_ticks(
     lap_events: Optional[List[dict]] = None,
     clean_streak: int = 0,
     speed_band_kmh: float = 0.0,
+    evaluation: Optional[dict] = None,
 ) -> dict:
-    evaluation = resolve_evaluation(
-        phase_id, ticks, laps_completed, lap_events, clean_streak,
-        speed_band_kmh=speed_band_kmh,
-    )
+    if evaluation is None:
+        evaluation = resolve_evaluation(
+            phase_id, ticks, laps_completed, lap_events, clean_streak,
+            speed_band_kmh=speed_band_kmh,
+        )
     reasons = Counter(t.get("teacher_reason", "?") for t in ticks)
     safety_events = Counter(
         t.get("safety_event") for t in ticks if t.get("safety_event")
@@ -167,17 +166,15 @@ def write_html_replay(
         phase_label = phase_id
         phase_desc = ""
 
-    if existing_summary and "evaluation" in existing_summary:
-        evaluation = existing_summary["evaluation"]
-    else:
-        evaluation = resolve_evaluation(
-            phase_id, ticks, laps_completed, lap_events, clean_streak,
-            speed_band_kmh=speed_band_kmh,
-        )
+    evaluation = resolve_evaluation(
+        phase_id, ticks, laps_completed, lap_events, clean_streak,
+        speed_band_kmh=speed_band_kmh,
+    )
 
     summary = summarize_ticks(
         ticks, laps_completed, phase_id, lap_events, clean_streak,
         speed_band_kmh=speed_band_kmh,
+        evaluation=evaluation,
     )
     lt = lap_time_stats(lap_events)
     ref_lap_s = (session or {}).get("reference_lap_s")
@@ -193,11 +190,22 @@ def write_html_replay(
         if t_s is not None and best_s is not None:
             d = t_s - best_s
             delta = f"{d:+.3f}s" if d else "mejor"
+        detail = ev.get("summary") or ""
+        if not ev.get("clean") and not detail:
+            parts = []
+            if ev.get("pct_override") is not None:
+                parts.append(f"ovr {ev.get('pct_override')}%")
+            if ev.get("pct_off_track") is not None:
+                parts.append(f"off {ev.get('pct_off_track')}%")
+            if ev.get("pct_stuck") is not None:
+                parts.append(f"stuck {ev.get('pct_stuck')}%")
+            detail = ", ".join(parts) if parts else "—"
         lap_rows += (
             f"<tr><td>{ev.get('lap_num', '—')}</td>"
             f"<td>{ev.get('lap_time_fmt', format_lap_time(t_s or 0))}</td>"
             f"<td>{ev.get('avg_cte', '—')}</td>"
             f"<td>{'✓' if ev.get('clean') else '—'}</td>"
+            f"<td>{detail}</td>"
             f"<td>{delta}</td></tr>"
         )
 
@@ -249,10 +257,19 @@ def write_html_replay(
         ensure_ascii=False,
     )
 
+    lap_thresholds = ""
+    if learn_stage:
+        ls = get_learn_stage(phase_id)
+        lap_thresholds = (
+            f"<p class=\"meta\">Limpia en <b>{ls.label}</b>: CTE ≤ {ls.max_lap_cte} m · "
+            f"teacher ≤ {ls.max_lap_override_pct:.0f}% · off-track ≤ 8% · stuck ≤ 5%</p>"
+        )
+
     lap_section = ""
     if lap_events or phase_id in LEARN_STAGES or phase_id.startswith("imit_"):
         lap_section = f"""
 <h2>Tiempos por vuelta</h2>
+{lap_thresholds}
 <div class="stats">
   <div class="stat"><b>{lt['best_fmt']}</b><span>Mejor vuelta</span></div>
   <div class="stat"><b>{lt['avg_fmt']}</b><span>Media sesión</span></div>
@@ -260,8 +277,8 @@ def write_html_replay(
   <div class="stat"><b>{ref_lap_fmt}</b><span>Ref. teacher (informative)</span></div>
 </div>
 <table>
-  <thead><tr><th>Vuelta</th><th>Tiempo</th><th>CTE</th><th>Limpia</th><th>Δ vs mejor</th></tr></thead>
-  <tbody>{lap_rows or '<tr><td colspan="5">Sin vueltas completas</td></tr>'}</tbody>
+  <thead><tr><th>Vuelta</th><th>Tiempo</th><th>CTE</th><th>Limpia</th><th>Motivo</th><th>Δ vs mejor</th></tr></thead>
+  <tbody>{lap_rows or '<tr><td colspan="6">Sin vueltas completas</td></tr>'}</tbody>
 </table>
 <p class="meta">El tiempo de vuelta es <b>seguimiento</b> en BC; la red aprende línea y reglas. RL optimiza ritmo.</p>
 """

@@ -23,6 +23,7 @@ from dataset_recorder import ORIGIN_TEACHER, DatasetRecorder, load_universal_dat
 from drive_session import DriveSession
 from lap_session import (
     LapCompletionTracker,
+    lap_tick_safety_flags,
     make_lap_buffer_tick,
     process_lap_rollover,
     rotate_lap_buffer,
@@ -41,7 +42,7 @@ from learning_curriculum import (
 from obs_builder import encoded_action_tuple
 from obs_universal import OBS_SCHEMA, OBS_UNIVERSAL_DIM, build_obs_universal
 from reference_recorder import ReferenceLine
-from safety_monitor import SafetyMonitor, session_tick_flags
+from safety_monitor import SafetyMonitor
 from session_log import TeachingSessionRecorder, default_log_path
 from teacher_controller import TeacherConfig, TeachingController, resolve_teacher_decision
 from teacher_intents import rule_for_reason
@@ -205,6 +206,14 @@ def run(args: argparse.Namespace) -> int:
     model_lock = threading.Lock()
     fine_tune_thread: Optional[threading.Thread] = None
 
+    def _persist_progress() -> None:
+        save_learn_progress(
+            stage_id=current_stage_id,
+            reference=args.reference,
+            speed_target_kmh=args.speed_target,
+            speed_band_kmh=current_speed_band,
+        )
+
     safety.reset(
         lap_distance=session.last_timings.lap_distance if session.last_timings else 0.0,
         current_lap=start_lap,
@@ -335,15 +344,17 @@ def run(args: argparse.Namespace) -> int:
                     speed_band_kmh=current_speed_band,
                 )
 
-            off_track, stuck = session_tick_flags(status, decision.cte)
+            off_track, stuck = lap_tick_safety_flags(status, decision.cte, lap_guard.active)
+            lap_override = override if not lap_guard.active else False
             lap_ticks.append(make_lap_buffer_tick(
                 session_rec.elapsed_s(),
                 telem.speed * 3.6,
                 decision.cte,
-                override,
+                lap_override,
                 off_track,
                 stuck,
                 reason,
+                settling=lap_guard.active,
             ))
 
             session_rec.record_tick(
@@ -401,12 +412,7 @@ def run(args: argparse.Namespace) -> int:
                 if advanced:
                     current_stage_id = new_stage
                     clean_streak = 0
-                    save_learn_progress(
-                        stage_id=current_stage_id,
-                        reference=args.reference,
-                        speed_target_kmh=args.speed_target,
-                        speed_band_kmh=current_speed_band,
-                    )
+                    _persist_progress()
                     print(f"[Learn] *** {msg} ***")
                 else:
                     print(f"[Learn] {msg}")
@@ -419,12 +425,7 @@ def run(args: argparse.Namespace) -> int:
                     current_stage_id = band_stage
                     clean_streak = 0
                     autonomy_announced = False
-                    save_learn_progress(
-                        stage_id=current_stage_id,
-                        reference=args.reference,
-                        speed_target_kmh=args.speed_target,
-                        speed_band_kmh=current_speed_band,
-                    )
+                    _persist_progress()
                     print(f"[Learn] *** {band_msg} ***")
                 elif band_msg:
                     print(f"[Learn] {band_msg}")
@@ -454,12 +455,7 @@ def run(args: argparse.Namespace) -> int:
     except KeyboardInterrupt:
         print("\n[Learn] Detenido.")
     finally:
-        save_learn_progress(
-            stage_id=current_stage_id,
-            reference=args.reference,
-            speed_target_kmh=args.speed_target,
-            speed_band_kmh=current_speed_band,
-        )
+        _persist_progress()
         controller.release()
         buffer_rec.close()
         session_rec.record_event({

@@ -178,6 +178,13 @@ def compute_lap_metrics(ticks: List[dict]) -> dict:
     }
 
 
+IMIT_LAP_MAX_CTE = 5.5
+IMIT_LAP_MAX_CTE_P95 = 9.0
+IMIT_LAP_MAX_OVERRIDE_PCT = 18.0
+IMIT_LAP_MAX_OFF_TRACK_PCT = 8.0
+IMIT_LAP_MAX_STUCK_PCT = 12.0
+
+
 def evaluate_imitation_lap(ticks: List[dict]) -> dict:
     """Criterios para graduación hybrid → autonomous (sin exigir % freno/acel)."""
     m = compute_lap_metrics(ticks)
@@ -197,23 +204,23 @@ def evaluate_imitation_lap(ticks: List[dict]) -> dict:
     pct_stuck = m["pct_stuck"]
 
     clean = (
-        avg_cte <= 5.5
-        and p95_cte <= 9.0
-        and pct_override <= 18.0
-        and pct_off <= 8.0
-        and pct_stuck <= 12.0
+        avg_cte <= IMIT_LAP_MAX_CTE
+        and p95_cte <= IMIT_LAP_MAX_CTE_P95
+        and pct_override <= IMIT_LAP_MAX_OVERRIDE_PCT
+        and pct_off <= IMIT_LAP_MAX_OFF_TRACK_PCT
+        and pct_stuck <= IMIT_LAP_MAX_STUCK_PCT
     )
 
     issues: List[str] = []
-    if avg_cte > 5.5:
+    if avg_cte > IMIT_LAP_MAX_CTE:
         issues.append(f"CTE {avg_cte}m")
-    if p95_cte > 9.0:
+    if p95_cte > IMIT_LAP_MAX_CTE_P95:
         issues.append(f"CTE p95 {p95_cte}m")
-    if pct_override > 18.0:
+    if pct_override > IMIT_LAP_MAX_OVERRIDE_PCT:
         issues.append(f"overrides {pct_override}%")
-    if pct_off > 8.0:
+    if pct_off > IMIT_LAP_MAX_OFF_TRACK_PCT:
         issues.append(f"off-track {pct_off}%")
-    if pct_stuck > 12.0:
+    if pct_stuck > IMIT_LAP_MAX_STUCK_PCT:
         issues.append(f"stuck {pct_stuck}%")
 
     return {
@@ -227,6 +234,68 @@ def evaluate_imitation_lap(ticks: List[dict]) -> dict:
         "pct_accel": m["pct_accel"],
         "pct_stuck": pct_stuck,
         "summary": "vuelta limpia" if clean else f"revisar: {', '.join(issues)}",
+    }
+
+
+def evaluate_imitation_session(
+    ticks: List[dict],
+    laps_completed: int,
+    phase_id: str = "imit_hybrid",
+) -> dict:
+    """Evaluación HTML de sesión Hybrid/Autónomo (sin límite fijo de 25 km/h de F4)."""
+    from lap_session import driving_ticks_for_eval
+
+    mode = phase_id.replace("imit_", "")
+    ticks = driving_ticks_for_eval(ticks)
+    lap_ev = evaluate_imitation_lap(ticks)
+    n = len(ticks)
+
+    def add(checks: List[dict], name: str, ok: bool, value, threshold, unit: str = "") -> None:
+        checks.append({
+            "name": name, "ok": ok, "value": value, "threshold": threshold, "unit": unit,
+        })
+
+    checks: List[dict] = []
+    if n == 0:
+        return {
+            "phase_id": phase_id,
+            "phase_label": f"Imitation — {mode}",
+            "passed": False,
+            "checks": checks,
+            "summary": "Sin ticks en la sesión.",
+            "metrics": {},
+        }
+
+    duration = ticks[-1].get("t_s", 0.0) - ticks[0].get("t_s", 0.0)
+    add(checks, "laps", laps_completed >= 1, laps_completed, 1)
+    add(checks, "avg_cte", lap_ev["avg_cte"] <= IMIT_LAP_MAX_CTE, lap_ev["avg_cte"], IMIT_LAP_MAX_CTE, "m")
+    add(checks, "cte_p95", lap_ev["cte_p95"] <= IMIT_LAP_MAX_CTE_P95, lap_ev["cte_p95"], IMIT_LAP_MAX_CTE_P95, "m")
+    add(checks, "pct_safety_override", lap_ev["pct_override"] <= IMIT_LAP_MAX_OVERRIDE_PCT, lap_ev["pct_override"], IMIT_LAP_MAX_OVERRIDE_PCT, "%")
+    add(checks, "pct_off_track", lap_ev["pct_off_track"] <= IMIT_LAP_MAX_OFF_TRACK_PCT, lap_ev["pct_off_track"], IMIT_LAP_MAX_OFF_TRACK_PCT, "%")
+    add(checks, "pct_stuck", lap_ev["pct_stuck"] <= IMIT_LAP_MAX_STUCK_PCT, lap_ev["pct_stuck"], IMIT_LAP_MAX_STUCK_PCT, "%")
+
+    passed = lap_ev["clean"] and laps_completed >= 1
+    failed = [c["name"] for c in checks if not c["ok"]]
+
+    return {
+        "phase_id": phase_id,
+        "phase_label": f"Imitation — {mode}",
+        "passed": passed,
+        "checks": checks,
+        "metrics": {
+            "n_ticks": n,
+            "duration_s": round(duration, 1),
+            "laps_completed": laps_completed,
+            "avg_cte": lap_ev["avg_cte"],
+            "cte_p95": lap_ev["cte_p95"],
+            "avg_speed_kmh": lap_ev["avg_speed_kmh"],
+            "pct_off_track": lap_ev["pct_off_track"],
+            "pct_stuck": lap_ev["pct_stuck"],
+            "pct_safety_override": lap_ev["pct_override"],
+            "pct_accel_reason": lap_ev["pct_accel"],
+            "pct_brake_reason": lap_ev["pct_brake"],
+        },
+        "summary": "APTO" if passed else f"Revisar: {', '.join(failed)}",
     }
 
 

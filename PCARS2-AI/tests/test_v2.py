@@ -99,7 +99,8 @@ def test_build_teaching_argv_record_uses_universal():
 
 
 def test_save_and_load_learn_settings(tmp_path, monkeypatch):
-    monkeypatch.setattr("v2.launcher.learn_settings_file", lambda: tmp_path / "learn.json")
+    path = tmp_path / "learn.json"
+    monkeypatch.setattr("learn_progress._PROGRESS_FILE", path)
     s = LearnSettings(stage_id="l4_combinado", reference="src/refs/sugo_ai.json", speed_target_kmh=0.0)
     save_learn_settings(s)
     loaded = load_learn_settings()

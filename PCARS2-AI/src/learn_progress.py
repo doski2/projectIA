@@ -27,6 +27,14 @@ def load_learn_progress() -> Dict[str, Any]:
         return {}
 
 
+def merge_and_save_learn_settings(updates: Dict[str, Any]) -> None:
+    """Única escritura de user_learn_settings.json (GUI + learn_driver)."""
+    data = load_learn_progress()
+    data.update(updates)
+    _PROGRESS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _PROGRESS_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
 def save_learn_progress(
     stage_id: str,
     reference: Optional[str] = None,
@@ -35,20 +43,18 @@ def save_learn_progress(
     model_path: Optional[str] = None,
     dataset_path: Optional[str] = None,
 ) -> None:
-    data = load_learn_progress()
-    data["stage_id"] = stage_id
+    updates: Dict[str, Any] = {"stage_id": stage_id}
     if reference:
-        data["reference"] = reference
+        updates["reference"] = reference
     if speed_target_kmh is not None:
-        data["speed_target_kmh"] = speed_target_kmh
+        updates["speed_target_kmh"] = speed_target_kmh
     if speed_band_kmh is not None:
-        data["speed_band_kmh"] = speed_band_kmh
+        updates["speed_band_kmh"] = speed_band_kmh
     if model_path:
-        data["model_path"] = model_path
+        updates["model_path"] = model_path
     if dataset_path:
-        data["dataset_path"] = dataset_path
-    _PROGRESS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _PROGRESS_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        updates["dataset_path"] = dataset_path
+    merge_and_save_learn_settings(updates)
 
 
 def read_saved_stage(default: str = DEFAULT_LEARN_STAGE) -> str:

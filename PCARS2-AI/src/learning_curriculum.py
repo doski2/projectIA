@@ -350,6 +350,10 @@ def evaluate_lap(
         issues.append(f"freno {pct_brake}%")
     if min_avg is not None and avg_speed < min_avg:
         issues.append(f"vel {avg_speed} km/h")
+    if off_track > 8.0:
+        issues.append(f"off-track {off_track}%")
+    if stuck > 5.0:
+        issues.append(f"stuck {stuck}%")
 
     return {
         "clean": clean,
@@ -374,7 +378,10 @@ def evaluate_learn_session(
     speed_band_kmh: float = 0.0,
 ) -> dict:
     """Evaluación HTML de sesión de aprendizaje (similar a teaching)."""
+    from lap_session import driving_ticks_for_session_eval
+
     stage = get_learn_stage(stage_id)
+    ticks = driving_ticks_for_session_eval(ticks)
     n = len(ticks)
     checks: List[dict] = []
 

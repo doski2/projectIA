@@ -22,6 +22,7 @@ from drive_actions import blend_actions
 from drive_session import DriveSession
 from lap_session import (
     LapCompletionTracker,
+    lap_tick_safety_flags,
     make_lap_buffer_tick,
     process_lap_rollover,
     rotate_lap_buffer,
@@ -31,7 +32,7 @@ from lap_tracker import format_lap_time
 from obs_builder import build_obs, encoded_action_tuple
 from obs_universal import OBS_SCHEMA, build_obs_universal
 from reference_recorder import ReferenceLine
-from safety_monitor import SafetyMonitor, session_tick_flags
+from safety_monitor import SafetyMonitor
 from session_log import TeachingSessionRecorder, default_log_path
 from teacher_controller import TeacherConfig, TeachingController, resolve_teacher_decision
 from teacher_intents import decode_reason_id, normalize_reason, rule_for_reason
@@ -221,17 +222,23 @@ def run(args: argparse.Namespace) -> int:
             if args.auto_shift:
                 auto_shift(controller, telem, final[0], final[1], shifter)
 
-            off_track, stuck = session_tick_flags(status, teacher_decision.cte)
+            off_track, stuck = lap_tick_safety_flags(
+                status, teacher_decision.cte, lap_guard.active,
+            )
+            lap_override = override if not lap_guard.active else False
             lap_ticks.append(make_lap_buffer_tick(
                 session_rec.elapsed_s(),
                 telem.speed * 3.6,
                 teacher_decision.cte,
-                override,
+                lap_override,
                 off_track,
                 stuck,
                 reason,
+                settling=lap_guard.active,
             ))
             drive_source = "teacher" if used_teacher else mode
+            if settle.active:
+                drive_source = f"settle:{settle.reason}"
             session_rec.record_tick(
                 telem_speed_kmh=telem.speed * 3.6,
                 lap=timings.current_lap,

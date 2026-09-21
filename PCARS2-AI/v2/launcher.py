@@ -33,7 +33,9 @@ def settings_file() -> Path:
 
 
 def learn_settings_file() -> Path:
-    return Path(__file__).resolve().parent / "user_learn_settings.json"
+    from learn_progress import progress_file
+
+    return progress_file()
 
 
 def save_settings(settings: TrainingSettings) -> None:
@@ -51,13 +53,11 @@ def load_settings() -> Optional[TrainingSettings]:
 
 
 def save_learn_settings(settings: LearnSettings) -> None:
+    from learn_progress import merge_and_save_learn_settings
+
     from .config import learn_settings_to_dict
 
-    path = learn_settings_file()
-    path.write_text(
-        json.dumps(learn_settings_to_dict(settings), indent=2),
-        encoding="utf-8",
-    )
+    merge_and_save_learn_settings(learn_settings_to_dict(settings))
 
 
 def load_learn_settings() -> Optional[LearnSettings]:

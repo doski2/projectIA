@@ -69,6 +69,44 @@ class LapCompleteResult:
         return bool(self.lap_eval.get("clean"))
 
 
+def is_settle_drive_source(drive_source: Optional[str]) -> bool:
+    return bool(drive_source and str(drive_source).startswith("settle:"))
+
+
+def is_settle_tick(tick: dict) -> bool:
+    """Meta/fine-tune: buffer de vuelta (`settling`) o JSONL de sesión (`drive_source`)."""
+    if tick.get("settling"):
+        return True
+    return is_settle_drive_source(tick.get("drive_source"))
+
+
+def driving_ticks_for_eval(ticks: List[dict]) -> List[dict]:
+    """Excluye ticks de meta/fine-tune (vel. media L2, stuck, resumen sesión)."""
+    return [t for t in ticks if not is_settle_tick(t)]
+
+
+def driving_ticks_for_session_eval(ticks: List[dict]) -> List[dict]:
+    return driving_ticks_for_eval(ticks)
+
+
+def driving_ticks_for_lap_eval(ticks: List[dict]) -> List[dict]:
+    return driving_ticks_for_eval(ticks)
+
+
+def lap_tick_safety_flags(
+    status,
+    cte: float,
+    settling: bool,
+) -> tuple[bool, bool]:
+    """Flags off_track/stuck para evaluación de vuelta (no penalizar meta/fine-tune)."""
+    from safety_monitor import session_tick_flags
+
+    off_track, stuck = session_tick_flags(status, cte)
+    if settling:
+        return False, False
+    return off_track, stuck
+
+
 def completed_lap_ticks(buffer_ticks: List[dict]) -> List[dict]:
     """Tras rollover, el último tick ya es de la vuelta nueva — excluirlo."""
     if len(buffer_ticks) <= 1:
@@ -130,13 +168,17 @@ def try_complete_lap(
 ) -> LapCompleteResult:
     """Evalúa la vuelta recién cerrada. Llamar solo tras LapCompletionTracker.on_frame()."""
     completed = completed_lap_ticks(buffer_ticks)
-    if len(completed) < MIN_LAP_TICKS_FOR_EVAL:
+    driving = driving_ticks_for_lap_eval(completed)
+    if len(driving) < MIN_LAP_TICKS_FOR_EVAL:
         lap_eval = {
             "clean": False,
             "avg_cte": 0.0,
             "pct_override": 0.0,
             "pct_brake": 0.0,
-            "summary": f"pocos datos ({len(completed)} ticks; espera más pista)",
+            "summary": (
+                f"pocos datos de conducción ({len(driving)} ticks; "
+                f"{len(completed)} total con meta/fine-tune)"
+            ),
         }
         return LapCompleteResult(
             laps_done=laps_done,
@@ -144,14 +186,13 @@ def try_complete_lap(
             lap_time_s=0.0,
             lap_overrides=0,
         )
-
-    lap_eval = evaluate_lap_for_phase(completed, stage_id, speed_band_kmh=speed_band_kmh)
+    lap_eval = evaluate_lap_for_phase(driving, stage_id, speed_band_kmh=speed_band_kmh)
 
     lap_time_s = 0.0
-    if len(completed) >= 2:
-        lap_time_s = max(0.0, completed[-1]["t_s"] - completed[0]["t_s"])
+    if len(driving) >= 2:
+        lap_time_s = max(0.0, driving[-1]["t_s"] - driving[0]["t_s"])
 
-    m = compute_lap_metrics(completed)
+    m = compute_lap_metrics(driving)
     lap_overrides = m["override_count"]
     return LapCompleteResult(
         laps_done=laps_done,
@@ -169,6 +210,7 @@ def make_lap_buffer_tick(
     off_track: bool,
     stuck: bool,
     teacher_reason: str,
+    settling: bool = False,
 ) -> dict:
     return {
         "t_s": t_s,
@@ -178,6 +220,7 @@ def make_lap_buffer_tick(
         "off_track": off_track,
         "stuck": stuck,
         "teacher_reason": teacher_reason,
+        "settling": settling,
     }
 
 
@@ -222,7 +265,12 @@ def lap_event_from_result(
         "lap_time_fmt": format_lap_time(result.lap_time_s),
         "avg_cte": result.lap_eval.get("avg_cte"),
         "clean": result.clean,
+        "summary": result.lap_eval.get("summary", ""),
         "overrides": result.lap_overrides,
+        "pct_override": result.lap_eval.get("pct_override"),
+        "pct_off_track": result.lap_eval.get("pct_off_track"),
+        "pct_stuck": result.lap_eval.get("pct_stuck"),
+        "avg_speed_kmh": result.lap_eval.get("avg_speed_kmh"),
     }
     if stage_id:
         ev["stage"] = stage_id

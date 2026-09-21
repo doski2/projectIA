@@ -8,6 +8,7 @@ from session_report import write_html_replay
 from validation_phases import (
     compute_lap_metrics,
     evaluate_imitation_lap,
+    evaluate_imitation_session,
     evaluate_phase,
     evaluate_teaching_lap,
     get_phase,
@@ -76,6 +77,15 @@ def test_teaching_lap_eval():
     ev = evaluate_teaching_lap(ticks, "f1_linea")
     assert ev["clean"] is True
     assert ev["avg_cte"] <= 6.0
+
+
+def test_imitation_session_allows_hybrid_speed_above_f4_cap():
+    ticks = _synthetic_ticks(120)
+    for t in ticks:
+        t["speed_kmh"] = 35.0
+    ev = evaluate_imitation_session(ticks, laps_completed=3, phase_id="imit_hybrid")
+    assert ev["passed"] is True
+    assert ev["metrics"]["avg_speed_kmh"] == 35.0
 
 
 def test_imitation_lap_more_permissive_than_f4():
