@@ -1,14 +1,17 @@
 """Tests de cierre de vuelta compartido."""
 
 from lap_session import (
+    LapCompleteResult,
     LapCompletionTracker,
     completed_lap_ticks,
     driving_ticks_for_lap_eval,
     driving_ticks_for_session_eval,
     evaluate_lap_for_phase,
     lap_rollover_detected,
+    lap_summary_row_from_result,
     lap_tick_safety_flags,
     make_lap_buffer_tick,
+    print_session_lap_board,
     process_lap_rollover,
     try_complete_lap,
 )
@@ -182,6 +185,30 @@ def test_driving_ticks_for_session_eval_excludes_settle():
     driving = driving_ticks_for_session_eval(ticks)
     assert len(driving) == 2
     assert all(not t.get("stuck") for t in driving)
+
+
+def test_lap_summary_row_and_board(capsys):
+    result = LapCompleteResult(
+        laps_done=2,
+        lap_eval={
+            "clean": False,
+            "avg_cte": 2.2,
+            "pct_override": 63.2,
+            "pct_off_track": 32.8,
+            "pct_stuck": 30.2,
+            "summary": "revisar: overrides",
+        },
+        lap_time_s=1487.771,
+        lap_overrides=52040,
+    )
+    row = lap_summary_row_from_result(result, clean_streak=0)
+    assert row["n"] == 2
+    assert row["pct_override"] == 63.2
+    print_session_lap_board([row])
+    out = capsys.readouterr().out
+    assert "ovr%" in out
+    assert "63.2" in out
+    assert "24:" in out or "1487" in row["time"]
 
 
 def test_driving_ticks_for_lap_eval_also_filters_drive_source():

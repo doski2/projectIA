@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from auto_shift import rpm_ratio
+from pcars2_surface import surface_off_track_reason
 from safety_monitor import SafetyStatus
 from telemetry_udp import TelemetryFrame, TimingsFrame
 
@@ -87,6 +88,8 @@ class TeachingDiagnostics:
             "rpm": telem.rpm,
             "cte": round(cte, 3),
             "stuck_steps": status.stuck_steps,
+            "terrain": list(telem.terrain[:4]),
+            "surface_reason": surface_off_track_reason(telem.terrain),
         }
         label = reason or self.prev_safety_reason or "clear"
         print(

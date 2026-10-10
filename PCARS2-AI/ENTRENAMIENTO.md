@@ -2,7 +2,7 @@
 
 Documentación operativa: modos, comandos, logs, revisión de sesiones y flujo supervisado.
 
-**Última actualización:** 2026-09-13
+**Última actualización:** 2026-10-10
 
 ---
 
@@ -14,8 +14,8 @@ Documentación operativa: modos, comandos, logs, revisión de sesiones y flujo s
 | Teaching Driver (reglas)          | `teach.bat` o GUI → Teaching Driver      |
 | Validación Sugo F1–F4 + HTML      | `validar_f1.bat` … `validar_f4.bat` — [docs/VALIDACION_TEACHING_SUGO.md](docs/VALIDACION_TEACHING_SUGO.md) |
 | Regenerar HTML de sesión        | `report_sesion.bat logs\teaching\sesion.jsonl` |
-| Grabar demostraciones TEACHER     | `record.bat`                             |
-| Entrenar BC universal             | `entrenar_bc.bat`                        |
+| Grabar demostraciones TEACHER     | `record.bat` — [docs/TEACHING_MARCHAS_Y_DATASET.md](docs/TEACHING_MARCHAS_Y_DATASET.md) |
+| Entrenar BC universal             | `entrenar_bc.bat` → `models/universal_bc.pt` |
 | Evaluar BC offline                | `eval_bc.bat`                            |
 | Probar BC en pista (HTML)         | `imitar_bc.bat`                          |
 | Aprender online (L1–L7 por banda) | `aprender.bat` — [docs/CURRICULO_VELOCIDAD.md](docs/CURRICULO_VELOCIDAD.md) |
@@ -35,18 +35,20 @@ Ruta recomendada antes de depender solo de PPO:
 
 1. **Referencia** — grabar línea con `reference_recorder.py` (prerrequisito).
 2. **Teacher** — `teach.bat` conduce a 20 km/h con reglas explicables.
-3. **Record** — `record.bat` graba ≥3 vueltas limpias en `data/*_teacher_*.jsonl`.
-4. **BC** — entrenar desde dataset:
+3. **Record** — `record.bat` graba ≥3 vueltas limpias en `data/universal_teacher.jsonl` (puedes **no parar** en meta; sin límite de vueltas hasta Ctrl+C).
+4. **BC universal** — **obligatorio antes de aprender en pista:**
    ```bat
-   ..\.venv\Scripts\python.exe src\pretrain.py --dataset data\sugo_teacher.jsonl --output models\teacher_bc
+   entrenar_bc.bat
    ```
+   Equivale a `pretrain_universal.py` → `models/universal_bc.pt`.
 5. **Eval** — comprobar MAE antes de pista:
    ```bat
-   ..\.venv\Scripts\python.exe src\eval_driver.py -d data\sugo_teacher.jsonl -m models\teacher_bc
+   eval_bc.bat
    ```
-6. **BC Drive / Hybrid** — `imitation_driver.py` o GUI; teacher como fallback.
-7. **Autonomous** — tras 5 vueltas limpias en hybrid, o modo autonomous directo.
-8. **PPO fine-tune** — cuando BC sea estable:
+6. **Aprender online** — `aprender.bat` (L1→L7 por banda; ver [docs/CURRICULO_VELOCIDAD.md](docs/CURRICULO_VELOCIDAD.md)).
+7. **BC Drive / Hybrid** — `imitar_bc.bat` / `imitar_hybrid.bat` o GUI; teacher como fallback.
+8. **Autonomous** — tras currículo estable o `imitar_autonomo.bat`.
+9. **PPO fine-tune** — cuando BC sea estable:
    ```bat
    entrenar.bat src\refs\sugo_ai.json 150000 --base-model models\teacher_bc --basics --speed-target-kmh 25
    ```
@@ -77,22 +79,38 @@ El teacher enseña **cuándo / por qué / cómo** actuar. La política universal
 record.bat
 ```
 
-Equivale a `teaching_driver.py --mode record --universal`. Cada muestra incluye:
+Equivale a `teaching_driver.py --mode record --universal --reference src/refs/sugo_ai.json --speed-target 20`.
 
-- `obs_schema: universal_v1` (17 features sin memoria de pedales de una vuelta)
-- `teacher_reason` + `reason_id`
-- `rule: { when, why, how }`
+Cada muestra incluye:
 
-Repite en **2–3 pistas** para generalizar.
+- `obs_schema: universal_v1` (17 features; geometría relativa, sin “metros de vuelta” en el obs)
+- `teacher_reason` + `reason_id` + `rule: { when, why, how }`
+- `track_name` (p. ej. `SUGO_GP`)
+
+**Vueltas:** `--max-laps 0` (sin tope). Recomendado **≥ 3 vueltas** continuas en el mismo JSONL.  
+**Off-track:** el teacher recupera en pista; esas muestras **no** entran al JSONL con safety activa (ver [docs/TEACHING_MARCHAS_Y_DATASET.md](docs/TEACHING_MARCHAS_Y_DATASET.md)).
+
+**Marchas:** auto-shift ON; lógica RB/LB documentada en el mismo doc (retroceso en 1ª sin RB, neutro → `engage_first`).
+
+Repite en **2–3 pistas** para generalizar. Estrategia multi-pista con JSONL “limpios” por circuito: mismo doc.
 
 ### Entrenar BC universal
 
 ```bat
+entrenar_bc.bat
+```
+
+O varios datasets (concatena por número de muestras; equilibrar pistas a mano):
+
+```bat
 ..\.venv\Scripts\python.exe src\pretrain_universal.py ^
-  --dataset data\sugo_universal.jsonl ^
-  --dataset data\otra_pista_universal.jsonl ^
+  --dataset data\sugo_clean.jsonl ^
+  --dataset data\otra_pista_clean.jsonl ^
   --output models\universal_bc.pt
 ```
+
+Salida habitual: **`PCARS2-AI/models/universal_bc.pt`** (ejecutar `.bat` desde `PCARS2-AI/`).  
+El `.pt` **no** guarda vueltas ni referencias; solo pesos entrenados con los JSONL usados.
 
 ### Evaluar
 
@@ -496,5 +514,8 @@ y en [METRICAS.md](METRICAS.md).
 
 ## Referencia cruzada
 
+- [docs/TEACHING_MARCHAS_Y_DATASET.md](docs/TEACHING_MARCHAS_Y_DATASET.md) — marchas, record, JSONL vs `.pt`, multi-pista
+- [docs/CURRICULO_VELOCIDAD.md](docs/CURRICULO_VELOCIDAD.md) — aprender L1→L7 por banda
+- [docs/VALIDACION_TEACHING_SUGO.md](docs/VALIDACION_TEACHING_SUGO.md) — validación teacher F1–F4
 - [METRICAS.md](METRICAS.md) — columnas del CSV y métricas PPO
 - [DEPENDENCIAS.md](DEPENDENCIAS.md) — Python, paquetes, tests

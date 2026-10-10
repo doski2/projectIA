@@ -1,6 +1,6 @@
 """SafetyMonitor + sTerrain."""
 
-from pcars2_surface import TERRAIN_GRASS, TERRAIN_ROAD
+from pcars2_surface import SURFACE_PROFILE_L1_MARGIN, TERRAIN_GRASS, TERRAIN_ROAD
 from reference_recorder import ReferenceLine, ReferencePoint
 from safety_monitor import SafetyMonitor
 from telemetry_udp import TelemetryFrame, TimingsFrame
@@ -79,3 +79,13 @@ def test_safety_triggers_off_surface_on_grass_before_cte():
     status = mon.update(_telem(terrain), _timings())
     assert status.active is True
     assert status.reason == "off_surface"
+
+
+def test_l1_margin_one_wheel_does_not_activate_safety():
+    mon = SafetyMonitor(ref=_ref(), grace_steps=0, surface_profile=SURFACE_PROFILE_L1_MARGIN)
+    terrain = (TERRAIN_ROAD, TERRAIN_ROAD, TERRAIN_GRASS, TERRAIN_ROAD)
+    timings = _timings()
+    timings.lap_distance = 0.0
+    status = mon.update(_telem(terrain), timings)
+    assert status.active is False
+    assert status.edge_surface is True

@@ -231,6 +231,43 @@ def rotate_lap_buffer(lap_ticks: List[dict]) -> List[dict]:
     return [lap_ticks[-1]] if lap_ticks else []
 
 
+def lap_summary_row_from_result(
+    result: LapCompleteResult,
+    clean_streak: int,
+) -> dict:
+    """Fila compacta para tabla de consola en learn_driver."""
+    ev = result.lap_eval
+    return {
+        "n": result.laps_done,
+        "time": format_lap_time(result.lap_time_s),
+        "cte": float(ev.get("avg_cte") or 0.0),
+        "pct_override": float(ev.get("pct_override") or 0.0),
+        "pct_off_track": float(ev.get("pct_off_track") or 0.0),
+        "pct_stuck": float(ev.get("pct_stuck") or 0.0),
+        "clean": result.clean,
+        "clean_streak": clean_streak,
+        "summary": ev.get("summary", ""),
+    }
+
+
+def print_session_lap_board(rows: List[dict], title: str = "Resumen vueltas (esta sesión)") -> None:
+    """Tabla fija en consola: se reimprime tras cada vuelta (scroll largo)."""
+    print(f"[Learn] === {title} ===")
+    print("  #   tiempo      CTE    ovr%   off%   stk%  limpia  racha")
+    if not rows:
+        print("  (sin vueltas cerradas aún)")
+        print()
+        return
+    for r in rows:
+        limpia = "sí" if r.get("clean") else "no"
+        print(
+            f"  {int(r['n']):<3} {r['time']:<11} {r['cte']:5.2f} "
+            f"{r['pct_override']:5.1f} {r['pct_off_track']:5.1f} {r['pct_stuck']:5.1f} "
+            f"{limpia:6} {int(r['clean_streak'])}"
+        )
+    print()
+
+
 def process_lap_rollover(
     lap_ticks: List[dict],
     current_lap: int,

@@ -13,6 +13,7 @@ import numpy as np
 
 # Reason estable en teacher_controller / session log / JSONL universal
 SAFETY_REVERSE_REASON = "safety_reverse"
+ENGAGE_FIRST_REASON = "engage_first"
 
 # Catálogo estable de reglas → metadatos explicables
 RULE_CATALOG: Dict[str, Dict[str, str]] = {
@@ -41,10 +42,20 @@ RULE_CATALOG: Dict[str, Dict[str, str]] = {
         "why": "off_racing_line",
         "how": "brake_and_steer",
     },
+    "edge_grass": {
+        "when": "wheels_on_grass_margin",
+        "why": "narrow_margin",
+        "how": "hold_throttle_steer_to_line",
+    },
     "wheelspin_reduce": {
         "when": "rear_wheelspin",
         "why": "traction_loss",
         "how": "reduce_throttle",
+    },
+    "engage_first": {
+        "when": "neutral_or_invalid_gear",
+        "why": "need_first_before_accel",
+        "how": "throttle_and_rb",
     },
     "safety_stuck": {
         "when": "stuck",
@@ -115,6 +126,7 @@ REASON_TO_ID: Dict[str, int] = {
     "safety_generic": 12,
     "hybrid": 13,
     "safety_reverse": 14,
+    "engage_first": 15,
 }
 
 ID_TO_REASON: Dict[int, str] = {v: k for k, v in REASON_TO_ID.items()}
@@ -127,6 +139,9 @@ def normalize_reason(raw: str) -> str:
         return "unknown"
     if raw == "cruise":
         return "maintain_speed"
+    if raw == "edge_grass":
+        # Mismo id que recover_line: no amplía NUM_REASONS del modelo BC.
+        return "recover_line"
     if raw in ("off_surface", "safety_off_surface"):
         return "safety_off_track"
     if raw in REASON_TO_ID:
@@ -142,6 +157,8 @@ def normalize_reason(raw: str) -> str:
 
 def rule_for_reason(reason: str) -> Dict[str, str]:
     """Devuelve metadatos when/why/how para una intención."""
+    if reason == "edge_grass":
+        return dict(RULE_CATALOG["edge_grass"])
     key = normalize_reason(reason)
     return dict(RULE_CATALOG.get(key, RULE_CATALOG["unknown"]))
 

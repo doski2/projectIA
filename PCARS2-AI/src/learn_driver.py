@@ -15,16 +15,20 @@ import threading
 from typing import List, Optional
 
 from auto_shift import AutoShifter, auto_shift, maybe_engage_first_gear
+from pcars2_gear import choose_bc_drive_pedals
 from bc_training import fine_tune_universal
 from controller import DS4Controller, decode_action
 import numpy as np
 
 from dataset_recorder import ORIGIN_TEACHER, DatasetRecorder, load_universal_dataset
+from driver_cli import add_diag_track_arg, add_safety_profile_arg, ns_str
 from drive_session import DriveSession
 from lap_session import (
     LapCompletionTracker,
+    lap_summary_row_from_result,
     lap_tick_safety_flags,
     make_lap_buffer_tick,
+    print_session_lap_board,
     process_lap_rollover,
     rotate_lap_buffer,
 )
@@ -45,6 +49,7 @@ from reference_recorder import ReferenceLine
 from safety_monitor import SafetyMonitor
 from session_log import TeachingSessionRecorder, default_log_path
 from teacher_controller import TeacherConfig, TeachingController, resolve_teacher_decision
+from track_deviation import maybe_build_track_diag
 from teacher_intents import rule_for_reason
 from universal_policy import UniversalPolicy, load_universal_policy
 
@@ -80,6 +85,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--open-report", action="store_true")
     parser.add_argument("--auto-shift", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--min-buffer-samples", type=int, default=200)
+    add_safety_profile_arg(parser)
+    add_diag_track_arg(parser)
     return parser.parse_args()
 
 
@@ -141,7 +148,7 @@ def run(args: argparse.Namespace) -> int:
     stage = get_learn_stage(stage_id)
     effective_speed = resolve_learn_speed(stage_id, speed_band, args.speed_target)
     teacher = TeachingController(ref, TeacherConfig(speed_target_kmh=effective_speed))
-    safety = SafetyMonitor(ref=ref)
+    safety = SafetyMonitor(ref=ref, surface_profile=ns_str(args, "safety_profile"))
     session = DriveSession()
 
     model: Optional[UniversalPolicy] = None
@@ -181,6 +188,7 @@ def run(args: argparse.Namespace) -> int:
         print(f"[Learn] Banda guardada: {speed_band:.0f} km/h")
     print(f"[Learn] Etapa: {stage.label} @ {speed_note}")
     print(f"[Learn] Fine-tune cada {args.learn_every} vuelta(s) | Buffer: {args.buffer}")
+    print(f"[Learn] Safety superficie: {ns_str(args, 'safety_profile')}")
     print(f"[Learn] Session log: {log_path}")
     print("[Learn] Esperando telemetría UDP...")
 
@@ -205,6 +213,7 @@ def run(args: argparse.Namespace) -> int:
     lap_guard = LapTransitionGuard(track_length=ref.track_length)
     model_lock = threading.Lock()
     fine_tune_thread: Optional[threading.Thread] = None
+    lap_summary_rows: List[dict] = []
 
     def _persist_progress() -> None:
         save_learn_progress(
@@ -254,11 +263,7 @@ def run(args: argparse.Namespace) -> int:
         nonlocal fine_tune_thread
 
         def _worker() -> None:
-            lap_guard.set_fine_tuning(True)
-            try:
-                _run_fine_tune()
-            finally:
-                lap_guard.set_fine_tuning(False)
+            _run_fine_tune()
 
         if fine_tune_thread is not None and fine_tune_thread.is_alive():
             print("[Learn] Fine-tune ya en curso — se omite")
@@ -277,6 +282,7 @@ def run(args: argparse.Namespace) -> int:
 
     _init_dist = session.last_timings.lap_distance if session.last_timings else 0.0
     lap_guard.reset(start_lap, _init_dist)
+    print_session_lap_board(lap_summary_rows)
     lap_completion.reset(start_lap, _init_dist)
 
     try:
@@ -310,11 +316,10 @@ def run(args: argparse.Namespace) -> int:
                 bc_tuple = teacher_tuple
 
             override = decision.safety_override
-            proposed = bc_tuple
-            drive_source = "bc"
-            if override:
-                proposed = teacher_tuple
-                drive_source = "teacher"
+            proposed, drive_source, ovr_inc = choose_bc_drive_pedals(
+                bc_tuple, teacher_tuple, telem, override, lap_guard.active,
+            )
+            if ovr_inc:
                 override_count += 1
 
             settle = lap_guard.apply(teacher_tuple, proposed)
@@ -359,6 +364,9 @@ def run(args: argparse.Namespace) -> int:
                 off_track_cte=flags.off_track_cte,
             ))
 
+            track_diag = maybe_build_track_diag(
+                args.diag_track, telem, timings, ref, decision.signed_cte,
+            )
             session_rec.record_tick(
                 telem_speed_kmh=telem.speed * 3.6,
                 lap=timings.current_lap,
@@ -381,6 +389,7 @@ def run(args: argparse.Namespace) -> int:
                 gear=telem.gear,
                 num_gears=telem.num_gears,
                 rpm=telem.rpm,
+                track_diag=track_diag,
             )
 
             if frame % args.log_every == 0:
@@ -407,8 +416,12 @@ def run(args: argparse.Namespace) -> int:
                 print(
                     f"[Learn] Vuelta {laps_done} | {format_lap_time(lap_result.lap_time_s)} | "
                     f"{lap_eval['summary']} | CTE={lap_eval['avg_cte']}m | "
-                    f"overrides={lap_result.lap_overrides} | clean_streak={clean_streak}"
+                    f"ovr={lap_eval.get('pct_override', 0)}% | clean_streak={clean_streak}"
                 )
+                lap_summary_rows.append(
+                    lap_summary_row_from_result(lap_result, clean_streak),
+                )
+                print_session_lap_board(lap_summary_rows)
 
                 lap_ticks = rotate_lap_buffer(lap_ticks)
 
@@ -457,7 +470,7 @@ def run(args: argparse.Namespace) -> int:
                     break
 
     except KeyboardInterrupt:
-        print("\n[Learn] Detenido.")
+        print("\n[Learn] Ctrl+C — guardando sesión y abriendo el informe...")
     finally:
         _persist_progress()
         controller.release()

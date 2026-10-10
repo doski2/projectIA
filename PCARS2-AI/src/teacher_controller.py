@@ -12,8 +12,15 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 
 from obs_builder import wheelspin_norm
-from pcars2_gear import backward_speed_ms, is_driving_backward, is_forward_gear
-from teacher_intents import SAFETY_REVERSE_REASON
+from pcars2_gear import (
+    ENGAGE_FIRST_STUCK_MAX_FRAMES,
+    ENGAGE_FIRST_THROTTLE,
+    backward_speed_ms,
+    is_driving_backward,
+    is_forward_gear,
+    needs_gear_engagement,
+)
+from teacher_intents import ENGAGE_FIRST_REASON, SAFETY_REVERSE_REASON
 from safety_monitor import SAFETY_OFF_TRACK_REASONS
 from obs_universal import signed_lateral_error
 from reference_recorder import ReferenceLine
@@ -21,6 +28,12 @@ from safety_monitor import CTE_SAFE_M, SafetyMonitor, SafetyStatus
 from telemetry_udp import TelemetryFrame, TimingsFrame
 
 CURV_LOOKAHEAD_M = 30.0
+# Por debajo de recover_line (6 m): recentrar antes de que una rueda toque hierba (~3 m).
+LATERAL_WARN_M = 2.5
+LATERAL_K_CTE_BOOST = 2.25
+EDGE_K_CTE_MULT = 1.75
+# Crucero y borde: gas para no caer a 0 km/h a ~20 km/h.
+MAINTAIN_THROTTLE = 0.2
 WHEELSPIN_THRESHOLD = 0.15
 STALL_RECOVERY_SPEED_MS = 1.0
 STALL_RECOVERY_REASONS = frozenset({"stuck", "no_progress"})
@@ -85,6 +98,7 @@ class TeachingController:
         self._prev_steering = 0.0
         self._prev_throttle = 0.0
         self._prev_brake = 0.0
+        self._gear_engagement_frames = 0
 
     @property
     def speed_target_ms(self) -> float:
@@ -94,6 +108,7 @@ class TeachingController:
         self._prev_steering = 0.0
         self._prev_throttle = 0.0
         self._prev_brake = 0.0
+        self._gear_engagement_frames = 0
 
     def signed_lateral_error(
         self,
@@ -106,6 +121,43 @@ class TeachingController:
     def _smooth(self, prev: float, new: float, alpha: float) -> float:
         return prev + alpha * (new - prev)
 
+    def _effective_k_cte(self, signed_cte: float, safety: bool, edge_surface: bool = False) -> float:
+        """Ganancia lateral única: safety ×1.5, boost si |CTE|>2.5 m, extra si 1 rueda en hierba."""
+        k = self.config.k_cte * (1.5 if safety else 1.0)
+        if abs(signed_cte) > LATERAL_WARN_M:
+            k *= LATERAL_K_CTE_BOOST
+        if edge_surface and not safety:
+            k *= EDGE_K_CTE_MULT
+        return k
+
+    def _resolve_need_first_gear(
+        self,
+        telem: TelemetryFrame,
+        reversing: bool,
+        safety: bool,
+        safety_reason: str,
+    ) -> bool:
+        if reversing:
+            self._gear_engagement_frames = 0
+            return False
+        if (
+            safety
+            and safety_reason in STALL_RECOVERY_REASONS
+            and telem.speed < STALL_RECOVERY_SPEED_MS
+        ):
+            self._gear_engagement_frames = 0
+            return False
+        if not needs_gear_engagement(telem):
+            self._gear_engagement_frames = 0
+            return False
+        self._gear_engagement_frames += 1
+        if telem.gear > 1 and (
+            self._gear_engagement_frames > ENGAGE_FIRST_STUCK_MAX_FRAMES
+            and telem.speed > 0.5
+        ):
+            return False
+        return True
+
     def compute_steering(
         self,
         telem: TelemetryFrame,
@@ -114,6 +166,7 @@ class TeachingController:
         heading_err: float,
         safety: bool = False,
         reversing: bool = False,
+        edge_surface: bool = False,
     ) -> Tuple[float, float]:
         curv = self.ref.curvature(lap_distance)
         curv_ahead = self.ref.curvature(lap_distance + CURV_LOOKAHEAD_M)
@@ -122,11 +175,13 @@ class TeachingController:
             raw = -REVERSE_K_CTE * signed_cte + REVERSE_K_HEADING * heading_err
             smooth = REVERSE_STEER_SMOOTH
         elif safety:
-            raw = -self.config.k_cte * 1.5 * signed_cte + self.config.k_heading * heading_err
+            k_cte = self._effective_k_cte(signed_cte, safety=True)
+            raw = -k_cte * signed_cte + self.config.k_heading * heading_err
             smooth = self.config.steer_smooth
         else:
+            k_cte = self._effective_k_cte(signed_cte, safety=False, edge_surface=edge_surface)
             raw = (
-                -self.config.k_cte * signed_cte
+                -k_cte * signed_cte
                 + self.config.k_heading * heading_err
                 - self.config.k_curvature * curv
                 - self.config.k_lookahead * curv_ahead
@@ -148,6 +203,7 @@ class TeachingController:
         safety: bool = False,
         safety_reason: str = "",
         reversing: bool = False,
+        need_first_gear: bool = False,
     ) -> Tuple[float, float, str]:
         if reversing:
             throttle = 0.0
@@ -159,6 +215,16 @@ class TeachingController:
             self._prev_throttle = self._smooth(self._prev_throttle, 0.0, self.config.throttle_rate)
             self._prev_brake = brake
             return throttle, brake, SAFETY_REVERSE_REASON
+
+        if need_first_gear:
+            throttle = self._smooth(
+                self._prev_throttle,
+                ENGAGE_FIRST_THROTTLE,
+                self.config.throttle_rate * 1.5,
+            )
+            self._prev_brake = 0.0
+            self._prev_throttle = throttle
+            return throttle, 0.0, ENGAGE_FIRST_REASON
 
         speed = telem.speed
         target = self.speed_target_ms
@@ -238,7 +304,7 @@ class TeachingController:
             self._prev_brake = brake
             return throttle, brake, reason
 
-        throttle = self._smooth(self._prev_throttle, 0.2, self.config.throttle_rate)
+        throttle = self._smooth(self._prev_throttle, MAINTAIN_THROTTLE, self.config.throttle_rate)
         brake = self._smooth(self._prev_brake, 0.0, self.config.brake_rate)
         reason = "maintain_speed"
         self._prev_throttle = throttle
@@ -251,11 +317,15 @@ class TeachingController:
         timings: TimingsFrame,
         safety: bool = False,
         safety_reason: str = "",
+        edge_surface: bool = False,
     ) -> TeacherDecision:
         lap_distance = timings.lap_distance
         signed_cte = self.signed_lateral_error(telem.position, lap_distance)
         cte = abs(signed_cte)
         reversing = is_driving_backward(telem)
+        need_first_gear = self._resolve_need_first_gear(
+            telem, reversing, safety, safety_reason,
+        )
         if reversing:
             heading_err = self.ref.orientation_heading_error(telem.orientation, lap_distance)
         else:
@@ -264,12 +334,23 @@ class TeachingController:
 
         steering, curv_ahead = self.compute_steering(
             telem, lap_distance, signed_cte, heading_err,
-            safety=safety, reversing=reversing,
+            safety=safety, reversing=reversing, edge_surface=edge_surface,
         )
         throttle, brake, reason = self.compute_pedals(
             telem, lap_distance, signed_cte, curv_ahead,
-            safety=safety, safety_reason=safety_reason, reversing=reversing,
+            safety=safety,
+            safety_reason=safety_reason,
+            reversing=reversing,
+            need_first_gear=need_first_gear,
         )
+        if edge_surface and not safety and not reversing and reason not in (
+            ENGAGE_FIRST_REASON, "recover_line",
+        ):
+            throttle = MAINTAIN_THROTTLE
+            brake = 0.0
+            reason = "edge_grass"
+            self._prev_throttle = throttle
+            self._prev_brake = 0.0
 
         return TeacherDecision(
             throttle=throttle,
@@ -311,4 +392,4 @@ def resolve_teacher_decision(
         return teacher.recovery_decision(
             telem, timings, status.reason or "off_track",
         )
-    return teacher.decide(telem, timings)
+    return teacher.decide(telem, timings, edge_surface=status.edge_surface)

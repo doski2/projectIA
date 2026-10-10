@@ -16,6 +16,7 @@ from typing import List
 from auto_shift import AutoShifter, auto_shift, maybe_engage_first_gear, rpm_ratio
 from controller import DS4Controller
 from dataset_recorder import ORIGIN_TEACHER, DatasetRecorder
+from driver_cli import add_diag_track_arg, add_safety_profile_arg, ns_str
 from drive_session import DriveSession
 from lap_session import (
     LapCompletionTracker,
@@ -32,6 +33,7 @@ from safety_monitor import SafetyMonitor, session_tick_flags
 from session_log import TeachingSessionRecorder, default_log_path
 from teacher_intents import rule_for_reason
 from teacher_controller import TeacherConfig, TeachingController, resolve_teacher_decision
+from track_deviation import maybe_build_track_diag
 from validation_phases import DEFAULT_PHASE, get_phase
 
 
@@ -60,17 +62,19 @@ def parse_args() -> argparse.Namespace:
                         help="Abrir HTML al terminar la sesión")
     parser.add_argument("--auto-shift", action=argparse.BooleanOptionalAction, default=True,
                         help="Cambio automático de marchas (RB/LB)")
+    add_safety_profile_arg(parser)
+    add_diag_track_arg(parser)
     return parser.parse_args()
 
 
 def run(args: argparse.Namespace) -> int:
-    ref = ReferenceLine.load(args.reference)
+    ref = ReferenceLine.load(ns_str(args, "reference"))
     phase = get_phase(args.phase)
     speed_target = args.speed_target if args.speed_target is not None else phase.speed_target_kmh
 
     config = TeacherConfig(speed_target_kmh=speed_target)
     teacher = TeachingController(ref, config=config)
-    safety = SafetyMonitor(ref=ref)
+    safety = SafetyMonitor(ref=ref, surface_profile=ns_str(args, "safety_profile"))
     session = DriveSession()
 
     print(f"[Teacher] Referencia: {ref.track_name} ({ref.track_length:.0f} m)")
@@ -78,6 +82,7 @@ def run(args: argparse.Namespace) -> int:
     print(f"[Teacher] Fase: {phase.id} — {phase.label}")
     print(f"[Teacher] Modo: {args.mode.upper()} | Objetivo: {speed_target:.0f} km/h")
     print(f"[Teacher] Auto-shift: {'ON' if args.auto_shift else 'OFF'} | Log cada {args.log_every} frames")
+    print(f"[Teacher] Safety superficie: {ns_str(args, 'safety_profile')}")
     if args.universal:
         print(f"[Teacher] Schema: {schema} (obs agnóstico + regla when/why/how)")
     print("[Teacher] Esperando telemetría UDP (puerto 5606)...")
@@ -92,8 +97,9 @@ def run(args: argparse.Namespace) -> int:
         "phase": phase.id,
         "phase_label": phase.label,
         "track": ref.track_name or "sugo",
-        "reference": args.reference,
+        "reference": ns_str(args, "reference"),
         "speed_target_kmh": speed_target,
+        "safety_profile": ns_str(args, "safety_profile"),
         "universal_schema": args.universal,
         "reference_lap_s": round(ref.lap_time, 3) if ref.lap_time else None,
     })
@@ -175,6 +181,9 @@ def run(args: argparse.Namespace) -> int:
                 off_surface=flags.off_surface,
                 off_track_cte=flags.off_track_cte,
             ))
+            track_diag = maybe_build_track_diag(
+                args.diag_track, telem, timings, ref, decision.signed_cte,
+            )
             session_rec.record_tick(
                 telem_speed_kmh=telem.speed * 3.6,
                 lap=timings.current_lap,
@@ -199,6 +208,7 @@ def run(args: argparse.Namespace) -> int:
                 rpm_pct=rpm_pct,
                 shift_event=shift_event,
                 stuck_steps=status.stuck_steps,
+                track_diag=track_diag,
             )
 
             if dataset_rec is not None:

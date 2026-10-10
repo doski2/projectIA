@@ -5,7 +5,8 @@
 **Principio:** si gira, acelera y frena en línea en Sugo, las **reglas** son las mismas en cualquier pista; solo cambia la referencia local (geometría).
 
 > **Importante:** `validar_f*.bat` = **reglas** (teacher), no entrenamiento de red.  
-> El aprendizaje (BC) empieza en **F5** con `record.bat` → `pretrain_universal.py`.
+> El aprendizaje (BC) empieza en **F5** con `record.bat` → `entrenar_bc.bat` → `aprender.bat`.  
+> Marchas, JSONL y `.pt`: [TEACHING_MARCHAS_Y_DATASET.md](TEACHING_MARCHAS_Y_DATASET.md).
 
 ---
 
@@ -18,7 +19,7 @@
 | **F2** `f2_acelerar` | **APTO** | `20260918T182344Z_sugo_gp_f2_acelerar` | 4 vueltas · vel 23.7 km/h · CTE 2.41 m |
 | **F3** `f3_frenar` | **APTO** | `20260918T190548Z_sugo_gp_f3_frenar` | 10 vueltas · freno 35.8% · CTE 2.44 m |
 | **F4** `f4_combinado` | **APTO** | `20260918T210105Z_sugo_gp_f4_combinado` | 1 vuelta · CTE 2.33 m · acel 62.8% · freno 37.2% |
-| **F5** `record.bat` | **siguiente** | — | grabar dataset → `pretrain_universal.py` |
+| **F5** `record.bat` + BC | **siguiente** | — | ≥3 vueltas → `entrenar_bc.bat` → `aprender.bat` |
 
 *Actualizar esta tabla al cerrar cada fase (banner verde en HTML).*
 

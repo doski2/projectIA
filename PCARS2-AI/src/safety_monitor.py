@@ -9,7 +9,7 @@ import math
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from pcars2_surface import surface_off_track_reason
+from pcars2_surface import SURFACE_PROFILE_STRICT, classify_surface
 from reference_recorder import ReferenceLine
 from telemetry_udp import TelemetryFrame, TimingsFrame
 
@@ -58,6 +58,7 @@ class SafetyStatus:
     heading_err: float = 0.0
     stuck_steps: int = 0
     wrongway_steps: int = 0
+    edge_surface: bool = False
 
 
 @dataclass
@@ -65,6 +66,7 @@ class SafetyMonitor:
     """Monitor de seguridad determinista por frames de juego."""
 
     ref: ReferenceLine
+    surface_profile: str = SURFACE_PROFILE_STRICT
     grace_steps: int = GRACE_STEPS
     stuck_speed_ms: float = STUCK_SPEED_MS
     stuck_max_steps: int = field(default_factory=lambda: _frames(STUCK_TIME_S))
@@ -102,7 +104,12 @@ class SafetyMonitor:
             self.max_cte_seen = cte
 
         heading_err = self.ref.heading_error(telem.world_velocity, timings.lap_distance)
-        status = SafetyStatus(cte=cte, heading_err=heading_err)
+        surface_reason, edge_surface = classify_surface(telem.terrain, self.surface_profile)
+        status = SafetyStatus(
+            cte=cte,
+            heading_err=heading_err,
+            edge_surface=edge_surface,
+        )
 
         if self.step_count <= self.grace_steps:
             return status
@@ -160,7 +167,6 @@ class SafetyMonitor:
             else:
                 self.wrongway_steps = 0
 
-        surface_reason = surface_off_track_reason(telem.terrain)
         if surface_reason is not None:
             status.active = True
             status.reason = surface_reason
@@ -178,6 +184,7 @@ class SafetyMonitor:
 
 def session_tick_flags(status: SafetyStatus, cte: float) -> TickSafetyFlags:
     """Flags off_track (total), off_surface (UDP), off_track_cte (geometría) y stuck."""
+    # edge_surface (1 rueda) no entra en off_surface: si no, la vuelta sigue penalizada.
     off_surface = status.reason == "off_surface"
     pit = status.reason == "pit_box"
     off_track_cte = status.reason == "off_track" or (

@@ -3,7 +3,8 @@
 **Objetivo:** dominar línea, lógica y técnica a cada ritmo antes de subir velocidad.  
 No optimizar tiempo de vuelta hasta conseguir vueltas limpias en todas las bandas.
 
-**Estado:** F5 aprendizaje online (`aprender.bat` / GUI → Aprendizaje BC)
+**Estado:** F5 aprendizaje online (`aprender.bat` / GUI → Aprendizaje BC)  
+**Actualizado:** 2026-10-10
 
 ---
 
@@ -48,9 +49,11 @@ Tras dominar **L7**, el sistema reinicia en **L1** con la siguiente banda (p. ej
 
 ### Preparación (una vez o al cambiar referencia)
 
-1. `record.bat` — grabar teacher ≥3 vueltas limpias → `data/universal_teacher.jsonl`
-2. `entrenar_bc.bat` — BC offline → `models/universal_bc.pt`
-3. `eval_bc.bat` — comprobar MAE antes de pista
+1. `record.bat` — grabar teacher **≥3 vueltas** (sin parar en meta; mismo JSONL) → `data/universal_teacher.jsonl`
+2. **`entrenar_bc.bat`** — BC offline → `models/universal_bc.pt` (**no saltar** antes del primer `aprender`)
+3. `eval_bc.bat` — comprobar MAE antes de pista (opcional)
+
+Detalle record / marchas / qué entra al JSONL: [TEACHING_MARCHAS_Y_DATASET.md](TEACHING_MARCHAS_Y_DATASET.md)
 
 ### Por cada banda (20 → 30 → 40 → 50 → 60)
 
@@ -58,9 +61,10 @@ Tras dominar **L7**, el sistema reinicia en **L1** con la siguiente banda (p. ej
    - Banda: p. ej. `20`  
    - Etapa: `L1` (o la última guardada en `v2/user_learn_settings.json`)
 2. **▶ Aprender en pista** (`aprender.bat`)  
-   - BC conduce, teacher corrige, fine-tune cada vuelta  
-   - Al cruzar meta: freno + espera mientras actualiza el modelo  
-   - Avanza de etapa solo con vueltas **limpias** seguidas
+   - BC conduce, teacher corrige, fine-tune cada **N** vueltas (`learn_every` en `v2/user_learn_settings.json`, p. ej. **2**)  
+   - Cada fine-tune mezcla **`base-dataset`** completo (`universal_teacher.jsonl`) + `data/online_buffer.jsonl` (buffer filtrado por etapa/banda)  
+   - Al cruzar meta: freno corto (`settle`) y, si toca, espera mientras entrena en segundo plano  
+   - Avanza de etapa solo con vueltas **limpias** seguidas (mínimo **2** en L1; no basta con 2 vueltas “contadas” si no son limpias)
 3. Al completar **L7** en la banda → sube automáticamente a la siguiente banda y vuelve a **L1**
 4. **Probar Hybrid** en la misma banda cuando L6–L7 estén estables (no entrena; solo valida)
 5. Repetir en la siguiente banda
@@ -85,7 +89,9 @@ No dejes **Aprender** horas en L7: riesgo de sobreajuste y buffer enorme. Ciclo 
 | **Etapa (L1→L7)** | Fase del currículo; se guarda entre sesiones |
 | **Override velocidad** (avanzado) | Solo si necesitas un valor fino distinto de la banda; `0` = normal |
 
-Persistencia: `v2/user_learn_settings.json` (`stage_id`, `speed_band_kmh`, referencia, rutas).
+Persistencia: `v2/user_learn_settings.json` (`stage_id`, `speed_band_kmh`, `dataset_path`, `model_path`, `learn_every`, referencia).
+
+Rutas por defecto: `data/universal_teacher.jsonl`, `models/universal_bc.pt` (desde carpeta `PCARS2-AI/`).
 
 ---
 
@@ -152,10 +158,23 @@ Si frenas en meta pero no aparece `Vuelta N`, revisa UDP; el detector usa la mis
 
 ### Señales en consola (tras cada vuelta)
 
+Al arrancar y **después de cada vuelta** se reimprime una tabla fija:
+
 ```text
-[Learn] Vuelta 2 | 1:23.456 | vuelta limpia | CTE=3.2m | overrides=5 | clean_streak=2
+[Learn] === Resumen vueltas (esta sesión) ===
+  #   tiempo      CTE    ovr%   off%   stk%  limpia  racha
+  1   1:23.456    3.20   8.0    2.1    0.0   no      0
+  2   1:22.100    2.95   5.0    1.0    0.0   sí      1
+```
+
+Línea detallada de la vuelta que acaba de cerrar:
+
+```text
+[Learn] Vuelta 2 | 1:22.100 | vuelta limpia | CTE=2.95m | ovr=5.0% | clean_streak=1
 [Learn] *** Graduado a l2_velocidad (L2 — Velocidad objetivo) ***
 ```
+
+`ovr%` / `off%` / `stk%` son **porcentaje de ticks de esa vuelta**, no contadores acumulados de sesión.
 
 ### Señales en el HTML (`logs/learning/`)
 
@@ -184,7 +203,7 @@ L7 además puede **subir la banda** automáticamente (20→30→…→60) y rein
 | **L1 ya dominado** | No hace falta quedarse horas en L1; con 2 limpias basta |
 | **L7 dominada** | No entrenes horas en Aprender; prueba **Hybrid** y cicla Aprender ↔ Hybrid |
 
-**Regla práctica:** Aprender entrena el BC cada vuelta. Usa sesiones cortas y orientadas a graduar etapa, no maratones en la misma fase.
+**Regla práctica:** Aprender hace fine-tune cada `learn_every` vueltas (no necesariamente cada vuelta). Usa sesiones orientadas a **graduar etapa** (2–3 vueltas limpias seguidas en L1), no maratones de 50 vueltas en un solo circuito sin equilibrar el dataset base (ver [TEACHING_MARCHAS_Y_DATASET.md](TEACHING_MARCHAS_Y_DATASET.md)).
 
 ### Empezar el currículo desde cero (si tenías otra etapa guardada)
 
@@ -202,8 +221,11 @@ L7 además puede **subir la banda** automáticamente (20→30→…→60) y rein
 | `src/learning_curriculum.py` | Etapas L1–L7, bandas, graduación |
 | `src/learn_driver.py` | Bucle online + fine-tune |
 | `src/learn_progress.py` | Guardar etapa y banda |
+| `data/universal_teacher.jsonl` | Dataset base del teacher (replay en cada fine-tune) |
 | `data/online_buffer.jsonl` | Muestras con `learn_stage` + `speed_band_kmh` |
+| `models/universal_bc.pt` | Pesos BC (se sobrescribe al entrenar/aprender) |
 | `v2/gui.py` | Selector banda + etapa |
+| `scripts/analyze_jsonl_gear.py` | Diagnóstico rápido del JSONL de record |
 
 ---
 
@@ -213,7 +235,7 @@ Cuando **60 km/h** y **L7** estén dominados:
 
 1. Hybrid estable en 60 km/h  
 2. Autónomo con supervisión  
-3. Multi-pista: repetir validación con referencia local en 2–3 circuitos  
+3. Multi-pista: JSONL curados por circuito + `entrenar_bc` multi-dataset (ver [TEACHING_MARCHAS_Y_DATASET.md](TEACHING_MARCHAS_Y_DATASET.md))  
 4. RL fine-tune (PPO) solo si BC es estable — ver `ENTRENAMIENTO.md`
 
 ### Después (no ahora): condiciones avanzadas
@@ -224,4 +246,4 @@ Plan por capas (qué viene en UDP, qué es metadata de sesión, orden de introdu
 
 ---
 
-*Ver también:* [VALIDACION_TEACHING_SUGO.md](VALIDACION_TEACHING_SUGO.md) (F5), [ENTRENAMIENTO.md](../ENTRENAMIENTO.md), [ROADMAP_CONDICIONES.md](ROADMAP_CONDICIONES.md)
+*Ver también:* [TEACHING_MARCHAS_Y_DATASET.md](TEACHING_MARCHAS_Y_DATASET.md), [VALIDACION_TEACHING_SUGO.md](VALIDACION_TEACHING_SUGO.md), [ENTRENAMIENTO.md](../ENTRENAMIENTO.md), [ROADMAP_CONDICIONES.md](ROADMAP_CONDICIONES.md)

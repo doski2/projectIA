@@ -54,6 +54,14 @@ def _telem(gear=2, rpm=4000, max_rpm=8000, speed=5.0, num_gears=6, local_vx=None
     )
 
 
+def test_auto_shift_neutral_boosts_low_throttle_for_rb():
+    ctrl = FakeController()
+    shifter = AutoShifter(cooldown_s=0.0)
+    event = auto_shift(ctrl, _telem(gear=0, speed=2.0), 0.02, 0.0, shifter)
+    assert event == "to_first"
+    assert ctrl.pressed[-1] == "rb"
+
+
 def test_auto_shift_neutral_to_first_at_any_speed():
     ctrl = FakeController()
     shifter = AutoShifter(cooldown_s=0.0)
@@ -80,12 +88,22 @@ def test_auto_shift_stalled_high_gear_downshifts_not_upshifts():
     assert ctrl.pressed == ["lb"]
 
 
-def test_auto_shift_upshift_at_high_rpm():
+def test_auto_shift_upshift_only_below_teaching_max_gear():
     ctrl = FakeController()
     shifter = AutoShifter(cooldown_s=0.0)
-    event = auto_shift(ctrl, _telem(gear=2, rpm=7200), 0.8, 0.0, shifter)
+    assert auto_shift(ctrl, _telem(gear=2, rpm=7200), 0.8, 0.0, shifter) is None
+    event = auto_shift(ctrl, _telem(gear=1, rpm=7200), 0.8, 0.0, shifter)
     assert event == "up"
     assert ctrl.pressed == ["rb"]
+
+
+def test_auto_shift_second_gear_crawl_downshifts_to_first():
+    ctrl = FakeController()
+    shifter = AutoShifter(cooldown_s=0.0)
+    telem = _telem(gear=2, speed=1.0, rpm=900)
+    event = auto_shift(ctrl, telem, 0.5, 0.0, shifter)
+    assert event == "down_to_first"
+    assert ctrl.pressed == ["lb"]
 
 
 def test_auto_shift_downshift_on_brake():
@@ -96,13 +114,30 @@ def test_auto_shift_downshift_on_brake():
     assert ctrl.pressed == ["lb"]
 
 
-def test_auto_shift_backward_uses_rb_not_lb():
+def test_auto_shift_backward_in_forward_gear_does_not_upshift():
     ctrl = FakeController()
     shifter = AutoShifter(cooldown_s=0.0)
     telem = _telem(gear=1, speed=2.0, local_vx=-2.0)
+    assert auto_shift(ctrl, telem, 0.5, 0.0, shifter) is None
+    assert ctrl.pressed == []
+
+
+def test_auto_shift_backward_neutral_still_rb():
+    ctrl = FakeController()
+    shifter = AutoShifter(cooldown_s=0.0)
+    telem = _telem(gear=0, speed=2.0, local_vx=-2.0)
     event = auto_shift(ctrl, telem, 0.5, 0.0, shifter)
     assert event == "from_reverse"
     assert ctrl.pressed == ["rb"]
+
+
+def test_auto_shift_top_gear_glitch_with_throttle_downshifts():
+    ctrl = FakeController()
+    shifter = AutoShifter(cooldown_s=0.0)
+    telem = _telem(gear=6, speed=1.0, rpm=900, num_gears=6)
+    event = auto_shift(ctrl, telem, 0.5, 0.0, shifter)
+    assert event == "down_to_first"
+    assert ctrl.pressed == ["lb"]
 
 
 def test_auto_shift_no_brake_downshift_when_crawling():

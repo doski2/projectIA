@@ -1,14 +1,13 @@
 """
 lap_transition.py
-Freno y espera al cruzar meta / durante fine-tune BC (obs inestable + cálculo bloqueante).
+Detecta el cruce de meta. No frena el coche: el fine-tune es asíncrono y un
+freno a 0 en la línea deja la marcha en punto muerto.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional, Tuple
-
-from lap_session import LAP_DISTANCE_WRAP_DROP_M, lap_rollover_detected
 
 
 @dataclass
@@ -22,10 +21,9 @@ class SettleDecision:
 
 
 class LapTransitionGuard:
-    """Mantiene control seguro tras meta o mientras el BC entrena."""
+    """Sigue el cruce de meta sin frenar. Un freno a 0 en la línea deja punto muerto."""
 
     DEFAULT_SETTLE_FRAMES = 90
-    WRAP_DROP_M = LAP_DISTANCE_WRAP_DROP_M
 
     def __init__(self, track_length: float = 0.0, settle_frames: int = DEFAULT_SETTLE_FRAMES):
         self.track_length = track_length
@@ -54,16 +52,9 @@ class LapTransitionGuard:
             self.trigger_settle()
 
     def on_frame(self, current_lap: int, lap_distance: float) -> bool:
-        """Detecta meta / salto de lap_distance. Devuelve True si settle activo."""
-        rolled, _ = lap_rollover_detected(
-            self._prev_lap, self._prev_d, current_lap, lap_distance, self.WRAP_DROP_M,
-        )
-        if rolled:
-            self.trigger_settle()
-
+        """Actualiza la vuelta anterior. Cruzar meta no activa el freno."""
         self._prev_lap = current_lap
         self._prev_d = lap_distance
-
         if self._settle_left > 0 and not self._fine_tuning:
             self._settle_left -= 1
         return self.active
@@ -82,14 +73,13 @@ class LapTransitionGuard:
                 skip_bc=False,
             )
 
-        t_t, t_b, t_s = teacher_tuple
+        _ = teacher_tuple
         reason = "fine_tune" if self._fine_tuning else "finish_line"
-        brake = max(0.55, t_b, proposed[1])
         return SettleDecision(
             active=True,
-            throttle=0.0,
-            brake=brake,
-            steering=t_s,
+            throttle=proposed[0],
+            brake=proposed[1],
+            steering=proposed[2],
             skip_bc=True,
             reason=reason,
         )

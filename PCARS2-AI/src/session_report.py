@@ -11,7 +11,6 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import webbrowser
 from collections import Counter
 from pathlib import Path
 from typing import Any, List, Optional
@@ -408,7 +407,8 @@ def finalize_session_report(
         if evaluation.get("passed") and evaluation.get("next_phase"):
             print(f"[Report] Siguiente fase sugerida: {evaluation['next_phase']}")
         if open_browser:
-            webbrowser.open(html_path.resolve().as_uri())
+            from session_log import _open_html
+            _open_html(html_path)
 
     return result
 
@@ -432,7 +432,8 @@ def main() -> None:
         laps = args.laps or (summary or {}).get("laps_completed", 0)
         out = write_html_replay(path, laps_completed=laps)
         if out and args.open:
-            webbrowser.open(out.resolve().as_uri())
+            from session_log import _open_html
+            _open_html(out)
     else:
         finalize_session_report(path, laps_completed=args.laps, open_browser=args.open)
 

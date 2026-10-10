@@ -110,19 +110,60 @@ def all_wheels_off_racing_surface(terrain: Sequence[int]) -> bool:
 
 def any_wheel_on_off_track_terrain(terrain: Sequence[int]) -> bool:
     """Al menos una rueda en material claramente fuera de pista."""
-    return any(int(t) in OFF_TRACK_TERRAIN_IDS for t in _wheel_terrains(terrain))
+    return count_off_track_wheels(terrain) > 0
 
 
-def surface_off_track_reason(terrain: Sequence[int]) -> str | None:
+def count_off_track_wheels(terrain: Sequence[int]) -> int:
+    """Ruedas en césped/gravel/arena (OFF_TRACK_TERRAIN_IDS)."""
+    return sum(int(t) in OFF_TRACK_TERRAIN_IDS for t in _wheel_terrains(terrain))
+
+
+def count_off_racing_wheels(terrain: Sequence[int]) -> int:
+    """Ruedas fuera de superficie de carrera (incluye muro, no solo hierba)."""
+    wheels = _wheel_terrains(terrain)
+    return sum(int(t) not in RACING_TERRAIN_IDS for t in wheels)
+
+
+# strict: 1 rueda en hierba → safety.
+# l1_margin: 1–2 ruedas = corregir volante/gas; 3 ruedas = freno.
+SURFACE_PROFILE_STRICT = "strict"
+SURFACE_PROFILE_L1_MARGIN = "l1_margin"
+L1_MIN_OFF_TRACK_WHEELS = 3
+L1_MIN_OFF_RACING_WHEELS = 3
+
+
+def classify_surface(
+    terrain: Sequence[int],
+    profile: str = SURFACE_PROFILE_STRICT,
+) -> tuple[str | None, bool]:
     """
-    Razón de seguridad por UDP, independiente del CTE a la referencia.
-    None si el terreno no dispara recuperación.
+    Una pasada por las ruedas.
 
-    1) Césped/gravel/… (OFF_TRACK_TERRAIN_IDS) en cualquier rueda.
-    2) Las 4 ruedas en material no «racing» (p. ej. madera, muro) sin estar en la lista anterior.
+    Returns:
+        (safety_reason, edge_contact)
+        safety_reason "off_surface" si hay que frenar (≥3 ruedas en l1_margin).
+        edge_contact si 1 o 2 ruedas en hierba y aún no hay freno.
     """
-    if any_wheel_on_off_track_terrain(terrain):
-        return "off_surface"
-    if all_wheels_off_racing_surface(terrain):
-        return "off_surface"
-    return None
+    n_off = count_off_track_wheels(terrain)
+    n_not_racing = count_off_racing_wheels(terrain)
+    if profile == SURFACE_PROFILE_L1_MARGIN:
+        hard = n_off >= L1_MIN_OFF_TRACK_WHEELS or n_not_racing >= L1_MIN_OFF_RACING_WHEELS
+        return ("off_surface" if hard else None), (n_off >= 1 and not hard)
+    hard = n_off >= 1 or (len(_wheel_terrains(terrain)) >= 4 and n_not_racing >= 4)
+    return ("off_surface" if hard else None), False
+
+
+def surface_off_track_reason(
+    terrain: Sequence[int],
+    profile: str = SURFACE_PROFILE_STRICT,
+) -> str | None:
+    """Razón de freno por UDP. None si no hay recuperación."""
+    return classify_surface(terrain, profile)[0]
+
+
+def surface_edge_contact(
+    terrain: Sequence[int],
+    profile: str = SURFACE_PROFILE_STRICT,
+) -> bool:
+    """1 o 2 ruedas en hierba sin freno (solo l1_margin)."""
+    return classify_surface(terrain, profile)[1]

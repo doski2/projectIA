@@ -11,7 +11,9 @@ Uso:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -103,6 +105,7 @@ class TeachingSessionRecorder:
         rpm_pct: Optional[float] = None,
         shift_event: Optional[str] = None,
         stuck_steps: Optional[int] = None,
+        track_diag: Optional[dict] = None,
     ) -> None:
         if self._file is None:
             return
@@ -148,6 +151,8 @@ class TeachingSessionRecorder:
             row["shift_event"] = shift_event
         if stuck_steps is not None:
             row["stuck_steps"] = stuck_steps
+        if track_diag:
+            row["track_diag"] = track_diag
         self._file.write(json.dumps(row, ensure_ascii=False) + "\n")
 
     def finish(self, laps_completed: int = 0, open_browser: bool = False) -> dict:
@@ -170,8 +175,7 @@ class TeachingSessionRecorder:
         html = write_html_replay(self.path, laps_completed=laps_completed)
         result = {"jsonl": str(self.path), "html": str(html) if html else None, "evaluation": existing.get("evaluation", {})}
         if html and open_browser:
-            import webbrowser
-            webbrowser.open(html.resolve().as_uri())
+            _open_html(html)
         return result
 
     @property
@@ -182,6 +186,20 @@ class TeachingSessionRecorder:
         if self._t0 is None:
             return 0.0
         return round(time.monotonic() - self._t0, 3)
+
+
+def _open_html(html: Path) -> None:
+    """Abre el informe. En Windows startfile es más fiable que el navegador por URI."""
+    path = html.resolve()
+    print(f"[Report] Abriendo {path}")
+    try:
+        if sys.platform == "win32":
+            os.startfile(path)  # noqa: S606 — informe local que acaba de generar la sesión
+        else:
+            import webbrowser
+            webbrowser.open(path.as_uri())
+    except OSError as exc:
+        print(f"[Report] No se pudo abrir el HTML ({exc}). Ábrelo a mano: {path}")
 
 
 def load_session_ticks(

@@ -16,8 +16,10 @@ import sys
 from typing import Any, List, Optional
 
 from auto_shift import AutoShifter, auto_shift, maybe_engage_first_gear
+from pcars2_gear import choose_bc_drive_pedals
 from controller import DS4Controller, decode_action
 from dataset_recorder import ORIGIN_MIXED, DatasetRecorder
+from driver_cli import add_diag_track_arg, add_safety_profile_arg, ns_str
 from drive_actions import blend_actions
 from drive_session import DriveSession
 from lap_session import (
@@ -35,6 +37,7 @@ from reference_recorder import ReferenceLine
 from safety_monitor import SafetyMonitor
 from session_log import TeachingSessionRecorder, default_log_path
 from teacher_controller import TeacherConfig, TeachingController, resolve_teacher_decision
+from track_deviation import maybe_build_track_diag
 from teacher_intents import decode_reason_id, normalize_reason, rule_for_reason
 from universal_policy import UniversalPolicy, load_universal_policy
 
@@ -61,6 +64,8 @@ def parse_args() -> argparse.Namespace:
                         help="Cambio automático de marchas (RB/LB)")
     parser.add_argument("--session-log", default="", help="JSONL sesión (default: logs/imitation/...)")
     parser.add_argument("--open-report", action="store_true", help="Abrir HTML al terminar")
+    add_safety_profile_arg(parser)
+    add_diag_track_arg(parser)
     return parser.parse_args()
 
 
@@ -78,7 +83,7 @@ def load_ppo_policy(model_path: str):
 def run(args: argparse.Namespace) -> int:
     ref = ReferenceLine.load(args.reference)
     teacher = TeachingController(ref, TeacherConfig(speed_target_kmh=args.speed_target))
-    safety = SafetyMonitor(ref=ref)
+    safety = SafetyMonitor(ref=ref, surface_profile=ns_str(args, "safety_profile"))
     session = DriveSession()
 
     universal_model: Optional[UniversalPolicy] = None
@@ -118,6 +123,7 @@ def run(args: argparse.Namespace) -> int:
     kind = "UNIVERSAL" if use_universal else "PPO"
     print(f"[Imitation] {kind} | Modo: {mode.upper()} | Modelo: {args.model}")
     print(f"[Imitation] alpha={alpha:.2f} | Objetivo: {args.speed_target:.0f} km/h")
+    print(f"[Imitation] Safety superficie: {ns_str(args, 'safety_profile')}")
     print(f"[Imitation] Auto-shift: {'ON' if args.auto_shift else 'OFF'}")
     print(f"[Imitation] Session log: {log_path}")
     print("[Imitation] Esperando telemetría UDP...")
@@ -197,21 +203,31 @@ def run(args: argparse.Namespace) -> int:
             used_teacher = False
             mix_alpha_used = None
             override = teacher_decision.safety_override
+            drive_source = mode
 
-            if mode == "hybrid":
-                cur_alpha = 0.0 if override else alpha
-                final = blend_actions(bc_tuple, teacher_tuple, cur_alpha)
-                mix_alpha_used = cur_alpha
-                if override:
-                    used_teacher = True
-                    override_count += 1
+            if not lap_guard.active:
+                ped, src, ovr_inc = choose_bc_drive_pedals(
+                    bc_tuple, teacher_tuple, telem, override, False,
+                )
+                if mode == "hybrid" and src == "bc":
+                    cur_alpha = 0.0 if override else alpha
+                    final = blend_actions(bc_tuple, teacher_tuple, cur_alpha)
+                    mix_alpha_used = cur_alpha
+                    drive_source = "hybrid"
+                    if override:
+                        used_teacher = True
+                        drive_source = "teacher"
+                        override_count += 1
+                else:
+                    final = ped
+                    drive_source = src
+                    if ovr_inc:
+                        override_count += 1
+                    used_teacher = src.startswith("teacher")
             else:
-                proposed = bc_tuple
-                if override:
-                    proposed = teacher_tuple
-                    used_teacher = True
-                    override_count += 1
-                final = proposed
+                final = teacher_tuple
+                drive_source = "teacher"
+                used_teacher = True
 
             settle = lap_guard.apply(teacher_tuple, final)
             if settle.active:
@@ -238,9 +254,11 @@ def run(args: argparse.Namespace) -> int:
                 off_surface=flags.off_surface,
                 off_track_cte=flags.off_track_cte,
             ))
-            drive_source = "teacher" if used_teacher else mode
             if settle.active:
                 drive_source = f"settle:{settle.reason}"
+            track_diag = maybe_build_track_diag(
+                args.diag_track, telem, timings, ref, teacher_decision.signed_cte,
+            )
             session_rec.record_tick(
                 telem_speed_kmh=telem.speed * 3.6,
                 lap=timings.current_lap,
@@ -262,6 +280,7 @@ def run(args: argparse.Namespace) -> int:
                 gear=telem.gear,
                 num_gears=telem.num_gears,
                 rpm=telem.rpm,
+                track_diag=track_diag,
             )
 
             if recorder is not None and not lap_guard.active:

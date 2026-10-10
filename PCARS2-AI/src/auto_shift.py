@@ -12,7 +12,17 @@ import time
 from dataclasses import dataclass
 from typing import Optional, Protocol
 
-from pcars2_gear import is_driving_backward
+from pcars2_gear import (
+    ENGAGE_FIRST_THROTTLE,
+    TEACHING_MAX_GEAR,
+    backward_allows_rb_shift,
+    is_driving_backward,
+    is_forward_gear,
+    num_gears_safe,
+    should_downshift_toward_first,
+    should_rb_to_first,
+    throttle_for_shift,
+)
 from telemetry_udp import TelemetryFrame
 
 UPSHIFT_RPM_RATIO = 0.87
@@ -58,36 +68,44 @@ class AutoShifter:
         """
         Devuelve: from_reverse, to_first, down_to_first, up, down, o None.
 
-        Prioridad: marcha atrás → neutro+gas → parado en marcha alta → cambios en marcha.
+        Prioridad: RB retroceso (solo N) → RB neutro → LB a 1ª → up (cap) → down freno.
         """
         if telem.max_rpm == 0:
             return None
 
         ratio = rpm_ratio(telem)
         gear = telem.gear
-        num_gears = telem.num_gears or 6
-        stalled = telem.speed < STALL_SPEED_MS
+        num_gears = num_gears_safe(telem)
 
         if not self.ready():
             return None
 
-        # RB hacia 1ª: atrás (sin LB) o neutro con gas (también con velocidad residual tras esses).
-        backward = is_driving_backward(telem)
-        if backward or (gear <= 0 and throttle > THROTTLE_ACTIVE):
+        if backward_allows_rb_shift(telem):
             self._press(controller, "rb")
-            return "from_reverse" if backward else "to_first"
+            return "from_reverse"
 
-        # Parado en marcha alta: bajar (nunca RB y LB en el mismo tick).
-        if stalled and throttle > THROTTLE_ACTIVE and gear > 1:
-            self._press(controller, "lb")
-            return "down_to_first"
+        shift_throttle = throttle_for_shift(telem, throttle)
 
-        if throttle > THROTTLE_ACTIVE and ratio > UPSHIFT_RPM_RATIO and gear < num_gears:
+        if shift_throttle > THROTTLE_ACTIVE:
+            if should_rb_to_first(telem):
+                self._press(controller, "rb")
+                return "to_first"
+            if should_downshift_toward_first(telem):
+                self._press(controller, "lb")
+                return "down_to_first"
+
+        if (
+            shift_throttle > THROTTLE_ACTIVE
+            and ratio > UPSHIFT_RPM_RATIO
+            and gear < num_gears
+            and gear < TEACHING_MAX_GEAR
+        ):
             self._press(controller, "rb")
             return "up"
 
         if (
             brake > BRAKE_ACTIVE
+            and is_forward_gear(telem)
             and gear > 1
             and ratio < DOWNSHIFT_RPM_RATIO
             and telem.speed >= STALL_SPEED_MS
@@ -135,7 +153,7 @@ def engage_first_gear(
     max_steps: int = 80,
 ) -> bool:
     """
-    Secuencia de arranque (como environment reset): gas + bajar a 1ª.
+    Secuencia de arranque: gas + RB/LB hasta 1ª.
     get_telem() → TelemetryFrame | None; sync_frame() → bool.
     """
     for _ in range(max_steps):
@@ -145,13 +163,13 @@ def engage_first_gear(
         if telem is None:
             continue
         backward = is_driving_backward(telem)
-        if telem.gear == 1 and telem.speed >= STALL_SPEED_MS and not backward:
+        if telem.gear == 1 and not backward:
             return True
         if backward:
             controller.apply_action(0.0, 0.45, 0.0)
             shifter.shift(controller, telem, 0.0, 0.45)
         else:
-            controller.apply_action(0.45, 0.0, 0.0)
-            shifter.shift(controller, telem, 0.45, 0.0)
+            controller.apply_action(ENGAGE_FIRST_THROTTLE, 0.0, 0.0)
+            shifter.shift(controller, telem, ENGAGE_FIRST_THROTTLE, 0.0)
     telem = get_telem()
     return telem is not None and telem.gear == 1
