@@ -162,16 +162,18 @@ def run(args: argparse.Namespace) -> int:
             for event in diag.frame_events(status, telem, timings, decision.cte, shift_event):
                 session_rec.record_event(event)
 
-            off_track, stuck = session_tick_flags(status, decision.cte)
+            flags = session_tick_flags(status, decision.cte)
             rpm_pct = rpm_ratio(telem) * 100.0
             lap_ticks.append(make_lap_buffer_tick(
                 session_rec.elapsed_s(),
                 telem.speed * 3.6,
                 decision.cte,
                 decision.safety_override,
-                off_track,
-                stuck,
+                flags.off_track,
+                flags.stuck,
                 decision.reason,
+                off_surface=flags.off_surface,
+                off_track_cte=flags.off_track_cte,
             ))
             session_rec.record_tick(
                 telem_speed_kmh=telem.speed * 3.6,
@@ -187,8 +189,10 @@ def run(args: argparse.Namespace) -> int:
                 rule=rule_for_reason(decision.reason),
                 safety_override=decision.safety_override,
                 safety_event=status.reason if status.active else None,
-                off_track=off_track,
-                stuck=stuck,
+                off_track=flags.off_track,
+                off_surface=flags.off_surface,
+                off_track_cte=flags.off_track_cte,
+                stuck=flags.stuck,
                 gear=telem.gear,
                 num_gears=telem.num_gears,
                 rpm=telem.rpm,

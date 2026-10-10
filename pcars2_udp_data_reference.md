@@ -219,6 +219,66 @@ Se envía cada vez que un participante cruza un límite de sector.
 
 ---
 
+## Enums de superficie y flags (shared memory = UDP)
+
+Implementación en código: `PCARS2-AI/src/pcars2_surface.py`.  
+Origen: shared memory Type#9–11 (véase también [MacManley/project-cars-2-udp](https://github.com/MacManley/project-cars-2-udp) tabla TerrainMaterial IDs).
+
+### `sCarFlags` (offset **17**, 1 byte, bitmask)
+
+| Bit | Nombre | Significado |
+| --- | ------ | ----------- |
+| 0 | `CAR_HEADLIGHT` | Faros |
+| 1 | `CAR_ENGINE_ACTIVE` | Motor en marcha |
+| 2 | `CAR_ENGINE_WARNING` | Aviso motor |
+| 3 | `CAR_SPEED_LIMITER` | Limitador activo |
+| 4 | `CAR_ABS` | ABS activo |
+| 5 | `CAR_HANDBRAKE` | Freno de mano |
+
+**Nota:** boxes / pit no vienen aquí; usar `sPitModeSchedule` del paquete Timings (futuro).
+
+### `sTyreFlags[4]` (offset **136**)
+
+| Bit | Nombre |
+| --- | ------ |
+| 0 | `TYRE_ATTACHED` |
+| 1 | `TYRE_INFLATED` |
+| 2 | `TYRE_ON_GROUND` |
+
+Aún **no parseado** en `telemetry_udp.py` (reservado).
+
+### `sTerrain[4]` (offset **140**, enum por rueda FL/FR/RL/RR)
+
+Valores 0–50 (lista completa en repos CREST2 `SharedMemory.h` Type#11). Los más usados en teaching:
+
+| ID | Material |
+| -- | -------- |
+| 0 | `TERRAIN_ROAD` |
+| 1 | `TERRAIN_LOW_GRIP_ROAD` |
+| 7 | `TERRAIN_GRASS` |
+| 8 | `TERRAIN_GRAVEL` |
+| 10 | `TERRAIN_RUMBLE_STRIPS` |
+| 15 | `TERRAIN_SAND` |
+| 17 | `TERRAIN_DIRT` |
+| 30 | `TERRAIN_SAND_ROAD` |
+| 46 | `TERRAIN_RUNOFF_ROAD` |
+| 47 | `TERRAIN_ILLEGAL_STRIP` |
+
+**Uso en ProjectIA:** `SafetyMonitor` marca `off_surface` si alguna rueda está en terreno fuera de pista (césped, gravel, etc.) o las cuatro ruedas salen de la lista «racing surface» (estilo CrewChief), **sin depender solo del CTE** a la referencia.
+
+### Campos útiles aún no parseados (candidatos)
+
+| Campo | Offset (paquete 0) | Notas |
+| ----- | ------------------ | ----- |
+| `sTyreFlags[4]` | 136 | Contacto rueda/suelo |
+| `sTyreHeightAboveGround[4]` | 180 | Vuelo / despegue |
+| `sCrashState` | 47 | Colisión |
+| Paquete **4** `sGameStateData` | — | Temp. pista, lluvia, viento |
+
+`sTyreGrip` / `sTyreSlipSpeed`: marcados **OBSOLETE** en headers recientes de SMS; preferir `sTyreRPS` + aceleraciones.
+
+---
+
 ## Lo que NO está disponible por UDP
 
 | Dato                                        | Razón                          | Alternativa                            |

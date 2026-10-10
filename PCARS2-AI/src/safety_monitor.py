@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import List, Optional
 
+from pcars2_surface import surface_off_track_reason
 from reference_recorder import ReferenceLine
 from telemetry_udp import TelemetryFrame, TimingsFrame
 
@@ -31,9 +32,22 @@ CTE_SAFE_M = 6.0
 CTE_RECOVERY_M = 8.0
 CTE_PIT_M = 20.0
 
+# Razones que marcan tick off_track en logs / evaluación (CTE geométrico o UDP sTerrain).
+SAFETY_OFF_TRACK_REASONS = frozenset({"off_track", "off_surface", "pit_box"})
+
 
 def _frames(seconds: float) -> int:
     return max(1, int(seconds * GAME_FPS))
+
+
+@dataclass(frozen=True)
+class TickSafetyFlags:
+    """Flags por tick para logs, evaluación y HTML (off-track desglosado)."""
+
+    off_track: bool
+    off_surface: bool
+    off_track_cte: bool
+    stuck: bool
 
 
 @dataclass
@@ -146,6 +160,13 @@ class SafetyMonitor:
             else:
                 self.wrongway_steps = 0
 
+        surface_reason = surface_off_track_reason(telem.terrain)
+        if surface_reason is not None:
+            status.active = True
+            status.reason = surface_reason
+            self.last_reason = status.reason
+            return status
+
         if cte > CTE_RECOVERY_M:
             status.active = True
             status.reason = "off_track"
@@ -155,8 +176,66 @@ class SafetyMonitor:
         return status
 
 
-def session_tick_flags(status: SafetyStatus, cte: float) -> tuple[bool, bool]:
-    """Flags unificados off_track / stuck para logs y validación."""
-    off_track = status.reason in ("off_track", "pit_box") or cte >= CTE_RECOVERY_M
+def session_tick_flags(status: SafetyStatus, cte: float) -> TickSafetyFlags:
+    """Flags off_track (total), off_surface (UDP), off_track_cte (geometría) y stuck."""
+    off_surface = status.reason == "off_surface"
+    pit = status.reason == "pit_box"
+    off_track_cte = status.reason == "off_track" or (
+        cte >= CTE_RECOVERY_M and not off_surface and not pit
+    )
+    off_track = off_surface or off_track_cte or pit
     stuck = status.reason in ("stuck", "no_progress")
-    return off_track, stuck
+    return TickSafetyFlags(
+        off_track=off_track,
+        off_surface=off_surface,
+        off_track_cte=off_track_cte,
+        stuck=stuck,
+    )
+
+
+def tick_off_surface(tick: dict) -> bool:
+    if tick.get("off_surface"):
+        return True
+    if tick.get("safety_event") == "off_surface":
+        return True
+    return tick.get("teacher_reason") == "safety_off_surface"
+
+
+def tick_off_track_cte(tick: dict) -> bool:
+    if tick.get("off_track_cte"):
+        return True
+    if tick_off_surface(tick):
+        return False
+    if tick.get("safety_event") == "off_track":
+        return True
+    if tick.get("safety_event") == "pit_box":
+        return False
+    if tick.get("off_track"):
+        return True
+    return abs(float(tick.get("cte", 0.0))) >= CTE_RECOVERY_M
+
+
+def off_track_pct_breakdown(ticks: List[dict]) -> dict:
+    """Porcentajes off_surface / off_track_cte / total (union) para métricas y HTML."""
+    n = len(ticks)
+    if n == 0:
+        return {
+            "pct_off_track": 0.0,
+            "pct_off_surface": 0.0,
+            "pct_off_track_cte": 0.0,
+        }
+    n_surface = sum(1 for t in ticks if tick_off_surface(t))
+    n_cte = sum(1 for t in ticks if tick_off_track_cte(t))
+    n_total = sum(
+        1 for t in ticks
+        if t.get("off_track") or tick_off_surface(t) or tick_off_track_cte(t)
+    )
+
+    def _pct(count: int, total: int) -> float:
+        return round(100.0 * count / total, 1) if total else 0.0
+
+    return {
+        "pct_off_track": _pct(n_total, n),
+        "pct_off_surface": _pct(n_surface, n),
+        "pct_off_track_cte": _pct(n_cte, n),
+    }

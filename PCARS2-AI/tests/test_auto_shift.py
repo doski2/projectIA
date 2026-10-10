@@ -46,6 +46,7 @@ def _telem(gear=2, rpm=4000, max_rpm=8000, speed=5.0, num_gears=6):
         fuel_level=0.8,
         aero_damage=0,
         engine_damage=0,
+        car_flags=0,
         brake_bias=50,
         viewed_participant_index=0,
         viewed_is_ai=False,

@@ -136,8 +136,8 @@ def test_lap_tick_safety_flags_clear_when_settling():
     status = SafetyStatus()
     status.reason = "stuck"
     status.stuck_steps = 99
-    off, stuck = lap_tick_safety_flags(status, 3.0, settling=True)
-    assert off is False and stuck is False
+    flags = lap_tick_safety_flags(status, 3.0, settling=True)
+    assert flags.off_track is False and flags.stuck is False
 
 
 def test_lap_rollover_detected_same_completed_lap_num():

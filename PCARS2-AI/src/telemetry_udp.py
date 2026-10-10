@@ -80,6 +80,9 @@ class TelemetryFrame:
     aero_damage:   int
     engine_damage: int
 
+    # --- Estado (paquete 0) ---
+    car_flags: int    # sCarFlags @ offset 17 (bitmask, ver pcars2_surface.py)
+
     # --- Misc ---
     brake_bias: int   # cuantizado (0-100%)
 
@@ -183,7 +186,8 @@ def parse_telemetry(data: bytes) -> Optional[TelemetryFrame]:
     tyre_wear       = u('4B', data, 196)
     tyre_rps        = u('4f', data, 160)
     tyre_tread_temp = u('4H', data, 216)
-    terrain         = u('4B', data, 140)   # eTerrain: 0=road,1=low_grip,2=bumpy,3=kerb,4=grass,5=gravel+
+    car_flags       = u('B', data, 17)[0]
+    terrain         = u('4B', data, 140)   # enum Type#11 — ver pcars2_surface.py
 
     # Suspensión
     ride_height       = u('4f', data, 296)
@@ -198,13 +202,8 @@ def parse_telemetry(data: bytes) -> Optional[TelemetryFrame]:
 
     brake_bias = u('B', data, 554)[0]
 
-    # Determinar si el participante observado es IA del juego.
-    # Para ello consultamos el paquete de Timings embebido en el mismo buffer
-    # si está disponible. Como parse_telemetry solo recibe el paquete 0,
-    # usamos el sCarFlags (offset 17) bit 6 como heurística de "coche en pista".
-    # La detección definitiva se hace en el recorder comparando sCarIndex del
-    # paquete Timings (bit 15 = humano, 0 = IA).
-    viewed_is_ai = False   # se sobreescribe en el recorder con datos de Timings
+    # IA humana vs juego: se resuelve en el recorder con sCarIndex del paquete Timings.
+    viewed_is_ai = False
 
     return TelemetryFrame(
         position=position,
@@ -228,6 +227,7 @@ def parse_telemetry(data: bytes) -> Optional[TelemetryFrame]:
         tyre_wear=tyre_wear,
         tyre_rps=tyre_rps,
         terrain=terrain,
+        car_flags=car_flags,
         ride_height=ride_height,
         suspension_travel=suspension_travel,
         rpm=rpm,

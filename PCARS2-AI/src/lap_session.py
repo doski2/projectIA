@@ -97,14 +97,13 @@ def lap_tick_safety_flags(
     status,
     cte: float,
     settling: bool,
-) -> tuple[bool, bool]:
+):
     """Flags off_track/stuck para evaluación de vuelta (no penalizar meta/fine-tune)."""
-    from safety_monitor import session_tick_flags
+    from safety_monitor import TickSafetyFlags, session_tick_flags
 
-    off_track, stuck = session_tick_flags(status, cte)
     if settling:
-        return False, False
-    return off_track, stuck
+        return TickSafetyFlags(False, False, False, False)
+    return session_tick_flags(status, cte)
 
 
 def completed_lap_ticks(buffer_ticks: List[dict]) -> List[dict]:
@@ -211,6 +210,8 @@ def make_lap_buffer_tick(
     stuck: bool,
     teacher_reason: str,
     settling: bool = False,
+    off_surface: bool = False,
+    off_track_cte: bool = False,
 ) -> dict:
     return {
         "t_s": t_s,
@@ -218,6 +219,8 @@ def make_lap_buffer_tick(
         "cte": cte,
         "safety_override": safety_override,
         "off_track": off_track,
+        "off_surface": off_surface,
+        "off_track_cte": off_track_cte,
         "stuck": stuck,
         "teacher_reason": teacher_reason,
         "settling": settling,
@@ -269,6 +272,8 @@ def lap_event_from_result(
         "overrides": result.lap_overrides,
         "pct_override": result.lap_eval.get("pct_override"),
         "pct_off_track": result.lap_eval.get("pct_off_track"),
+        "pct_off_surface": result.lap_eval.get("pct_off_surface"),
+        "pct_off_track_cte": result.lap_eval.get("pct_off_track_cte"),
         "pct_stuck": result.lap_eval.get("pct_stuck"),
         "avg_speed_kmh": result.lap_eval.get("avg_speed_kmh"),
     }

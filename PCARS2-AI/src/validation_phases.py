@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from safety_monitor import off_track_pct_breakdown
+
 
 @dataclass
 class PhaseCriteria:
@@ -155,6 +157,8 @@ def compute_lap_metrics(ticks: List[dict]) -> dict:
             "cte_p95": 0.0,
             "pct_override": 0.0,
             "pct_off_track": 0.0,
+            "pct_off_surface": 0.0,
+            "pct_off_track_cte": 0.0,
             "pct_stuck": 0.0,
             "pct_brake": 0.0,
             "pct_accel": 0.0,
@@ -164,13 +168,16 @@ def compute_lap_metrics(ticks: List[dict]) -> dict:
     ctes = [abs(float(t.get("cte", 0.0))) for t in ticks]
     speeds = [float(t.get("speed_kmh", 0.0)) for t in ticks]
     reasons = [t.get("teacher_reason", "") for t in ticks]
+    off_pct = off_track_pct_breakdown(ticks)
     return {
         "n": n,
         "avg_cte": round(sum(ctes) / n, 2),
         "avg_speed_kmh": round(sum(speeds) / n, 1) if speeds else 0.0,
         "cte_p95": _p95(ctes),
         "pct_override": _pct(sum(1 for t in ticks if t.get("safety_override")), n),
-        "pct_off_track": _pct(sum(1 for t in ticks if t.get("off_track")), n),
+        "pct_off_track": off_pct["pct_off_track"],
+        "pct_off_surface": off_pct["pct_off_surface"],
+        "pct_off_track_cte": off_pct["pct_off_track_cte"],
         "pct_stuck": _pct(sum(1 for t in ticks if t.get("stuck")), n),
         "pct_brake": _pct(sum(1 for r in reasons if r in BRAKE_REASONS), n),
         "pct_accel": _pct(sum(1 for r in reasons if r in ACCEL_REASONS), n),
@@ -290,6 +297,8 @@ def evaluate_imitation_session(
             "cte_p95": lap_ev["cte_p95"],
             "avg_speed_kmh": lap_ev["avg_speed_kmh"],
             "pct_off_track": lap_ev["pct_off_track"],
+            "pct_off_surface": lap_ev.get("pct_off_surface", 0.0),
+            "pct_off_track_cte": lap_ev.get("pct_off_track_cte", 0.0),
             "pct_stuck": lap_ev["pct_stuck"],
             "pct_safety_override": lap_ev["pct_override"],
             "pct_accel_reason": lap_ev["pct_accel"],
@@ -406,7 +415,8 @@ def evaluate_phase(phase_id: str, ticks: List[dict], laps_completed: int) -> dic
     accel_n = sum(1 for r in reasons if r in ACCEL_REASONS)
     brake_n = sum(1 for r in reasons if r in BRAKE_REASONS)
 
-    pct_off = _pct(off_track, n)
+    off_pct = off_track_pct_breakdown(ticks)
+    pct_off = off_pct["pct_off_track"]
     pct_stuck = _pct(stuck, n)
     pct_safety = _pct(safety_ovr, n)
     pct_accel = _pct(accel_n, n)
@@ -451,6 +461,8 @@ def evaluate_phase(phase_id: str, ticks: List[dict], laps_completed: int) -> dic
             "cte_p95": p95_cte,
             "avg_speed_kmh": avg_speed,
             "pct_off_track": pct_off,
+            "pct_off_surface": off_pct["pct_off_surface"],
+            "pct_off_track_cte": off_pct["pct_off_track_cte"],
             "pct_stuck": pct_stuck,
             "pct_safety_override": pct_safety,
             "pct_accel_reason": pct_accel,

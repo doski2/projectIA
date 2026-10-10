@@ -197,6 +197,10 @@ def write_html_replay(
                 parts.append(f"ovr {ev.get('pct_override')}%")
             if ev.get("pct_off_track") is not None:
                 parts.append(f"off {ev.get('pct_off_track')}%")
+            if ev.get("pct_off_surface"):
+                parts.append(f"surf {ev.get('pct_off_surface')}%")
+            if ev.get("pct_off_track_cte"):
+                parts.append(f"cte {ev.get('pct_off_track_cte')}%")
             if ev.get("pct_stuck") is not None:
                 parts.append(f"stuck {ev.get('pct_stuck')}%")
             detail = ", ".join(parts) if parts else "—"
@@ -331,7 +335,9 @@ def write_html_replay(
 <div class="stats">
   <div class="stat"><b>{metrics.get('avg_cte', '—')}</b><span>CTE medio (m)</span></div>
   <div class="stat"><b>{metrics.get('avg_speed_kmh', '—')}</b><span>Vel. media (km/h)</span></div>
-  <div class="stat"><b>{metrics.get('pct_off_track', 0)}%</b><span>Off-track</span></div>
+  <div class="stat"><b>{metrics.get('pct_off_track', 0)}%</b><span>Off-track (total)</span></div>
+  <div class="stat"><b>{metrics.get('pct_off_surface', 0)}%</b><span>Off surface (UDP)</span></div>
+  <div class="stat"><b>{metrics.get('pct_off_track_cte', 0)}%</b><span>Off-track CTE (≥8 m)</span></div>
   <div class="stat"><b>{metrics.get('pct_stuck', 0)}%</b><span>Stuck</span></div>
   <div class="stat"><b>{metrics.get('pct_accel_reason', 0)}%</b><span>Accel intents</span></div>
   <div class="stat"><b>{metrics.get('pct_brake_reason', 0)}%</b><span>Brake intents</span></div>

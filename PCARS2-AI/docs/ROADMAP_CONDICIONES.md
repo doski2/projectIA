@@ -44,7 +44,9 @@ Geometría + dinámica básica + intención. Multi-pista con referencia local.
 
 ### Capa 2 — Condiciones que cambian en carrera (prioridad futura)
 
-Disponibles en telemetría UDP (`pcars2_udp_data_reference.md`):
+Disponibles en telemetría UDP (`pcars2_udp_data_reference.md`; enums en `src/pcars2_surface.py`):
+
+**Ya en seguridad (F5):** `sTerrain[4]` → `off_surface` en `SafetyMonitor` (complementa CTE).
 
 | Variable | Campos UDP (ej.) | Efecto en conducción |
 |----------|------------------|----------------------|

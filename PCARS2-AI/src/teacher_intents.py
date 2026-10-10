@@ -48,6 +48,11 @@ RULE_CATALOG: Dict[str, Dict[str, str]] = {
         "why": "no_progress",
         "how": "brake_recover",
     },
+    "safety_off_surface": {
+        "when": "off_surface",
+        "why": "terrain_off_track",
+        "how": "brake_recover",
+    },
     "safety_off_track": {
         "when": "off_track",
         "why": "high_cte",
@@ -113,6 +118,8 @@ def normalize_reason(raw: str) -> str:
         return "unknown"
     if raw == "cruise":
         return "maintain_speed"
+    if raw in ("off_surface", "safety_off_surface"):
+        return "safety_off_track"
     if raw in REASON_TO_ID:
         return raw
     if raw.startswith("safety_"):

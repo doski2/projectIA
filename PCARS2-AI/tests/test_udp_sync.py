@@ -36,6 +36,7 @@ def _frame(speed: float, x: float, y: float, z: float) -> TelemetryFrame:
         fuel_level=1.0,
         aero_damage=0,
         engine_damage=0,
+        car_flags=0,
         brake_bias=0,
         viewed_participant_index=0,
         viewed_is_ai=False,

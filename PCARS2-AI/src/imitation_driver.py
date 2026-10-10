@@ -222,7 +222,7 @@ def run(args: argparse.Namespace) -> int:
             if args.auto_shift:
                 auto_shift(controller, telem, final[0], final[1], shifter)
 
-            off_track, stuck = lap_tick_safety_flags(
+            flags = lap_tick_safety_flags(
                 status, teacher_decision.cte, lap_guard.active,
             )
             lap_override = override if not lap_guard.active else False
@@ -231,10 +231,12 @@ def run(args: argparse.Namespace) -> int:
                 telem.speed * 3.6,
                 teacher_decision.cte,
                 lap_override,
-                off_track,
-                stuck,
+                flags.off_track,
+                flags.stuck,
                 reason,
                 settling=lap_guard.active,
+                off_surface=flags.off_surface,
+                off_track_cte=flags.off_track_cte,
             ))
             drive_source = "teacher" if used_teacher else mode
             if settle.active:
@@ -253,8 +255,10 @@ def run(args: argparse.Namespace) -> int:
                 rule=rule_for_reason(reason),
                 drive_source=drive_source,
                 safety_override=override,
-                off_track=off_track,
-                stuck=stuck,
+                off_track=flags.off_track,
+                off_surface=flags.off_surface,
+                off_track_cte=flags.off_track_cte,
+                stuck=flags.stuck,
                 gear=telem.gear,
                 num_gears=telem.num_gears,
                 rpm=telem.rpm,

@@ -344,17 +344,19 @@ def run(args: argparse.Namespace) -> int:
                     speed_band_kmh=current_speed_band,
                 )
 
-            off_track, stuck = lap_tick_safety_flags(status, decision.cte, lap_guard.active)
+            flags = lap_tick_safety_flags(status, decision.cte, lap_guard.active)
             lap_override = override if not lap_guard.active else False
             lap_ticks.append(make_lap_buffer_tick(
                 session_rec.elapsed_s(),
                 telem.speed * 3.6,
                 decision.cte,
                 lap_override,
-                off_track,
-                stuck,
+                flags.off_track,
+                flags.stuck,
                 reason,
                 settling=lap_guard.active,
+                off_surface=flags.off_surface,
+                off_track_cte=flags.off_track_cte,
             ))
 
             session_rec.record_tick(
@@ -372,8 +374,10 @@ def run(args: argparse.Namespace) -> int:
                 drive_source=drive_source,
                 learn_stage=current_stage_id,
                 safety_override=override,
-                off_track=off_track,
-                stuck=stuck,
+                off_track=flags.off_track,
+                off_surface=flags.off_surface,
+                off_track_cte=flags.off_track_cte,
+                stuck=flags.stuck,
                 gear=telem.gear,
                 num_gears=telem.num_gears,
                 rpm=telem.rpm,

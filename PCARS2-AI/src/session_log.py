@@ -94,6 +94,8 @@ class TeachingSessionRecorder:
         safety_override: bool = False,
         safety_event: Optional[str] = None,
         off_track: bool = False,
+        off_surface: bool = False,
+        off_track_cte: bool = False,
         stuck: bool = False,
         gear: Optional[int] = None,
         num_gears: Optional[int] = None,
@@ -126,6 +128,8 @@ class TeachingSessionRecorder:
             "learn_stage": learn_stage,
             "safety_override": safety_override,
             "off_track": off_track,
+            "off_surface": off_surface,
+            "off_track_cte": off_track_cte,
             "stuck": stuck,
         }
         if rule:

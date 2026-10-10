@@ -2,7 +2,7 @@
 """
 Corrige avisos auto-reparables de markdownlint en archivos .md.
 
-Reglas auto-fix: MD009, MD012, MD013, MD022, MD026, MD031, MD032, MD034, MD036, MD037, MD040, MD047, MD058, MD060.
+Reglas auto-fix: MD004, MD009, MD012, MD013, MD022, MD026, MD031, MD032, MD034, MD036, MD037, MD040, MD047, MD058, MD060.
 Índice completo: docs/MARKDOWNLINT.md · oficial: github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
 
 Uso:
@@ -12,7 +12,7 @@ Uso:
   python fix_markdownlint.py --check
   python fix_markdownlint.py --lint
 
-Config: `.markdownlint.json` (raíz) + `.vscode/settings.json` (Cursor/VS Code).
+Config: `.markdownlint.json` en la raíz del repo (MD004 / MD060). No lee settings de Cursor.
 Ver reglas: https://github.com/DavidAnson/markdownlint/tree/v0.41.1/doc
 """
 
@@ -25,8 +25,9 @@ import subprocess
 import sys
 import unicodedata
 from pathlib import Path
+from typing import Sequence
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[2]
 
 BQ_PREFIX = re.compile(r"^(\s*>\s)")
 MD013_WIDTH = 100
@@ -45,6 +46,7 @@ FENCE = re.compile(r"^```(\w*)$")
 DELIMITER_CELL = re.compile(r"^:?-{1,}:?$")
 TRAILING_PUNCT = re.compile(r"[:.,;!?]+$")
 LIST_ITEM = re.compile(r"^(\s*)([-*+]|\d+\.)\s")
+UL_BULLET = re.compile(r"^(\s*)([-*+])(\s)(.*)$")
 TABLE_ROW = re.compile(r"^\s*\|")
 MD034_TRAILING_PUNCT = re.compile(r"[.,;:!?]+$")
 MD034_SHIELD_PATTERNS = (
@@ -58,7 +60,112 @@ MD034_SHIELD_PATTERNS = (
 MD034_BARE_URL = re.compile(r"https?://[^\s<>\[\]()]+(?:\([^\s)]*\))?[^\s<>\[\].,;:!?]*")
 MD034_BARE_EMAIL = re.compile(r"(?<![</\w])([\w.+-]+@[\w.-]+\.[A-Za-z]{2,})")
 MD060_VISUAL_WIDE = re.compile(r"[\u2600-\u27BF\U0001F300-\U0001FAFF]")
-MD060_DEFAULTS = {"style": "any", "aligned_delimiter": False}
+# MD060 compact: whitespace immediately left of `|` must be exactly one space
+# (mensaje: "Table pipe has extra space to the left for style compact").
+MD060_EXTRA_SPACE_LEFT = re.compile(r" {2,}\|")
+# Fix hacia tuberías alineadas (spec MD060 style `aligned`); lint `any` sigue en .markdownlint.json.
+MD060_DEFAULTS = {"style": "aligned", "aligned_delimiter": False}
+MD004_DEFAULTS = {"style": "consistent"}
+MD004_SUBLIST_SYMBOLS = ("*", "+", "-")
+
+
+def load_md004_config() -> dict[str, str]:
+    """
+    MD004 — style (asterisk|consistent|dash|plus|sublist).
+    https://github.com/DavidAnson/markdownlint/blob/v0.41.1/doc/md004.md
+    """
+    path = ROOT / ".markdownlint.json"
+    if not path.is_file():
+        return dict(MD004_DEFAULTS)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return dict(MD004_DEFAULTS)
+    md004 = data.get("MD004", {})
+    if isinstance(md004, bool):
+        return dict(MD004_DEFAULTS) if md004 else {"style": "consistent"}
+    return {"style": str(md004.get("style", MD004_DEFAULTS["style"]))}
+
+
+def normalize_list_indent(indent: str) -> int:
+    return len(indent.replace("\t", "    "))
+
+
+def list_level_for_indent(indent_len: int, stack: list[int]) -> int:
+    while stack and indent_len < stack[-1]:
+        stack.pop()
+    if not stack or indent_len > stack[-1]:
+        stack.append(indent_len)
+    return len(stack) - 1
+
+
+def md004_target_symbol(style: str, level: int, first_symbol: str | None) -> str:
+    if style == "asterisk":
+        return "*"
+    if style == "dash":
+        return "-"
+    if style == "plus":
+        return "+"
+    if style == "sublist":
+        idx = min(level, len(MD004_SUBLIST_SYMBOLS) - 1)
+        return MD004_SUBLIST_SYMBOLS[idx]
+    return first_symbol if first_symbol is not None else "*"
+
+
+def is_ul_list_context_line(line: str, stack: list[int]) -> bool:
+    if not line.strip():
+        return bool(stack)
+    if UL_BULLET.match(line) or LIST_ITEM.match(line):
+        return True
+    if stack and line[:1].isspace() and not HEADING.match(line) and not is_fence_line(line):
+        return True
+    return False
+
+
+def fix_unordered_list_style(
+    text: str, md004: dict[str, str] | None = None
+) -> tuple[str, int]:
+    """MD004 — unificar viñetas de listas no ordenadas."""
+    if md004 is None:
+        md004 = load_md004_config()
+    style = str(md004.get("style", MD004_DEFAULTS["style"]))
+    lines = text.splitlines()
+    out: list[str] = []
+    fixes = 0
+    in_fence = False
+    first_symbol: str | None = None
+    indent_stack: list[int] = []
+
+    for line in lines:
+        if FENCE.match(line.strip()):
+            in_fence = not in_fence
+            indent_stack.clear()
+            out.append(line)
+            continue
+        if in_fence:
+            out.append(line)
+            continue
+
+        match = UL_BULLET.match(line)
+        if not match:
+            if not is_ul_list_context_line(line, indent_stack):
+                indent_stack.clear()
+            out.append(line)
+            continue
+
+        indent, bullet, space, body = match.groups()
+        indent_len = normalize_list_indent(indent)
+        level = list_level_for_indent(indent_len, indent_stack)
+        if style == "consistent" and first_symbol is None:
+            first_symbol = bullet
+        target = md004_target_symbol(style, level, first_symbol)
+        if bullet != target:
+            out.append(f"{indent}{target}{space}{body}")
+            fixes += 1
+        else:
+            out.append(line)
+
+    return "\n".join(out), fixes
 
 
 def load_md060_config() -> dict[str, str | bool]:
@@ -112,7 +219,7 @@ def pipe_columns(line: str) -> list[int]:
     return cols
 
 
-def count_aligned_violations(lines: list[str]) -> int:
+def count_aligned_violations(lines: Sequence[str]) -> int:
     if len(lines) < 2:
         return 0
     header_cols = set(pipe_columns(lines[0]))
@@ -137,7 +244,12 @@ def is_compact_cell(part: str) -> bool:
     return part == compact_cell_content(part.strip())
 
 
-def count_compact_violations(lines: list[str], aligned_delimiter: bool) -> int:
+def count_compact_extra_space_left(lines: Sequence[str]) -> int:
+    """Cuenta `|` con más de un espacio a la izquierda (mismo aviso que markdownlint)."""
+    return sum(len(MD060_EXTRA_SPACE_LEFT.findall(line)) for line in lines)
+
+
+def count_compact_violations(lines: Sequence[str], aligned_delimiter: bool) -> int:
     violations = 0
     if aligned_delimiter and len(lines) >= 2:
         violations += count_aligned_violations(lines[:2])
@@ -152,7 +264,7 @@ def count_compact_violations(lines: list[str], aligned_delimiter: bool) -> int:
     return violations
 
 
-def count_tight_violations(lines: list[str], aligned_delimiter: bool) -> int:
+def count_tight_violations(lines: Sequence[str], aligned_delimiter: bool) -> int:
     violations = 0
     if aligned_delimiter and len(lines) >= 2:
         violations += count_aligned_violations(lines[:2])
@@ -168,7 +280,7 @@ def count_tight_violations(lines: list[str], aligned_delimiter: bool) -> int:
 
 
 def md060_style_scores(
-    lines: list[str], aligned_delimiter: bool
+    lines: Sequence[str], aligned_delimiter: bool
 ) -> dict[str, int]:
     return {
         "aligned": count_aligned_violations(lines),
@@ -178,18 +290,24 @@ def md060_style_scores(
 
 
 def pick_md060_style(
-    lines: list[str], config: dict[str, str | bool]
+    lines: Sequence[str], config: dict[str, str | bool]
 ) -> str:
+    """
+    Estilo de salida al reparar tablas.
+
+    Con style=any, MD060 elige el estilo con menos violaciones; en empate o al
+    fijar tablas usamos `aligned` (tuberías en columna — doc MD060).
+    """
     style = str(config.get("style", "any"))
     aligned_delimiter = bool(config.get("aligned_delimiter", False))
     if style != "any":
         return style
-    scores = md060_style_scores(lines, aligned_delimiter)
-    return min(scores, key=lambda k: scores[k])
+    # Reparación: salida style `aligned` (MD060 — tuberías en columna).
+    return "aligned"
 
 
 def table_needs_md060_fix(
-    lines: list[str], config: dict[str, str | bool]
+    lines: Sequence[str], config: dict[str, str | bool]
 ) -> bool:
     """True si la tabla no cumple ningún estilo MD060 (style=any) o el configurado."""
     configured_style = str(config.get("style", "any"))
@@ -247,20 +365,29 @@ def format_aligned_table(rows: list[list[str]]) -> list[str]:
 def format_compact_table(
     rows: list[list[str]], aligned_delimiter: bool = False
 ) -> list[str]:
+    """
+    MD060 compact: un espacio alrededor del texto.
+
+    aligned_delimiter=true (spec): cabecera + fila --- alineadas; cuerpo compacto.
+    No reescribir toda la tabla como style=aligned.
+    """
     if not rows:
         return []
     col_count = max(len(row) for row in rows)
     normalized = [row + [""] * (col_count - len(row)) for row in rows]
-    if aligned_delimiter:
-        return format_aligned_table(normalized)
-    lines: list[str] = []
+    compact_lines: list[str] = []
     for row in normalized:
         if is_delimiter_row(row):
             cells = [compact_cell_content("---") for _ in range(col_count)]
         else:
             cells = [compact_cell_content(row[col]) for col in range(col_count)]
-        lines.append("|" + "|".join(cells) + "|")
-    return lines
+        compact_lines.append("|" + "|".join(cells) + "|")
+    if not aligned_delimiter:
+        return compact_lines
+    aligned = format_aligned_table(normalized)
+    if len(aligned) < 2:
+        return compact_lines
+    return [aligned[0], aligned[1], *compact_lines[2:]]
 
 
 def format_tight_table(
@@ -453,13 +580,14 @@ def fix_fenced_code_language_v2(text: str) -> tuple[str, int]:
         if lang:
             out.append(lines[i])
             i += 1
+            block: list[str] = []
             while i < len(lines):
                 close = FENCE.match(lines[i].strip())
                 if close:
                     out.append(lines[i])
                     i += 1
                     break
-                out.append(lines[i])
+                block.append(lines[i])
                 i += 1
             continue
         block = []
@@ -588,17 +716,6 @@ def fix_emphasis_spaces(text: str) -> tuple[str, int]:
     return "\n".join(out), fixes
 
 
-def is_blank(line: str) -> bool:
-    return not line.strip()
-
-
-def next_non_blank_line(lines: list[str], idx: int) -> str | None:
-    for j in range(idx + 1, len(lines)):
-        if not is_blank(lines[j]):
-            return lines[j]
-    return None
-
-
 def fix_emphasis_headings(text: str) -> tuple[str, int]:
     lines = text.splitlines()
     out: list[str] = []
@@ -606,10 +723,6 @@ def fix_emphasis_headings(text: str) -> tuple[str, int]:
     for idx, line in enumerate(lines):
         title = parse_emphasis_heading(line)
         if title is None:
-            out.append(line)
-            continue
-        nxt = next_non_blank_line(lines, idx)
-        if nxt is not None and nxt.lstrip().startswith("→"):
             out.append(line)
             continue
         clean = TRAILING_PUNCT.sub("", title)
@@ -630,6 +743,10 @@ def fix_trailing_spaces(text: str) -> tuple[str, int]:
             fixes += 1
         out.append(trimmed)
     return "\n".join(out), fixes
+
+
+def is_blank(line: str) -> bool:
+    return not line.strip()
 
 
 def is_list_line(line: str) -> bool:
@@ -837,9 +954,12 @@ def fix_line_length(text: str, width: int = MD013_WIDTH) -> tuple[str, int]:
 
 def fix_markdown(text: str) -> tuple[str, dict[str, int]]:
     stats: dict[str, int] = {}
+    md004 = load_md004_config()
     md060 = load_md060_config()
     text, n = fix_trailing_spaces(text)
     stats["MD009"] = n
+    text, n = fix_unordered_list_style(text, md004)
+    stats["MD004"] = n
     text, n = fix_bare_urls(text)
     stats["MD034"] = n
     text, n = fix_line_length(text)

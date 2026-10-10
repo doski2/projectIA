@@ -69,6 +69,7 @@ def _telem_at(d: float, speed: float = 12.0) -> TelemetryFrame:
         fuel_level=0.8,
         aero_damage=0,
         engine_damage=0,
+        car_flags=0,
         brake_bias=50,
         viewed_participant_index=0,
         viewed_is_ai=False,

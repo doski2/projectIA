@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 
 from obs_builder import wheelspin_norm
+from safety_monitor import SAFETY_OFF_TRACK_REASONS
 from obs_universal import signed_lateral_error
 from reference_recorder import ReferenceLine
 from safety_monitor import CTE_SAFE_M, SafetyMonitor, SafetyStatus
@@ -21,7 +22,9 @@ CURV_LOOKAHEAD_M = 30.0
 WHEELSPIN_THRESHOLD = 0.15
 STALL_RECOVERY_SPEED_MS = 1.0
 STALL_RECOVERY_REASONS = frozenset({"stuck", "no_progress"})
-STALL_BRAKE_REASONS = frozenset({"stuck", "off_track", "wrong_way"})
+STALL_BRAKE_REASONS = frozenset({"stuck", "wrong_way"}) | (
+    SAFETY_OFF_TRACK_REASONS - {"pit_box"}
+)
 
 
 @dataclass
