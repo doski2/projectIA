@@ -110,6 +110,15 @@ def test_reason_vocab_and_rule():
     assert normalize_reason("safety_stuck") == "safety_stuck"
 
 
+def test_safety_reverse_intent_not_generic():
+    assert normalize_reason("safety_reverse") == "safety_reverse"
+    rule = rule_for_reason("safety_reverse")
+    assert rule["when"] == "reverse_gear"
+    assert rule["why"] == "longitudinal_backward"
+    assert rule["how"] == "slow_brake_steer_to_line"
+    assert encode_reason_id("safety_reverse") != encode_reason_id("safety_generic")
+
+
 def test_conditioned_obs_size():
     ref = _straight_ref()
     obs = build_obs_universal(_telem(), _timings(), ref, target_speed_ms=5.0)

@@ -14,13 +14,14 @@ class FakeController:
         pass
 
 
-def _telem(gear=2, rpm=4000, max_rpm=8000, speed=5.0, num_gears=6):
+def _telem(gear=2, rpm=4000, max_rpm=8000, speed=5.0, num_gears=6, local_vx=None):
     from telemetry_udp import TelemetryFrame
 
+    vx = local_vx if local_vx is not None else speed
     return TelemetryFrame(
         position=(0.0, 0.0, 0.0),
         orientation=(0.0, 0.0, 0.0),
-        local_velocity=(speed, 0.0, 0.0),
+        local_velocity=(vx, 0.0, 0.0),
         world_velocity=(speed, 0.0, 0.0),
         angular_velocity=(0.0, 0.0, 0.0),
         local_acceleration=(0.0, 0.0, 0.0),
@@ -53,12 +54,13 @@ def _telem(gear=2, rpm=4000, max_rpm=8000, speed=5.0, num_gears=6):
     )
 
 
-def test_auto_shift_neutral_to_first():
+def test_auto_shift_neutral_to_first_at_any_speed():
     ctrl = FakeController()
     shifter = AutoShifter(cooldown_s=0.0)
-    event = auto_shift(ctrl, _telem(gear=0, speed=0.0), 0.5, 0.0, shifter)
-    assert event == "to_first"
-    assert ctrl.pressed == ["rb"]
+    for speed in (0.0, 3.0):
+        event = auto_shift(ctrl, _telem(gear=0, speed=speed), 0.5, 0.0, shifter)
+        assert event == "to_first"
+        assert ctrl.pressed[-1] == "rb"
 
 
 def test_auto_shift_cooldown_prevents_spam():
@@ -92,3 +94,20 @@ def test_auto_shift_downshift_on_brake():
     event = auto_shift(ctrl, _telem(gear=3, rpm=2000), 0.0, 0.5, shifter)
     assert event == "down"
     assert ctrl.pressed == ["lb"]
+
+
+def test_auto_shift_backward_uses_rb_not_lb():
+    ctrl = FakeController()
+    shifter = AutoShifter(cooldown_s=0.0)
+    telem = _telem(gear=1, speed=2.0, local_vx=-2.0)
+    event = auto_shift(ctrl, telem, 0.5, 0.0, shifter)
+    assert event == "from_reverse"
+    assert ctrl.pressed == ["rb"]
+
+
+def test_auto_shift_no_brake_downshift_when_crawling():
+    ctrl = FakeController()
+    shifter = AutoShifter(cooldown_s=0.0)
+    telem = _telem(gear=3, rpm=2000, speed=0.4)
+    assert auto_shift(ctrl, telem, 0.0, 0.5, shifter) is None
+    assert ctrl.pressed == []

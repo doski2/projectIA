@@ -376,6 +376,17 @@ class ReferenceLine:
             return None
         return (dx / length, dz / length)
 
+    def orientation_heading_error(
+        self,
+        orientation: Tuple[float, float, float],
+        lap_distance: float,
+    ) -> float:
+        """Ángulo yaw del coche vs trazado (no usa velocidad; válido en marcha atrás)."""
+        ref_yaw = self.heading_at(lap_distance)
+        agent_yaw = orientation[2]
+        diff = agent_yaw - ref_yaw
+        return math.atan2(math.sin(diff), math.cos(diff))
+
     def heading_error(
         self,
         world_velocity: Tuple[float, float, float],

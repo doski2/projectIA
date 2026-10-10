@@ -11,6 +11,9 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
+# Reason estable en teacher_controller / session log / JSONL universal
+SAFETY_REVERSE_REASON = "safety_reverse"
+
 # Catálogo estable de reglas → metadatos explicables
 RULE_CATALOG: Dict[str, Dict[str, str]] = {
     "maintain_speed": {
@@ -63,6 +66,11 @@ RULE_CATALOG: Dict[str, Dict[str, str]] = {
         "why": "heading_reversed",
         "how": "brake_recover",
     },
+    "safety_reverse": {
+        "when": "reverse_gear",
+        "why": "longitudinal_backward",
+        "how": "slow_brake_steer_to_line",
+    },
     "safety_no_progress": {
         "when": "no_progress",
         "why": "blocked",
@@ -106,6 +114,7 @@ REASON_TO_ID: Dict[str, int] = {
     "safety_pit_box": 11,
     "safety_generic": 12,
     "hybrid": 13,
+    "safety_reverse": 14,
 }
 
 ID_TO_REASON: Dict[int, str] = {v: k for k, v in REASON_TO_ID.items()}
