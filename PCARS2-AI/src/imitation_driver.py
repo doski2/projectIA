@@ -13,7 +13,8 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import Any, List, Optional
+from dataclasses import dataclass
+from typing import Any, List, Optional, Tuple
 
 from auto_shift import AutoShifter, auto_shift, maybe_engage_first_gear
 from pcars2_gear import choose_bc_drive_pedals
@@ -78,6 +79,55 @@ def load_ppo_policy(model_path: str):
         print(f"[Error] Modelo no encontrado: {path}")
         sys.exit(1)
     return PPO.load(path, device="cpu")
+
+
+@dataclass
+class DriveMix:
+    action: Tuple[float, float, float]
+    drive_source: str
+    used_teacher: bool
+    mix_alpha: Optional[float]
+    override_inc: bool
+
+
+def select_bc_action(
+    universal_model, ppo_policy, guard_active: bool, mode: str,
+    telem, timings, ref, speed_target_ms: float, reason: str, teacher_tuple,
+):
+    """Devuelve (obs_record, bc_tuple, schema, reason_id) según el modelo disponible."""
+    if universal_model is not None and not guard_active:
+        obs_record = build_obs_universal(telem, timings, ref, speed_target_ms)
+        if mode == "autonomous":
+            bc_action, rid = universal_model.predict(obs_record, use_predicted_reason=True)
+        else:
+            bc_action, rid = universal_model.predict(obs_record, reason=reason)
+        return obs_record, decode_action(bc_action), OBS_SCHEMA, rid
+    if ppo_policy is not None and not guard_active:
+        obs_record = build_obs(telem, timings, ref)
+        bc_action, _ = ppo_policy.predict(obs_record, deterministic=True)
+        return obs_record, decode_action(bc_action), "legacy_19", None
+    if universal_model:
+        obs_record = build_obs_universal(telem, timings, ref, speed_target_ms)
+    else:
+        obs_record = build_obs(telem, timings, ref)
+    schema = OBS_SCHEMA if universal_model else "legacy_19"
+    return obs_record, teacher_tuple, schema, None
+
+
+def mix_drive_action(
+    mode: str, alpha: float, bc_tuple, teacher_tuple, telem, override: bool, guard_active: bool,
+) -> DriveMix:
+    """Decide la acción final (BC / teacher / mezcla híbrida) antes del lap_guard."""
+    if guard_active:
+        return DriveMix(teacher_tuple, "teacher", True, None, False)
+    ped, src, ovr_inc = choose_bc_drive_pedals(bc_tuple, teacher_tuple, telem, override, False)
+    if mode == "hybrid" and src == "bc":
+        cur_alpha = 0.0 if override else alpha
+        final = blend_actions(bc_tuple, teacher_tuple, cur_alpha)
+        if override:
+            return DriveMix(final, "teacher", True, cur_alpha, True)
+        return DriveMix(final, "hybrid", False, cur_alpha, False)
+    return DriveMix(ped, src, src.startswith("teacher"), None, bool(ovr_inc))
 
 
 def run(args: argparse.Namespace) -> int:
@@ -178,56 +228,21 @@ def run(args: argparse.Namespace) -> int:
             reason = normalize_reason(teacher_decision.reason)
             lap_guard.on_frame(timings.current_lap, timings.lap_distance)
 
-            if universal_model is not None and not lap_guard.active:
-                obs_record = build_obs_universal(telem, timings, ref, teacher.speed_target_ms)
-                if mode == "autonomous":
-                    bc_action, rid = universal_model.predict(
-                        obs_record, use_predicted_reason=True,
-                    )
-                else:
-                    bc_action, rid = universal_model.predict(obs_record, reason=reason)
-                bc_tuple = decode_action(bc_action)
-                schema = OBS_SCHEMA
-            elif ppo_policy is not None and not lap_guard.active:
-                obs_record = build_obs(telem, timings, ref)
-                bc_action, _ = ppo_policy.predict(obs_record, deterministic=True)
-                bc_tuple = decode_action(bc_action)
-                schema = "legacy_19"
-                rid = None
-            else:
-                obs_record = build_obs_universal(telem, timings, ref, teacher.speed_target_ms) if universal_model else build_obs(telem, timings, ref)
-                bc_tuple = teacher_tuple
-                schema = OBS_SCHEMA if universal_model else "legacy_19"
-                rid = None
+            obs_record, bc_tuple, schema, rid = select_bc_action(
+                universal_model, ppo_policy, lap_guard.active, mode,
+                telem, timings, ref, teacher.speed_target_ms, reason, teacher_tuple,
+            )
 
-            used_teacher = False
-            mix_alpha_used = None
             override = teacher_decision.safety_override
-            drive_source = mode
-
-            if not lap_guard.active:
-                ped, src, ovr_inc = choose_bc_drive_pedals(
-                    bc_tuple, teacher_tuple, telem, override, False,
-                )
-                if mode == "hybrid" and src == "bc":
-                    cur_alpha = 0.0 if override else alpha
-                    final = blend_actions(bc_tuple, teacher_tuple, cur_alpha)
-                    mix_alpha_used = cur_alpha
-                    drive_source = "hybrid"
-                    if override:
-                        used_teacher = True
-                        drive_source = "teacher"
-                        override_count += 1
-                else:
-                    final = ped
-                    drive_source = src
-                    if ovr_inc:
-                        override_count += 1
-                    used_teacher = src.startswith("teacher")
-            else:
-                final = teacher_tuple
-                drive_source = "teacher"
-                used_teacher = True
+            mix = mix_drive_action(
+                mode, alpha, bc_tuple, teacher_tuple, telem, override, lap_guard.active,
+            )
+            final = mix.action
+            drive_source = mix.drive_source
+            used_teacher = mix.used_teacher
+            mix_alpha_used = mix.mix_alpha
+            if mix.override_inc:
+                override_count += 1
 
             settle = lap_guard.apply(teacher_tuple, final)
             if settle.active:
