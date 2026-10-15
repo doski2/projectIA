@@ -1,4 +1,4 @@
-﻿import os
+import os
 import glob
 
 log_dir = r"C:\Users\doski\projectIA\PCARS2-AI\logs\formula_rookie__sugo"

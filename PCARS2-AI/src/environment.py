@@ -45,16 +45,10 @@ from telemetry_udp import (
 from reference_recorder import ReferenceLine
 from controller import DS4Controller, decode_action
 from obs_builder import (
-    MAX_ANGULAR_VEL,
     MAX_CTE,
-    MAX_CURVATURE,
     MAX_HEADING_ERR,
-    MAX_LAT_ACCEL,
-    MAX_LONG_ACCEL,
     MAX_SPEED_DELTA,
     MAX_SPEED_MS,
-    MAX_TYRE_RPS,
-    TYRE_RADIUS,
     build_obs,
 )
 

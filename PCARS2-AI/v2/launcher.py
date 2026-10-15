@@ -192,7 +192,7 @@ def launch_monitor(settings: TrainingSettings) -> None:
 def build_teaching_argv(settings: TeachingSettings) -> List[str]:
     root = project_root()
     python = venv_python()
-    mode = get_teaching_mode(settings.mode_id)
+    get_teaching_mode(settings.mode_id)  # valida el modo (lanza si no existe)
 
     if settings.mode_id in ("teacher", "record"):
         script = root / "src" / "teaching_driver.py"

@@ -7,7 +7,6 @@ Incluye cabeza auxiliar para predecir intención desde obs (modo autónomo).
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -16,7 +15,7 @@ import torch
 import torch.nn as nn
 
 from obs_universal import OBS_UNIVERSAL_DIM
-from teacher_intents import NUM_REASONS, build_conditioned_obs, encode_reason_id
+from teacher_intents import NUM_REASONS, encode_reason_id
 
 
 class UniversalPolicy(nn.Module):

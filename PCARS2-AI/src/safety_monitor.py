@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List
 
 from pcars2_surface import SURFACE_PROFILE_STRICT, classify_surface
 from reference_recorder import ReferenceLine

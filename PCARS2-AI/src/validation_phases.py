@@ -7,7 +7,7 @@ Cada fase define objetivo, velocidad y criterios de pass/fail medibles en el log
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from safety_monitor import off_track_pct_breakdown
@@ -407,7 +407,6 @@ def evaluate_phase(phase_id: str, ticks: List[dict], laps_completed: int) -> dic
     avg_speed = round(sum(speeds) / n, 1)
     p95_cte = _p95(ctes)
 
-    off_track = sum(1 for t in ticks if t.get("off_track"))
     stuck = sum(1 for t in ticks if t.get("stuck"))
     safety_ovr = sum(1 for t in ticks if t.get("safety_override"))
 

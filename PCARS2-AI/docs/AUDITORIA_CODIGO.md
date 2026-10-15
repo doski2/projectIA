@@ -1,5 +1,9 @@
 # Auditoría de código — fallos, duplicados y mejoras
 
+> **Sprint 1 completado (2026-10-16):** 1.1 (se conserva la copia de la raíz), 2.1 (`off_track` muerto eliminado),
+> 2.2, 2.3, 2.7, 2.8 y 2.10 resueltos. `SPEED_BANDS_KMH` en `v2/config.py` es un re-export usado por tests y se mantiene con `noqa`.
+> Pendiente: 5.1 (commit) y el resto de secciones.
+
 Fecha: 2026-10-15. Alcance: `PCARS2-AI/src`, `v2`, `scripts`, `tests` y scripts de la raíz.
 Método: análisis AST (nombres/cuerpos duplicados), `ruff` (F, B, PLW, C901) y `pytest`.
 

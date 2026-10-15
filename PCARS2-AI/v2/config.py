@@ -10,13 +10,13 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 _CURR_SRC = Path(__file__).resolve().parent.parent / "src"
 if str(_CURR_SRC) not in sys.path:
     sys.path.insert(0, str(_CURR_SRC))
 
-from learning_curriculum import LEARN_STAGES, SPEED_BANDS_KMH  # noqa: E402
+from learning_curriculum import LEARN_STAGES, SPEED_BANDS_KMH  # noqa: E402,F401  (re-export)
 
 
 @dataclass

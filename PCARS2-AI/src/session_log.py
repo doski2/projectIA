@@ -17,7 +17,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 MIN_HTML_TICKS = 15
 MIN_HTML_DURATION_S = 5.0

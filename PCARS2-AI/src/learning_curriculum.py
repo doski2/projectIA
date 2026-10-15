@@ -10,8 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from lap_tracker import format_lap_time, lap_time_stats
-from validation_phases import _pct, compute_lap_metrics
+from lap_tracker import lap_time_stats
+from validation_phases import compute_lap_metrics
 
 
 @dataclass

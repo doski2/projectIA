@@ -9,7 +9,7 @@ para mantener el mismo contrato OBSERVATION → ACTION.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import numpy as np
 

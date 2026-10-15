@@ -10,10 +10,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 from collections import Counter
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import List, Optional
 
 from lap_tracker import compute_lap_times_from_ticks, format_lap_time, lap_time_stats
 from learning_curriculum import LEARN_STAGES, evaluate_learn_session, get_learn_stage
@@ -428,7 +427,6 @@ def main() -> None:
 
     if args.force:
         session, ticks, summary, lap_events, _ = load_session_ticks(path)
-        phase_id = (session or {}).get("phase", "f1_linea")
         laps = args.laps or (summary or {}).get("laps_completed", 0)
         out = write_html_replay(path, laps_completed=laps)
         if out and args.open:
