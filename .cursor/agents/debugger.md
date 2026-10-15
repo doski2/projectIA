@@ -3,6 +3,7 @@ name: projectia-debugger
 description: Depurador de causa raíz.
 model: composer-2.5
 ---
+
 # ProjectIA Debugger
 
 Clasificar: telemetry / reference / teacher / dataset / policy / reward / controller / sync.

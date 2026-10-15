@@ -10,4 +10,4 @@ Fase 1 — Subir velocidad (20 → 25 → 30 → 35 km/h)
 
 Fase 2 — Reward completa (cuando 35+ km/h en línea estable)
 
-pendiente: l6 y  de 50km/h pora hacer
+pendiente: l2 20

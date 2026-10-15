@@ -1,29 +1,31 @@
 # Validación Teaching — Sugo (pasos firmes)
 
-**Estado:** F1–F4 APTO · **Siguiente:** F5 `record.bat` (dataset + BC)  
-**Estilo replay:** [TSW6 session_report](https://github.com/doski2/TSW6)  
-**Principio:** si gira, acelera y frena en línea en Sugo, las **reglas** son las mismas en cualquier pista; solo cambia la referencia local (geometría).
+**Estado:** F1–F4 APTO · **Siguiente:** F5 `record.bat` (dataset + BC)
+**Estilo replay:** [TSW6 session_report](https://github.com/doski2/TSW6)
+**Principio:** si gira, acelera y frena en línea en Sugo, las **reglas** son las mismas en cualquier
+pista; solo cambia la referencia local (geometría).
 
-> **Importante:** `validar_f*.bat` = **reglas** (teacher), no entrenamiento de red.  
-> El aprendizaje (BC) empieza en **F5** con `record.bat` → `entrenar_bc.bat` → `aprender.bat`.  
+> **Importante:** `validar_f*.bat` = **reglas** (teacher), no entrenamiento de red.
+> El aprendizaje (BC) empieza en **F5** con `record.bat` → `entrenar_bc.bat` → `aprender.bat`.
 > Marchas, JSONL y `.pt`: [TEACHING_MARCHAS_Y_DATASET.md](TEACHING_MARCHAS_Y_DATASET.md).
 
 ---
 
 ## Progreso en pista
 
-| Fase | Estado | Sesión | Métricas clave |
-|------|--------|--------|----------------|
-| **F0** Prerrequisitos | OK | — | UDP, vgamepad, `sugo_ai.json` |
-| **F1** `f1_linea` | **APTO** | `20260918T174337Z_sugo_gp_f1_linea` | 3 vueltas · CTE 2.36 m · stuck 0% |
-| **F2** `f2_acelerar` | **APTO** | `20260918T182344Z_sugo_gp_f2_acelerar` | 4 vueltas · vel 23.7 km/h · CTE 2.41 m |
-| **F3** `f3_frenar` | **APTO** | `20260918T190548Z_sugo_gp_f3_frenar` | 10 vueltas · freno 35.8% · CTE 2.44 m |
-| **F4** `f4_combinado` | **APTO** | `20260918T210105Z_sugo_gp_f4_combinado` | 1 vuelta · CTE 2.33 m · acel 62.8% · freno 37.2% |
-| **F5** `record.bat` + BC | **siguiente** | — | ≥3 vueltas → `entrenar_bc.bat` → `aprender.bat` |
+| Fase                     | Estado        | Sesión                                  | Métricas clave                                   |
+| ------------------------ | ------------- | --------------------------------------- | ------------------------------------------------ |
+| **F0** Prerrequisitos    | OK            | —                                       | UDP, vgamepad, `sugo_ai.json`                    |
+| **F1** `f1_linea`        | **APTO**      | `20260918T174337Z_sugo_gp_f1_linea`     | 3 vueltas · CTE 2.36 m · stuck 0%                |
+| **F2** `f2_acelerar`     | **APTO**      | `20260918T182344Z_sugo_gp_f2_acelerar`  | 4 vueltas · vel 23.7 km/h · CTE 2.41 m           |
+| **F3** `f3_frenar`       | **APTO**      | `20260918T190548Z_sugo_gp_f3_frenar`    | 10 vueltas · freno 35.8% · CTE 2.44 m            |
+| **F4** `f4_combinado`    | **APTO**      | `20260918T210105Z_sugo_gp_f4_combinado` | 1 vuelta · CTE 2.33 m · acel 62.8% · freno 37.2% |
+| **F5** `record.bat` + BC | **siguiente** | —                                       | ≥3 vueltas → `entrenar_bc.bat` → `aprender.bat`  |
 
 *Actualizar esta tabla al cerrar cada fase (banner verde en HTML).*
 
-**Resumen acumulado (F1–F4):** CTE medio estable ~2.3–2.4 m · 0% stuck · 0% off-track · acel ~63% / freno ~37% en F4.
+**Resumen acumulado (F1–F4):** CTE medio estable ~2.3–2.4 m · 0% stuck · 0% off-track · acel ~63% /
+freno ~37% en F4.
 
 ---
 
@@ -39,21 +41,19 @@
 - [x] Cambios **manuales** activados (auto-shift RB/LB)
 
 ```bat
-cd PCARS2-AI
-tests.bat
 ```
 
 ---
 
 ## Fases (orden fijo)
 
-| Fase | Objetivo | Velocidad | Comando |
-|------|----------|-----------|---------|
-| **F1** `f1_linea` | Girar en la línea correcta | 15 km/h | `validar_f1.bat` |
-| **F2** `f2_acelerar` | Acelerar y mantener objetivo | 20 km/h | `validar_f2.bat` |
-| **F3** `f3_frenar` | Frenar antes de curvas / overspeed | 20 km/h | `validar_f3.bat` |
-| **F4** `f4_combinado` | Vuelta limpia combinando todo | 20 km/h | `validar_f4.bat` |
-| **F5** (después) | Grabar dataset universal | 20 km/h | `record.bat` |
+| Fase                  | Objetivo                           | Velocidad   | Comando          |
+| --------------------- | ---------------------------------- | ----------- | ---------------- |
+| **F1** `f1_linea`     | Girar en la línea correcta         | 15 km/h     | `validar_f1.bat` |
+| **F2** `f2_acelerar`  | Acelerar y mantener objetivo       | 20 km/h     | `validar_f2.bat` |
+| **F3** `f3_frenar`    | Frenar antes de curvas / overspeed | 20 km/h     | `validar_f3.bat` |
+| **F4** `f4_combinado` | Vuelta limpia combinando todo      | 20 km/h     | `validar_f4.bat` |
+| **F5** (después)      | Grabar dataset universal           | 20 km/h     | `record.bat`     |
 
 **No pasar a la siguiente fase hasta APTO en HTML.**
 
@@ -69,14 +69,14 @@ tests.bat
 - HTML: `logs/teaching/20260918T174337Z_sugo_gp_f1_linea.html`
 - Duración: ~34 min · **3 vueltas** · gear 1 estable
 
-| Check | Resultado | Umbral |
-|-------|-----------|--------|
-| Vueltas | 3 | ≥ 1 |
-| CTE medio | 2.36 m | ≤ 6 m |
-| CTE p95 | 3.68 m | ≤ 10 m |
-| % off-track | 0% | ≤ 8% |
-| % stuck | 0% | ≤ 25% |
-| % safety override | 0% | ≤ 30% |
+| Check             | Resultado   | Umbral   |
+| ----------------- | ----------- | -------- |
+| Vueltas           | 3           | ≥ 1      |
+| CTE medio         | 2.36 m      | ≤ 6 m    |
+| CTE p95           | 3.68 m      | ≤ 10 m   |
+| % off-track       | 0%          | ≤ 8%     |
+| % stuck           | 0%          | ≤ 25%    |
+| % safety override | 0%          | ≤ 30%    |
 
 **Nota:** velocidad media 19.2 km/h (por encima del objetivo 15 de F1). No invalida F1.
 
@@ -92,13 +92,13 @@ tests.bat
 - HTML: `logs/teaching/20260918T182344Z_sugo_gp_f2_acelerar.html`
 - Duración: ~38 min · **4 vueltas**
 
-| Check | Resultado | Umbral |
-|-------|-----------|--------|
-| Vueltas | 4 | ≥ 1 |
-| Vel. media | 23.7 km/h | 14–26 km/h |
-| % intents aceleración | 63.2% | ≥ 8% |
-| CTE medio | 2.41 m | ≤ 6 m |
-| % stuck | 0% | ≤ 20% |
+| Check                 | Resultado   | Umbral     |
+| --------------------- | ----------- | ---------- |
+| Vueltas               | 4           | ≥ 1        |
+| Vel. media            | 23.7 km/h   | 14–26 km/h |
+| % intents aceleración | 63.2%       | ≥ 8%       |
+| CTE medio             | 2.41 m      | ≤ 6 m      |
+| % stuck               | 0%          | ≤ 20%      |
 
 ---
 
@@ -112,16 +112,17 @@ tests.bat
 - HTML: `logs/teaching/20260918T190548Z_sugo_gp_f3_frenar.html`
 - Duración: ~99 min · **10 vueltas**
 
-| Check | Resultado | Umbral |
-|-------|-----------|--------|
-| Vueltas | 10 | ≥ 1 |
-| % intents freno | 35.8% | ≥ 5% |
-| CTE medio | 2.44 m | ≤ 6.5 m |
-| % stuck | 0% | ≤ 15% |
-| % safety override | 0% | ≤ 25% |
-| Vel. media | 23.7 km/h | — |
+| Check             | Resultado   | Umbral   |
+| ----------------- | ----------- | -------- |
+| Vueltas           | 10          | ≥ 1      |
+| % intents freno   | 35.8%       | ≥ 5%     |
+| CTE medio         | 2.44 m      | ≤ 6.5 m  |
+| % stuck           | 0%          | ≤ 15%    |
+| % safety override | 0%          | ≤ 25%    |
+| Vel. media        | 23.7 km/h   | —        |
 
-**Intents dominantes:** `maintain_speed`, `brake_overspeed` — acelerar y frenar presentes en la misma sesión.
+**Intents dominantes:** `maintain_speed`, `brake_overspeed` — acelerar y frenar presentes en la
+misma sesión.
 
 **Confirmación (misma fase, 2026-09-18 tarde):**
 
@@ -129,13 +130,13 @@ tests.bat
 - HTML: `logs/teaching/20260918T205006Z_sugo_gp_f3_frenar.html`
 - Duración: ~9 min · **1 vuelta** · APTO (todos los checks OK)
 
-| Check | Resultado | Umbral |
-|-------|-----------|--------|
-| Vueltas | 1 | ≥ 1 |
-| % intents freno | 37.1% | ≥ 5% |
-| CTE medio | 2.36 m | ≤ 6.5 m |
-| % stuck | 0% | ≤ 15% |
-| Vel. media | 23.8 km/h | — |
+| Check           | Resultado   | Umbral   |
+| --------------- | ----------- | -------- |
+| Vueltas         | 1           | ≥ 1      |
+| % intents freno | 37.1%       | ≥ 5%     |
+| CTE medio       | 2.36 m      | ≤ 6.5 m  |
+| % stuck         | 0%          | ≤ 15%    |
+| Vel. media      | 23.8 km/h   | —        |
 
 Métricas alineadas con la sesión larga (`190548Z`); basta **1 vuelta** para APTO en F3.
 
@@ -143,7 +144,8 @@ Métricas alineadas con la sesión larga (`190548Z`); basta **1 vuelta** para AP
 
 ## F4 — Combinado (vuelta limpia) ✅ APTO
 
-**Qué valida:** girar + acelerar + frenar juntos en vuelta limpia (criterios más estrictos que F1–F3).
+**Qué valida:** girar + acelerar + frenar juntos en vuelta limpia (criterios más estrictos que
+F1–F3).
 
 **Sesión de referencia (2026-09-18):**
 
@@ -151,32 +153,33 @@ Métricas alineadas con la sesión larga (`190548Z`); basta **1 vuelta** para AP
 - HTML: `logs/teaching/20260918T210105Z_sugo_gp_f4_combinado.html`
 - Duración: ~9 min · **1 vuelta**
 
-| Check | Resultado | Umbral |
-|-------|-----------|--------|
-| Vueltas | 1 | ≥ 1 |
-| CTE medio | 2.33 m | ≤ 5 m |
-| CTE p95 | 3.71 m | ≤ 8 m |
-| % off-track | 0% | ≤ 5% |
-| % stuck | 0% | ≤ 10% |
-| Vel. media | 23.8 km/h | 15–25 km/h |
-| % aceleración | 62.8% | ≥ 5% |
-| % freno | 37.2% | ≥ 3% |
-| % safety override | 0% | ≤ 15% |
+| Check             | Resultado   | Umbral     |
+| ----------------- | ----------- | ---------- |
+| Vueltas           | 1           | ≥ 1        |
+| CTE medio         | 2.33 m      | ≤ 5 m      |
+| CTE p95           | 3.71 m      | ≤ 8 m      |
+| % off-track       | 0%          | ≤ 5%       |
+| % stuck           | 0%          | ≤ 10%      |
+| Vel. media        | 23.8 km/h   | 15–25 km/h |
+| % aceleración     | 62.8%       | ≥ 5%       |
+| % freno           | 37.2%       | ≥ 3%       |
+| % safety override | 0%          | ≤ 15%      |
 
-**Intents dominantes:** `maintain_speed`, `brake_overspeed` — misma mezcla acel/freno que F2–F3, con CTE ligeramente mejor que F1–F3.
+**Intents dominantes:** `maintain_speed`, `brake_overspeed` — misma mezcla acel/freno que F2–F3, con
+CTE ligeramente mejor que F1–F3.
 
 ---
 
 ## F5 — Aprendizaje ← **AHORA**
 
-| Paso | `.bat` | Salida |
-|------|--------|--------|
-| 1. Grabar teacher | `record.bat` | `data/universal_teacher.jsonl` |
-| 2. Entrenar BC (offline) | `entrenar_bc.bat` | `models/universal_bc.pt` |
-| 3. Evaluar offline | `eval_bc.bat` | MAE en consola |
-| 4. Probar red (sin aprender) | `imitar_bc.bat` | HTML en `logs/imitation/` |
-| 5. **Aprender en pista** | `aprender.bat` | fine-tune cada vuelta + HTML en `logs/learning/` |
-| 6. Hybrid / autonomía | `imitar_hybrid.bat` → `imitar_autonomo.bat` | cuando L7 por banda o vueltas limpias |
+| Paso                         | `.bat`                                      | Salida                                           |
+| ---------------------------- | ------------------------------------------- | ------------------------------------------------ |
+| 1. Grabar teacher            | `record.bat`                                | `data/universal_teacher.jsonl`                   |
+| 2. Entrenar BC (offline)     | `entrenar_bc.bat`                           | `models/universal_bc.pt`                         |
+| 3. Evaluar offline           | `eval_bc.bat`                               | MAE en consola                                   |
+| 4. Probar red (sin aprender) | `imitar_bc.bat`                             | HTML en `logs/imitation/`                        |
+| 5. **Aprender en pista**     | `aprender.bat`                              | fine-tune cada vuelta + HTML en `logs/learning/` |
+| 6. Hybrid / autonomía        | `imitar_hybrid.bat` → `imitar_autonomo.bat` | cuando L7 por banda o vueltas limpias            |
 
 F1–F4 = **reglas**. F5 = la red aprende del teacher.
 
@@ -184,14 +187,16 @@ F1–F4 = **reglas**. F5 = la red aprende del teacher.
 
 **Documento detallado:** [CURRICULO_VELOCIDAD.md](CURRICULO_VELOCIDAD.md)
 
-| Banda | Etapas | Graduar banda |
-|-------|--------|---------------|
+| Banda                       | Etapas                  | Graduar banda                              |
+| --------------------------- | ----------------------- | ------------------------------------------ |
 | 20 → 30 → 40 → 50 → 60 km/h | **L1→L7** en cada banda | L7 dominada → siguiente banda, reinicia L1 |
 
-Cada vuelta: BC conduce, teacher corrige → buffer (`learn_stage` + `speed_band_kmh`) → **fine-tune**.  
+Cada vuelta: BC conduce, teacher corrige → buffer (`learn_stage` + `speed_band_kmh`) →
+**fine-tune**.
 Hybrid/autonomía cuando L7 esté estable en la banda actual.
 
 El **HTML** (`logs/learning/`) muestra:
+
 - **Objetivos** de la etapa (CTE, freno, vueltas limpias…)
 - **Tiempos por vuelta** (seguimiento; la red no optimiza tiempo aún)
 - Referencia teacher vs tu mejor vuelta
@@ -199,39 +204,38 @@ El **HTML** (`logs/learning/`) muestra:
 ### Ejecutar (primera vez)
 
 ```bat
-record.bat          rem ≥3 vueltas, Ctrl+C
-entrenar_bc.bat
-eval_bc.bat
-aprender.bat        rem aprende vuelta a vuelta, abre HTML al salir
 ```
 
 ---
 
 ## F6 — Condiciones avanzadas (planificado, no ahora)
 
-**Estado:** documentado para más adelante · **Prerrequisito:** F5 estable (L7 por banda, Hybrid/Autónomo limpios, opcional multi-pista).
+**Estado:** documentado para más adelante · **Prerrequisito:** F5 estable (L7 por banda,
+Hybrid/Autónomo limpios, opcional multi-pista).
 
-| Capa | Qué incluye | Cuándo |
-|------|------------|--------|
-| **F5 actual** | Línea, ritmo, técnica · `universal_v1` · multi-pista con referencia local | **Ahora** |
-| **F6a** | Temp. neumático/pista, combustible, desgaste (UDP en vivo) | Tras base sólida |
-| **F6b** | Setup, diferenciales, compuesto (metadata de sesión + efectos en telemetría) | Tras F6a |
-| **F7** | RL / optimización de stint | Tras BC estable en condiciones |
+| Capa          | Qué incluye                                                                  | Cuándo                         |
+| ------------- | ---------------------------------------------------------------------------- | ------------------------------ |
+| **F5 actual** | Línea, ritmo, técnica · `universal_v1` · multi-pista con referencia local    | **Ahora**                      |
+| **F6a**       | Temp. neumático/pista, combustible, desgaste (UDP en vivo)                   | Tras base sólida               |
+| **F6b**       | Setup, diferenciales, compuesto (metadata de sesión + efectos en telemetría) | Tras F6a                       |
+| **F7**        | RL / optimización de stint                                                   | Tras BC estable en condiciones |
 
 Detalle completo: **[ROADMAP_CONDICIONES.md](ROADMAP_CONDICIONES.md)**
 
-> La base universal actual sirve para **todos los circuitos con referencia grabada**, siempre que coche y condiciones sean similares al entrenamiento. Lluvia, desgaste u otro setup requieren datos y currículo propios.
+> La base universal actual sirve para **todos los circuitos con referencia grabada**, siempre que
+> coche y condiciones sean similares al entrenamiento. Lluvia, desgaste u otro setup requieren datos
+> y currículo propios.
 
 ---
 
 ## Glosario rápido
 
-| Término | Significado |
-|---------|-------------|
-| **CTE / cte_avg** | Distancia media (m) a la línea de referencia. Menor = mejor trazado. |
-| **CTE p95** | 95% del tiempo por debajo de este CTE (picos malos). |
+| Término            | Significado                                                           |
+| ------------------ | --------------------------------------------------------------------- |
+| **CTE / cte_avg**  | Distancia media (m) a la línea de referencia. Menor = mejor trazado.  |
+| **CTE p95**        | 95% del tiempo por debajo de este CTE (picos malos).                  |
 | **teacher_reason** | Por qué actuó el teacher (`accel_straight`, `brake_overspeed`, etc.). |
-| **APTO / REVISAR** | Pass/fail de la fase según umbrales en `validation_phases.py`. |
+| **APTO / REVISAR** | Pass/fail de la fase según umbrales en `validation_phases.py`.        |
 
 ---
 
@@ -246,7 +250,6 @@ Detalle completo: **[ROADMAP_CONDICIONES.md](ROADMAP_CONDICIONES.md)**
 Regenerar HTML sin volver a conducir:
 
 ```bat
-report_sesion.bat logs\teaching\tu_sesion.jsonl
 ```
 
 ---
@@ -261,7 +264,7 @@ report_sesion.bat logs\teaching\tu_sesion.jsonl
 
 ## Qué pasar para revisión (IA / análisis)
 
-```
+```text
 @PCARS2-AI/logs/teaching/ULTIMA_SESION.html
 @PCARS2-AI/logs/teaching/ULTIMA_SESION.jsonl
 ```
@@ -272,12 +275,12 @@ Indica la fase y si el banner dice APTO o REVISAR.
 
 ## Historial de cambios
 
-| Fecha | Cambio |
-|-------|--------|
-| 2026-09-18 | F1–F4 definidas; JSONL + HTML teaching; inicio Sugo |
+| Fecha      | Cambio                                                                  |
+| ---------- | ----------------------------------------------------------------------- |
+| 2026-09-18 | F1–F4 definidas; JSONL + HTML teaching; inicio Sugo                     |
 | 2026-09-18 | F1 APTO (`174337Z`): 3 vueltas, CTE 2.36 m, fixes steering + auto-shift |
-| 2026-09-18 | F2 APTO (`182344Z`): 4 vueltas, vel 23.7 km/h, CTE 2.41 m |
-| 2026-09-18 | F3 APTO (`190548Z`): 10 vueltas, freno 35.8%, CTE 2.44 m |
-| 2026-09-18 | F3 confirmación (`205006Z`): 1 vuelta, freno 37.1%, CTE 2.36 m |
-| 2026-09-18 | Documentado F4 como siguiente; glosario CTE; F0 checklist completo |
-| 2026-09-18 | F4 APTO (`210105Z`): 1 vuelta, CTE 2.33 m, acel 62.8%, freno 37.2% |
+| 2026-09-18 | F2 APTO (`182344Z`): 4 vueltas, vel 23.7 km/h, CTE 2.41 m               |
+| 2026-09-18 | F3 APTO (`190548Z`): 10 vueltas, freno 35.8%, CTE 2.44 m                |
+| 2026-09-18 | F3 confirmación (`205006Z`): 1 vuelta, freno 37.1%, CTE 2.36 m          |
+| 2026-09-18 | Documentado F4 como siguiente; glosario CTE; F0 checklist completo      |
+| 2026-09-18 | F4 APTO (`210105Z`): 1 vuelta, CTE 2.33 m, acel 62.8%, freno 37.2%      |

@@ -140,7 +140,38 @@ def test_auto_shift_top_gear_glitch_with_throttle_downshifts():
     assert ctrl.pressed == ["lb"]
 
 
-def test_auto_shift_no_brake_downshift_when_crawling():
+def test_false_neutral_after_second_does_not_upshift():
+    ctrl = FakeController()
+    shifter = AutoShifter(cooldown_s=0.0)
+    assert auto_shift(ctrl, _telem(gear=2, speed=8.0, rpm=2000), 0.4, 0.0, shifter) is None
+    event = auto_shift(ctrl, _telem(gear=0, speed=8.0, rpm=2000), 0.4, 0.0, shifter)
+    assert event is None
+    assert ctrl.pressed == []
+
+
+def test_persistent_neutral_after_second_shifts_up_to_first():
+    from auto_shift import NEUTRAL_BLIP_FRAMES
+
+    ctrl = FakeController()
+    shifter = AutoShifter(cooldown_s=0.0)
+    auto_shift(ctrl, _telem(gear=2, speed=1.2, rpm=1400), 0.0, 0.0, shifter)
+    ctrl.pressed.clear()
+    event = None
+    for _ in range(NEUTRAL_BLIP_FRAMES + 1):
+        event = auto_shift(ctrl, _telem(gear=0, speed=1.2, rpm=3000), 0.45, 0.0, shifter)
+    assert event == "to_first"
+    assert ctrl.pressed[-1] == "rb"
+
+
+def test_reverse_gear_uses_rb_not_lb():
+    ctrl = FakeController()
+    shifter = AutoShifter(cooldown_s=0.0)
+    auto_shift(ctrl, _telem(gear=2, speed=1.0, rpm=1400), 0.4, 0.0, shifter)
+    ctrl.pressed.clear()
+    event = auto_shift(ctrl, _telem(gear=15, speed=0.0, rpm=2000, num_gears=4), 0.0, 0.7, shifter)
+    assert event == "from_reverse"
+    assert ctrl.pressed == ["rb"]
+
     ctrl = FakeController()
     shifter = AutoShifter(cooldown_s=0.0)
     telem = _telem(gear=3, rpm=2000, speed=0.4)

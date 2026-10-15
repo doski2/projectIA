@@ -15,7 +15,7 @@ import threading
 from typing import List, Optional
 
 from auto_shift import AutoShifter, auto_shift, maybe_engage_first_gear
-from pcars2_gear import choose_bc_drive_pedals
+from pcars2_gear import cap_bc_to_speed_target, choose_bc_drive_pedals
 from bc_training import fine_tune_universal
 from controller import DS4Controller, decode_action
 import numpy as np
@@ -213,6 +213,7 @@ def run(args: argparse.Namespace) -> int:
     lap_guard = LapTransitionGuard(track_length=ref.track_length)
     model_lock = threading.Lock()
     fine_tune_thread: Optional[threading.Thread] = None
+    goal_reached = False
     lap_summary_rows: List[dict] = []
 
     def _persist_progress() -> None:
@@ -268,8 +269,11 @@ def run(args: argparse.Namespace) -> int:
         if fine_tune_thread is not None and fine_tune_thread.is_alive():
             print("[Learn] Fine-tune ya en curso — se omite")
             return False
+        # Frena en meta. El BC no sale hasta que el modelo está cargado y hay 1ª.
+        lap_guard.set_fine_tuning(True)
         fine_tune_thread = threading.Thread(target=_worker, daemon=True)
         fine_tune_thread.start()
+        print("[Learn] Fine-tune en curso — frenando en meta; arranca solo con 1ª puesta")
         return True
 
     if model is None and os.path.isfile(args.base_dataset):
@@ -296,6 +300,18 @@ def run(args: argparse.Namespace) -> int:
             timings = session.last_timings
             frame += 1
 
+            tune_done = (
+                lap_guard.fine_tuning
+                and fine_tune_thread is not None
+                and not fine_tune_thread.is_alive()
+            )
+            if tune_done and telem.gear == 1:
+                if goal_reached:
+                    print("[Learn] Objetivo cumplido — 1ª puesta, cerrando sesión")
+                    break
+                lap_guard.set_fine_tuning(False)
+                print("[Learn] Fine-tune terminado — 1ª puesta, el BC vuelve a conducir")
+
             stage = get_learn_stage(current_stage_id)
             teacher.config.speed_target_kmh = resolve_learn_speed(
                 current_stage_id, current_speed_band, args.speed_target,
@@ -321,8 +337,16 @@ def run(args: argparse.Namespace) -> int:
             )
             if ovr_inc:
                 override_count += 1
+            if not lap_guard.active and not override:
+                proposed, capped = cap_bc_to_speed_target(
+                    proposed, telem.speed, teacher.speed_target_ms,
+                )
+                if capped:
+                    drive_source = "teacher:speed"
 
-            settle = lap_guard.apply(teacher_tuple, proposed)
+            settle = lap_guard.apply(
+                teacher_tuple, proposed, speed_ms=telem.speed, gear=telem.gear,
+            )
             if settle.active:
                 final = (settle.throttle, settle.brake, settle.steering)
                 drive_source = f"settle:{settle.reason}"
@@ -429,6 +453,7 @@ def run(args: argparse.Namespace) -> int:
                 if advanced:
                     current_stage_id = new_stage
                     clean_streak = 0
+                    goal_reached = True
                     _persist_progress()
                     print(f"[Learn] *** {msg} ***")
                 else:
@@ -441,11 +466,13 @@ def run(args: argparse.Namespace) -> int:
                     current_speed_band = new_band
                     current_stage_id = band_stage
                     clean_streak = 0
+                    goal_reached = True
                     autonomy_announced = False
                     _persist_progress()
                     print(f"[Learn] *** {band_msg} ***")
                 elif band_msg:
                     print(f"[Learn] {band_msg}")
+                    goal_reached = True
 
                 laps_since_learn += 1
                 teacher.reset()
@@ -453,6 +480,12 @@ def run(args: argparse.Namespace) -> int:
                 if laps_since_learn >= args.learn_every:
                     if _start_fine_tune_async():
                         laps_since_learn = 0
+
+                if goal_reached and (
+                    fine_tune_thread is None or not fine_tune_thread.is_alive()
+                ):
+                    print("[Learn] Objetivo cumplido — cerrando sesión")
+                    break
 
                 stage_now = get_learn_stage(current_stage_id)
                 if (

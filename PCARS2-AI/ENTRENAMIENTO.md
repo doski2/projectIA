@@ -8,24 +8,24 @@ Documentación operativa: modos, comandos, logs, revisión de sesiones y flujo s
 
 ## Resumen rápido
 
-| Qué quieres                       | Cómo                                     |
-| --------------------------------- | ---------------------------------------- |
-| Lanzar entrenamiento con GUI      | `gui.bat`                                |
-| Teaching Driver (reglas)          | `teach.bat` o GUI → Teaching Driver      |
+| Qué quieres                       | Cómo                                                                                                       |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Lanzar entrenamiento con GUI      | `gui.bat`                                                                                                  |
+| Teaching Driver (reglas)          | `teach.bat` o GUI → Teaching Driver                                                                        |
 | Validación Sugo F1–F4 + HTML      | `validar_f1.bat` … `validar_f4.bat` — [docs/VALIDACION_TEACHING_SUGO.md](docs/VALIDACION_TEACHING_SUGO.md) |
-| Regenerar HTML de sesión        | `report_sesion.bat logs\teaching\sesion.jsonl` |
-| Grabar demostraciones TEACHER     | `record.bat` — [docs/TEACHING_MARCHAS_Y_DATASET.md](docs/TEACHING_MARCHAS_Y_DATASET.md) |
-| Entrenar BC universal             | `entrenar_bc.bat` → `models/universal_bc.pt` |
-| Evaluar BC offline                | `eval_bc.bat`                            |
-| Probar BC en pista (HTML)         | `imitar_bc.bat`                          |
-| Aprender online (L1–L7 por banda) | `aprender.bat` — [docs/CURRICULO_VELOCIDAD.md](docs/CURRICULO_VELOCIDAD.md) |
-| Hybrid / autonomía                | `imitar_hybrid.bat` / `imitar_autonomo.bat` |
-| Entrenar BC clásico (PPO obs)     | `pretrain.bat` con `--dataset`           |
-| BC / Hybrid / Autonomous en pista | GUI → Teaching Driver                    |
-| Ver progreso en vivo              | `monitor.bat` (otra terminal)            |
-| Curvas PPO                        | `tensorboard.bat`                        |
-| Revisar sesión (o pedir análisis) | `logs/formula_rookie__sugo/metricas.csv` |
-| Tests                             | `tests.bat`                              |
+| Regenerar HTML de sesión          | `report_sesion.bat logs\teaching\sesion.jsonl`                                                             |
+| Grabar demostraciones TEACHER     | `record.bat` — [docs/TEACHING_MARCHAS_Y_DATASET.md](docs/TEACHING_MARCHAS_Y_DATASET.md)                    |
+| Entrenar BC universal             | `entrenar_bc.bat` → `models/universal_bc.pt`                                                               |
+| Evaluar BC offline                | `eval_bc.bat`                                                                                              |
+| Probar BC en pista (HTML)         | `imitar_bc.bat`                                                                                            |
+| Aprender online (L1–L7 por banda) | `aprender.bat` — [docs/CURRICULO_VELOCIDAD.md](docs/CURRICULO_VELOCIDAD.md)                                |
+| Hybrid / autonomía                | `imitar_hybrid.bat` / `imitar_autonomo.bat`                                                                |
+| Entrenar BC clásico (PPO obs)     | `pretrain.bat` con `--dataset`                                                                             |
+| BC / Hybrid / Autonomous en pista | GUI → Teaching Driver                                                                                      |
+| Ver progreso en vivo              | `monitor.bat` (otra terminal)                                                                              |
+| Curvas PPO                        | `tensorboard.bat`                                                                                          |
+| Revisar sesión (o pedir análisis) | `logs/formula_rookie__sugo/metricas.csv`                                                                   |
+| Tests                             | `tests.bat`                                                                                                |
 
 ---
 
@@ -35,33 +35,42 @@ Ruta recomendada antes de depender solo de PPO:
 
 1. **Referencia** — grabar línea con `reference_recorder.py` (prerrequisito).
 2. **Teacher** — `teach.bat` conduce a 20 km/h con reglas explicables.
-3. **Record** — `record.bat` graba ≥3 vueltas limpias en `data/universal_teacher.jsonl` (puedes **no parar** en meta; sin límite de vueltas hasta Ctrl+C).
+3. **Record** — `record.bat` graba ≥3 vueltas limpias en `data/universal_teacher.jsonl` (puedes **no
+
+   parar** en meta; sin límite de vueltas hasta Ctrl+C).
+
 4. **BC universal** — **obligatorio antes de aprender en pista:**
+
    ```bat
-   entrenar_bc.bat
    ```
+
    Equivale a `pretrain_universal.py` → `models/universal_bc.pt`.
+
 5. **Eval** — comprobar MAE antes de pista:
+
    ```bat
-   eval_bc.bat
    ```
-6. **Aprender online** — `aprender.bat` (L1→L7 por banda; ver [docs/CURRICULO_VELOCIDAD.md](docs/CURRICULO_VELOCIDAD.md)).
+
+6. **Aprender online** — `aprender.bat` (L1→L7 por banda; ver
+
+   [docs/CURRICULO_VELOCIDAD.md](docs/CURRICULO_VELOCIDAD.md)).
+
 7. **BC Drive / Hybrid** — `imitar_bc.bat` / `imitar_hybrid.bat` o GUI; teacher como fallback.
 8. **Autonomous** — tras currículo estable o `imitar_autonomo.bat`.
 9. **PPO fine-tune** — cuando BC sea estable:
+
    ```bat
-   entrenar.bat src\refs\sugo_ai.json 150000 --base-model models\teacher_bc --basics --speed-target-kmh 25
    ```
 
 ### Modos Teaching Driver
 
-| Modo | Script | Quién conduce |
-| ---- | ------ | ------------- |
-| `teacher` | `teaching_driver.py` | Reglas puras |
-| `record` | `teaching_driver.py --mode record` | Reglas + JSONL |
-| `bc_drive` | `imitation_driver.py` | BC + fallback teacher |
-| `hybrid` | `imitation_driver.py --mode hybrid` | Mezcla BC/teacher |
-| `autonomous` | `imitation_driver.py --mode autonomous` | BC (emergencia solo) |
+| Modo         | Script                                  | Quién conduce         |
+| ------------ | --------------------------------------- | --------------------- |
+| `teacher`    | `teaching_driver.py`                    | Reglas puras          |
+| `record`     | `teaching_driver.py --mode record`      | Reglas + JSONL        |
+| `bc_drive`   | `imitation_driver.py`                   | BC + fallback teacher |
+| `hybrid`     | `imitation_driver.py --mode hybrid`     | Mezcla BC/teacher     |
+| `autonomous` | `imitation_driver.py --mode autonomous` | BC (emergencia solo)  |
 
 Criterios de validación (teacher a 20 km/h): `avg_cte` < 5 m, vueltas completas,
 `pct_stuck` < 20%. Para BC: MAE steering < 0.15, MAE pedales < 0.20.
@@ -76,10 +85,10 @@ El teacher enseña **cuándo / por qué / cómo** actuar. La política universal
 ### Grabar dataset universal
 
 ```bat
-record.bat
 ```
 
-Equivale a `teaching_driver.py --mode record --universal --reference src/refs/sugo_ai.json --speed-target 20`.
+Equivale a `teaching_driver.py --mode record --universal --reference src/refs/sugo_ai.json
+--speed-target 20`.
 
 Cada muestra incluye:
 
@@ -87,52 +96,50 @@ Cada muestra incluye:
 - `teacher_reason` + `reason_id` + `rule: { when, why, how }`
 - `track_name` (p. ej. `SUGO_GP`)
 
-**Vueltas:** `--max-laps 0` (sin tope). Recomendado **≥ 3 vueltas** continuas en el mismo JSONL.  
-**Off-track:** el teacher recupera en pista; esas muestras **no** entran al JSONL con safety activa (ver [docs/TEACHING_MARCHAS_Y_DATASET.md](docs/TEACHING_MARCHAS_Y_DATASET.md)).
+**Vueltas:** `--max-laps 0` (sin tope). Recomendado **≥ 3 vueltas** continuas en el mismo JSONL.
+**Off-track:** el teacher recupera en pista; esas muestras **no** entran al JSONL con safety activa
+(ver [docs/TEACHING_MARCHAS_Y_DATASET.md](docs/TEACHING_MARCHAS_Y_DATASET.md)).
 
-**Marchas:** auto-shift ON; lógica RB/LB documentada en el mismo doc (retroceso en 1ª sin RB, neutro → `engage_first`).
+**Marchas:** auto-shift ON; lógica RB/LB documentada en el mismo doc (retroceso en 1ª sin RB, neutro
+→ `engage_first`).
 
-Repite en **2–3 pistas** para generalizar. Estrategia multi-pista con JSONL “limpios” por circuito: mismo doc.
+Repite en **2–3 pistas** para generalizar. Estrategia multi-pista con JSONL “limpios” por circuito:
+mismo doc.
 
 ### Entrenar BC universal
 
 ```bat
-entrenar_bc.bat
 ```
 
 O varios datasets (concatena por número de muestras; equilibrar pistas a mano):
 
 ```bat
-..\.venv\Scripts\python.exe src\pretrain_universal.py ^
-  --dataset data\sugo_clean.jsonl ^
-  --dataset data\otra_pista_clean.jsonl ^
-  --output models\universal_bc.pt
 ```
 
-Salida habitual: **`PCARS2-AI/models/universal_bc.pt`** (ejecutar `.bat` desde `PCARS2-AI/`).  
+Salida habitual: **`PCARS2-AI/models/universal_bc.pt`** (ejecutar `.bat` desde `PCARS2-AI/`).
 El `.pt` **no** guarda vueltas ni referencias; solo pesos entrenados con los JSONL usados.
 
 ### Evaluar
 
 ```bat
-..\.venv\Scripts\python.exe src\eval_universal.py -d data\universal_teacher.jsonl -m models\universal_bc.pt
 ```
 
 ### Conducir en pista nueva
 
-Solo necesitas **referencia local** de esa pista (para CTE/curvatura). El modelo ya aprendió las reglas.  
-Válido para cualquier circuito grabado con el mismo enfoque (coche/setup/condiciones similares al dataset).
+Solo necesitas **referencia local** de esa pista (para CTE/curvatura). El modelo ya aprendió las
+reglas.
+Válido para cualquier circuito grabado con el mismo enfoque (coche/setup/condiciones similares al
+dataset).
 
-**Futuro (no implementar aún):** temperatura, combustible, desgaste, setup, diferenciales…  
-Plan por capas tras dominar el currículo L1→L7: [docs/ROADMAP_CONDICIONES.md](docs/ROADMAP_CONDICIONES.md)
+**Futuro (no implementar aún):** temperatura, combustible, desgaste, setup, diferenciales…
+Plan por capas tras dominar el currículo L1→L7:
+[docs/ROADMAP_CONDICIONES.md](docs/ROADMAP_CONDICIONES.md)
 
 ```bat
-..\.venv\Scripts\python.exe src\imitation_driver.py --universal ^
-  --reference src\refs\nueva_pista.json ^
-  --model models\universal_bc.pt --mode bc_drive
 ```
 
-Modo `autonomous`: predice intención desde obs (sin teacher en cada frame; teacher solo en emergencia).
+Modo `autonomous`: predice intención desde obs (sin teacher en cada frame; teacher solo en
+emergencia).
 
 ---
 
@@ -174,7 +181,6 @@ Solo cuando mantenga **35+ km/h en línea** de forma habitual. Modo **Completo**
 ### Archivar sesión anterior y empezar desde 0
 
 ```bat
-archivar_sesion.bat
 ```
 
 Mueve `models/formula_rookie__sugo/` y `logs/formula_rookie__sugo/` a carpetas `*_archive_FECHA/`.
@@ -183,20 +189,24 @@ También archiva `models/pretrained.zip` si existe.
 ### Entrenamiento — Básicos desde cero (recomendado ahora)
 
 ```bat
-entrenar.bat src\refs\sugo_ai.json 150000 --frame-skip 4 --warmup-steps 30 --basics --speed-target-kmh 20 --fresh
 ```
 
 - **Sin** `--model` y con **`--fresh`** (política nueva; no carga checkpoints ni pretrained).
-- En la GUI: marca **Desde cero (--fresh)**. Sin marcar y sin checkpoint → auto-reanuda (max steps → _final).
+- En la GUI: marca **Desde cero (--fresh)**. Sin marcar y sin checkpoint → auto-reanuda (max steps →
+
+  _final).
+
 - **Último** desmarca “Desde cero” y rellena el checkpoint con más pasos.
 - **Sin** `--curriculum` (usar `--basics`).
-- En básicos, `stuck` es más permisivo: < 1.4 km/h durante ~15 s (vs 3.6 km/h / 8 s en modo completo).
+- En básicos, `stuck` es más permisivo: < 1.4 km/h durante ~15 s (vs 3.6 km/h / 8 s en modo
+
+  completo).
+
 - **100k–150k** pasos por sesión supervisada (no 500k de golpe).
 
 ### Continuar sesión Básicos (con checkpoint)
 
 ```bat
-entrenar.bat src\refs\sugo_ai.json 100000 --frame-skip 4 --warmup-steps 30 --basics --speed-target-kmh 20 --model models\formula_rookie__sugo\pcars2_formula_rookie__sugo_XXXXX_steps
 ```
 
 Sustituye `XXXXX` por el número del último `*_steps.zip` (sin `.zip` en `--model`).
@@ -204,7 +214,6 @@ Sustituye `XXXXX` por el número del último `*_steps.zip` (sin `.zip` en `--mod
 ### GUI (equivalente a los comandos)
 
 ```bat
-gui.bat
 ```
 
 1. Modo **Básicos — línea, velocidad, girar**
@@ -218,22 +227,20 @@ La configuración se guarda en `v2/user_settings.json`.
 ### Monitor y TensorBoard
 
 ```bat
-monitor.bat
 ```
 
 Desde la GUI: botones **Monitor** y **TensorBoard**. El monitor muestra **ETA** y barra de pasos si
-indicas `--timesteps` (la GUI lo pasa automáticamente). Ver [Planificar pasos y tiempo](#planificar-pasos-y-tiempo).
+indicas `--timesteps` (la GUI lo pasa automáticamente). Ver [Planificar pasos y
+tiempo](#planificar-pasos-y-tiempo).
 
 TensorBoard (opcional):
 
 ```bat
-..\.venv\Scripts\python.exe -m tensorboard.main --logdir logs\formula_rookie__sugo
 ```
 
 ### Tests
 
 ```bat
-tests.bat
 ```
 
 ---
@@ -253,7 +260,6 @@ tests.bat
 ## Archivar modelo viejo y empezar limpio
 
 ```bat
-move models\formula_rookie__sugo models\formula_rookie__sugo_backup_%DATE:~-4%%DATE:~3,2%%DATE:~0,2%
 ```
 
 Crea carpetas nuevas al entrenar. No borrar sin `move` (archivo por si hay que comparar).
@@ -283,9 +289,6 @@ Crea carpetas nuevas al entrenar. No borrar sin `move` (archivo por si hay que c
 ### Consola — líneas útiles
 
 ```text
-Ep 42 | rew=... | len=... | fin=stuck
-[SpeedTarget] ✓ avg=22.1 km/h ≈ objetivo 20.0 km/h → nuevo objetivo: 25.0 km/h
-[Env] Modo BÁSICOS: línea + velocidad objetivo + girar + acciones suaves.
 ```
 
 `fin=` = razón de fin de episodio: `stuck`, `no_progress`, `wrong_way`, `lap_done`, `pit_box`,
@@ -342,20 +345,6 @@ función de reward).
 ## Estructura v2
 
 ```text
-PCARS2-AI/
-  gui.bat                 ← GUI
-  entrenar.bat            ← CLI (igual que antes, nuevos flags)
-  monitor.bat
-  tensorboard.bat
-  tests.bat
-  v2/
-    config.py             ← modos y presets (ampliar aquí)
-    launcher.py           ← construye comando y lanza procesos
-    gui.py
-    user_settings.json    ← se crea al entrenar
-  logs/formula_rookie__sugo/
-    metricas.csv
-  models/formula_rookie__sugo/
 ```
 
 ### Modos en `v2/config.py`
@@ -373,11 +362,6 @@ PCARS2-AI/
 ## Flujo supervisado recomendado
 
 ```text
-1. Archivar modelo/CSV curriculum (si aplica)
-2. gui.bat → Básicos, 20 km/h, 100k, sin checkpoint
-3. monitor.bat en otra ventana
-4. Al terminar: revisar metricas.csv
-5. Decidir: +100k | subir a 25 km/h | ajustar código
 ```
 
 ---
@@ -387,7 +371,6 @@ PCARS2-AI/
 El entrenamiento es **síncrono** con PCARS2: PPO no avanza más rápido que el juego.
 
 ```text
-PPO → mando virtual (ViGEm) → PCARS2 → UDP :5606 → environment → reward/obs → PPO
 ```
 
 ### Qué hace el entorno (desde 2026-09-13)
@@ -400,25 +383,24 @@ Así el FPS del CSV refleja **pasos PPO reales**, no timeouts ni backlog del soc
 
 ### Métricas UDP en `metricas.csv`
 
-| Columna | Interpretación |
-| ------- | -------------- |
-| `udp_physics` | Frames de física aceptados en el rollout |
-| `pct_udp_timeout` | Alto → juego en pausa, menú, o sin UDP |
+| Columna           | Interpretación                                         |
+| ----------------- | ------------------------------------------------------ |
+| `udp_physics`     | Frames de física aceptados en el rollout               |
+| `pct_udp_timeout` | Alto → juego en pausa, menú, o sin UDP                 |
 | `pct_udp_backlog` | Alto → antes había cola UDP (FPS artificialmente alto) |
 
 ### `frame_skip`
 
-| Valor | Efecto |
-| ----- | ------ |
-| **4** (defecto GUI) | Más estable; ~6 pasos PPO/s con juego a 25 Hz |
-| **2** | 2× pasos/hora; volante más reactivo; prueba si CTE oscila |
+| Valor               | Efecto                                                    |
+| ------------------- | --------------------------------------------------------- |
+| **4** (defecto GUI) | Más estable; ~6 pasos PPO/s con juego a 25 Hz             |
+| **2**               | 2× pasos/hora; volante más reactivo; prueba si CTE oscila |
 
 ### FPS esperado
 
 No confundir con rendimiento GPU. Con `frame_skip=4` y juego a ~25 Hz:
 
 ```text
-FPS_monitor ≈ 25 / frame_skip ≈ 6 pasos PPO por segundo
 ```
 
 Si ves **FPS >> 8** con `frame_skip=4`, revisa `pct_udp_backlog` (cola UDP). Si **FPS < 3**
@@ -431,18 +413,18 @@ y `pct_udp_timeout` alto, el juego no está enviando telemetría (pausa, menú, 
 El campo **Pasos (timesteps)** en la GUI y el flag `--timesteps` de `main.py` son el **total
 acumulado de SB3**, no «pasos extra de esta tanda».
 
-| Situación | Qué poner en GUI |
-| --------- | ---------------- |
-| Primera sesión desde 0 | `150000` = entrena hasta 150k y para |
-| Continuar sin checkpoint manual | Pasos **totales** deseados (ej. `450000`); desmarca **Desde cero** |
-| Continuar con `--model` | El contador sigue desde el checkpoint; el objetivo sigue siendo el **total** |
+| Situación                       | Qué poner en GUI                                                             |
+| ------------------------------- | ---------------------------------------------------------------------------- |
+| Primera sesión desde 0          | `150000` = entrena hasta 150k y para                                         |
+| Continuar sin checkpoint manual | Pasos **totales** deseados (ej. `450000`); desmarca **Desde cero**           |
+| Continuar con `--model`         | El contador sigue desde el checkpoint; el objetivo sigue siendo el **total** |
 
-El monitor calcula: `restantes = objetivo − total_timesteps` del CSV y `ETA = restantes / FPS_medio`.
+El monitor calcula: `restantes = objetivo − total_timesteps` del CSV y `ETA = restantes /
+FPS_medio`.
 
 ### Fórmula rápida
 
 ```text
-timesteps_objetivo = pasos_actuales + (horas × 3600 × FPS_esperado)
 ```
 
 Usa el **FPS medio** del monitor (últimos rollouts). Con `frame_skip=4` suele ser **4–6**;
@@ -464,8 +446,6 @@ para planificar usa **5** (conservador) o mira `udp_physics` en el CSV.
 Supón que empiezas o continúas con ~**40k** pasos y el FPS medio es ~**20**:
 
 ```text
-6 h 20 min ≈ 22 800 s × 20 FPS ≈ 456 000 pasos más
-40 000 + 456 000 ≈ 496 000 → redondea a 450 000–500 000
 ```
 
 | Objetivo GUI | FPS ~ | Termina ~ |
@@ -491,7 +471,10 @@ es **ese número + pasos de la noche**:
 
 ### Checklist antes de dejar el PC
 
-1. **Desde cero** desmarcado si quieres continuar (checkpoint vacío = auto-reanuda el último `*_steps.zip`).
+1. **Desde cero** desmarcado si quieres continuar (checkpoint vacío = auto-reanuda el último
+
+   `*_steps.zip`).
+
 2. **Pasos** = total objetivo calculado arriba (no solo los de la noche).
 3. **save_freq** 10 000 (defecto GUI) → checkpoint cada ~8–10 min a 20 FPS.
 4. PCARS2 en pista; **Monitor** abierto (ETA y barra de pasos).
@@ -501,20 +484,24 @@ es **ese número + pasos de la noche**:
 
 Mira `metricas.csv` (últimas filas) y `pct_stuck`, `avg_speed_kmh`, `ep_len_mean`:
 
-| Señal | Acción |
-| ----- | ------ |
-| `pct_stuck` < 50%, speed ~15–25 km/h, `ep_len_mean` sube | Seguir: nueva meta (ej. +150k o noche con `2 000 000`) |
-| `pct_stuck` > 80% tras 50k+ sin mejora | Parar: grabar IA (`reference_recorder --source ai`) + `pretrain.bat`, luego RL **sin** `--fresh` |
-| Regresión clara (speed cae, stuck sube) | Cargar checkpoint **anterior** con mejor `avg_speed`, no el último |
+| Señal                                                    | Acción                                                                                           |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `pct_stuck` < 50%, speed ~15–25 km/h, `ep_len_mean` sube | Seguir: nueva meta (ej. +150k o noche con `2 000 000`)                                           |
+| `pct_stuck` > 80% tras 50k+ sin mejora                   | Parar: grabar IA (`reference_recorder --source ai`) + `pretrain.bat`, luego RL **sin** `--fresh` |
+| Regresión clara (speed cae, stuck sube)                  | Cargar checkpoint **anterior** con mejor `avg_speed`, no el último                               |
 
-Los criterios detallados de Fase 0 están en [Señales en modo Básicos](#señales-en-modo-básicos-20-kmh)
+Los criterios detallados de Fase 0 están en [Señales en modo
+Básicos](#señales-en-modo-básicos-20-kmh)
 y en [METRICAS.md](METRICAS.md).
 
 ---
 
 ## Referencia cruzada
 
-- [docs/TEACHING_MARCHAS_Y_DATASET.md](docs/TEACHING_MARCHAS_Y_DATASET.md) — marchas, record, JSONL vs `.pt`, multi-pista
+- [docs/TEACHING_MARCHAS_Y_DATASET.md](docs/TEACHING_MARCHAS_Y_DATASET.md) — marchas, record, JSONL
+
+  vs `.pt`, multi-pista
+
 - [docs/CURRICULO_VELOCIDAD.md](docs/CURRICULO_VELOCIDAD.md) — aprender L1→L7 por banda
 - [docs/VALIDACION_TEACHING_SUGO.md](docs/VALIDACION_TEACHING_SUGO.md) — validación teacher F1–F4
 - [METRICAS.md](METRICAS.md) — columnas del CSV y métricas PPO

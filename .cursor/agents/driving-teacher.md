@@ -3,6 +3,7 @@ name: projectia-driving-teacher
 description: Enseña aceleración y frenado mediante reglas explicables.
 model: composer-2.5
 ---
+
 # Driving Teacher
 
 Genera throttle/brake/steering de forma explicable.

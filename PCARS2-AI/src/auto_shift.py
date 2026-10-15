@@ -13,11 +13,13 @@ from dataclasses import dataclass
 from typing import Optional, Protocol
 
 from pcars2_gear import (
+    ENGAGE_FIRST_MAX_SPEED_MS,
     ENGAGE_FIRST_THROTTLE,
     TEACHING_MAX_GEAR,
     backward_allows_rb_shift,
     is_driving_backward,
     is_forward_gear,
+    is_reverse_gear,
     num_gears_safe,
     should_downshift_toward_first,
     should_rb_to_first,
@@ -31,6 +33,8 @@ THROTTLE_ACTIVE = 0.05
 BRAKE_ACTIVE = 0.1
 STALL_SPEED_MS = 0.5
 SHIFT_COOLDOWN_S = 0.18
+# Un 0 de pocos frames tras ir en 2ª es un fallo del UDP, no punto muerto.
+NEUTRAL_BLIP_FRAMES = 4
 
 
 class ShiftController(Protocol):
@@ -50,9 +54,18 @@ class AutoShifter:
 
     cooldown_s: float = SHIFT_COOLDOWN_S
     last_shift_t: float = 0.0
+    last_forward_gear: int = 0
+    neutral_frames: int = 0
 
     def ready(self) -> bool:
         return time.monotonic() - self.last_shift_t >= self.cooldown_s
+
+    def _observe_gear(self, telem: TelemetryFrame) -> None:
+        if is_forward_gear(telem):
+            self.last_forward_gear = telem.gear
+            self.neutral_frames = 0
+        elif telem.gear <= 0:
+            self.neutral_frames += 1
 
     def _press(self, controller: ShiftController, button: str) -> None:
         controller.press_button(button)
@@ -73,6 +86,8 @@ class AutoShifter:
         if telem.max_rpm == 0:
             return None
 
+        self._observe_gear(telem)
+
         ratio = rpm_ratio(telem)
         gear = telem.gear
         num_gears = num_gears_safe(telem)
@@ -84,10 +99,28 @@ class AutoShifter:
             self._press(controller, "rb")
             return "from_reverse"
 
+        if is_reverse_gear(telem.gear):
+            self._press(controller, "rb")
+            return "from_reverse"
+
         shift_throttle = throttle_for_shift(telem, throttle)
 
         if shift_throttle > THROTTLE_ACTIVE:
             if should_rb_to_first(telem):
+                # Punto muerto: solo RB. LB en N mete la marcha atrás.
+                if telem.gear <= 0:
+                    if self.last_forward_gear >= 1 and self.neutral_frames <= NEUTRAL_BLIP_FRAMES:
+                        return None
+                    self._press(controller, "rb")
+                    return "to_first"
+                # Byte inválido tras ir en 2ª: no subir con RB.
+                if self.last_forward_gear >= 2:
+                    if self.neutral_frames <= NEUTRAL_BLIP_FRAMES:
+                        return None
+                    if telem.speed < ENGAGE_FIRST_MAX_SPEED_MS:
+                        self._press(controller, "lb")
+                        return "down_to_first"
+                    return None
                 self._press(controller, "rb")
                 return "to_first"
             if should_downshift_toward_first(telem):

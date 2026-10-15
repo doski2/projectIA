@@ -32,31 +32,31 @@ Referencia para interpretar `metricas.csv` y el monitor en consola.
 
 ### Terminaciones (porcentaje de episodios en el rollout)
 
-| Columna           | Condición                                            | `fin=` en consola |
-| ----------------- | ---------------------------------------------------- | ----------------- |
+| Columna           | Condición                                                     | `fin=` en consola |
+| ----------------- | ------------------------------------------------------------- | ----------------- |
 | `pct_stuck`       | speed < umbral durante 8 s / 15 s (básicos) a 25 fps de juego | `stuck`           |
 | `pct_no_progress` | lap_dist no crece +10 m en 12 s / 30 s (básicos) a 25 fps     | `no_progress`     |
-| `pct_wrong_way`   | heading > 160° ~2 s                                  | `wrong_way`       |
-| `pct_pit_box`     | CTE absurda cerca de meta                            | `pit_box`         |
-| `pct_lap_done`    | Vuelta completada                                    | `lap_done`        |
-| `pct_timelimit`   | TimeLimit externo                                    | `timelimit`       |
+| `pct_wrong_way`   | heading > 160° ~2 s                                           | `wrong_way`       |
+| `pct_pit_box`     | CTE absurda cerca de meta                                     | `pit_box`         |
+| `pct_lap_done`    | Vuelta completada                                             | `lap_done`        |
+| `pct_timelimit`   | TimeLimit externo                                             | `timelimit`       |
 
 ### PPO / red
 
-| Columna                | Qué significa                   | Rango saludable                    |
-| ---------------------- | ------------------------------- | ---------------------------------- |
-| `explained_variance`   | Calidad del crítico             | > 0.5                              |
-| `value_loss`           | Error del crítico               | Baja con el tiempo                 |
-| `policy_gradient_loss` | Pérdida actor                   | Cercano a 0, negativo              |
-| `entropy_loss`         | Exploración                     | ~−3 a −6                           |
-| `std`                  | Aleatoriedad acciones           | ~0.8–0.9 en curso; baja al madurar |
-| `approx_kl`            | Cambio de política              | < 0.02 ideal                       |
-| `clip_fraction`        | % recortes PPO                  | 5–20%                              |
-| `fps`                  | Pasos agente / segundo          | Con `frame_skip=4` y juego ~25 Hz: **~4–6** estable |
-| `total_timesteps`      | Pasos acumulados (contador SB3) | —                                  |
-| `udp_physics`          | Frames CAR_PHYSICS aceptados en el rollout | ≈ `2048 × frame_skip` si sin timeouts |
-| `pct_udp_timeout`      | % esperas UDP sin frame nuevo   | **< 5%** ideal; alto = juego pausado o desync |
-| `pct_udp_backlog`      | % física descartada por cola UDP | **< 10%** ideal; alto = ráfagas irreales (FPS inflado) |
+| Columna                | Qué significa                              | Rango saludable                                        |
+| ---------------------- | ------------------------------------------ | ------------------------------------------------------ |
+| `explained_variance`   | Calidad del crítico                        | > 0.5                                                  |
+| `value_loss`           | Error del crítico                          | Baja con el tiempo                                     |
+| `policy_gradient_loss` | Pérdida actor                              | Cercano a 0, negativo                                  |
+| `entropy_loss`         | Exploración                                | ~−3 a −6                                               |
+| `std`                  | Aleatoriedad acciones                      | ~0.8–0.9 en curso; baja al madurar                     |
+| `approx_kl`            | Cambio de política                         | < 0.02 ideal                                           |
+| `clip_fraction`        | % recortes PPO                             | 5–20%                                                  |
+| `fps`                  | Pasos agente / segundo                     | Con `frame_skip=4` y juego ~25 Hz: **~4–6** estable    |
+| `total_timesteps`      | Pasos acumulados (contador SB3)            | —                                                      |
+| `udp_physics`          | Frames CAR_PHYSICS aceptados en el rollout | ≈ `2048 × frame_skip` si sin timeouts                  |
+| `pct_udp_timeout`      | % esperas UDP sin frame nuevo              | **< 5%** ideal; alto = juego pausado o desync          |
+| `pct_udp_backlog`      | % física descartada por cola UDP           | **< 10%** ideal; alto = ráfagas irreales (FPS inflado) |
 
 ---
 
@@ -66,13 +66,13 @@ Actualiza cada ~20 s. Muestra tendencias ▲▼ respecto al rollout anterior.
 
 Métricas destacadas: recompensa, duración, velocidad, distancia, terminaciones, salud PPO.
 
-**Tiempo estimado:** barra de **pasos** (timesteps SB3) + ETA según FPS medio de los últimos rollouts.
+**Tiempo estimado:** barra de **pasos** (timesteps SB3) + ETA según FPS medio de los últimos
+rollouts.
 El objetivo se toma de `--timesteps`, de `v2/user_settings.json` o de la GUI (botón Monitor).
 
 La línea inferior es solo **tendencia visual** de `ep_rew_mean` (no un % de entrenamiento).
 
 ```bat
-monitor.bat --timesteps 450000
 ```
 
 Con **`frame_skip=4`**, el techo teórico es ~**6 pasos/s** (juego 25 Hz ÷ 4). El FPS del CSV no es
@@ -96,7 +96,7 @@ Si ETA > 8 h, el monitor avisa «dejar toda la noche».
 ```bat
 ```
 
-→ http://localhost:6006 — curvas `rollout/` y `train/` de SB3.
+→ <http://localhost:6006> — curvas `rollout/` y `train/` de SB3.
 
 ---
 
@@ -130,12 +130,12 @@ No comparar `ep_rew_mean` con sesiones curriculum antiguas (función de reward d
 
 Contadores en **frames de juego** (25 fps); independientes de `frame_skip`.
 
-| Regla | Modo completo | Básicos | Curriculum |
-| ----- | ------------- | ------- | ---------- |
+| Regla                    | Modo completo            | Básicos                   | Curriculum         |
+| ------------------------ | ------------------------ | ------------------------- | ------------------ |
 | `stuck` (speed < umbral) | < 3.6 km/h, 8 s (200 fr) | < 1.4 km/h, 15 s (375 fr) | igual que completo |
-| `no_progress` (+10 m) | 12 s (300 fr) | 30 s (750 fr) | 30 s (750 fr) |
-| `wrong_way` | heading > 160°, ~2 s | igual | igual |
-| `pit_box` | CTE > 20 m cerca meta | igual | igual |
+| `no_progress` (+10 m)    | 12 s (300 fr)            | 30 s (750 fr)             | 30 s (750 fr)      |
+| `wrong_way`              | heading > 160°, ~2 s     | igual                     | igual              |
+| `pit_box`                | CTE > 20 m cerca meta    | igual                     | igual              |
 
 `GRACE_STEPS = 250` al inicio de episodio (sin cortes por stuck/no_progress/wrong_way).
 

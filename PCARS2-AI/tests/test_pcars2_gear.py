@@ -2,6 +2,7 @@
 
 from pcars2_gear import (
     backward_allows_rb_shift,
+    cap_bc_to_speed_target,
     needs_gear_engagement,
     should_downshift_toward_first,
     should_rb_to_first,
@@ -58,6 +59,18 @@ def test_should_use_teacher_pedals_on_neutral_not_only_safety():
     assert needs_gear_engagement(telem)
     assert should_use_teacher_pedals(telem, safety_override=False)
     assert not should_use_teacher_pedals(telem, safety_override=False, settling=True)
+
+
+def test_speed_cap_cuts_throttle_above_target_and_keeps_steer():
+    proposed = (0.8, 0.0, -0.35)
+    ped, capped = cap_bc_to_speed_target(proposed, speed_ms=20 / 3.6, target_ms=20 / 3.6)
+    assert not capped
+    assert ped == proposed
+    ped, capped = cap_bc_to_speed_target(proposed, speed_ms=30 / 3.6, target_ms=20 / 3.6)
+    assert capped
+    assert ped[0] == 0.0
+    assert ped[1] > 0.4
+    assert ped[2] == -0.35
 
 
 def test_neutral_rolling_still_needs_teacher_engagement():

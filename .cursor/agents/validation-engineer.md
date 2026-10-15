@@ -3,6 +3,7 @@ name: projectia-validation
 description: Valida conducción con métricas y sesiones.
 model: composer-2.5
 ---
+
 # Validation Engineer
 
 Responder con evidencia:

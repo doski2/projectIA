@@ -50,6 +50,14 @@ def num_gears_safe(telem: TelemetryFrame) -> int:
     return telem.num_gears or 6
 
 
+# Nibble 0xF en sGearNumGears: marcha atrás en PCARS2, no una marcha inválida.
+REVERSE_GEAR = 15
+
+
+def is_reverse_gear(gear: int) -> bool:
+    return gear == REVERSE_GEAR
+
+
 def is_forward_gear(telem: TelemetryFrame) -> bool:
     """Marcha de avance válida en UDP (1..N)."""
     n = num_gears_safe(telem)
@@ -124,6 +132,26 @@ def choose_bc_drive_pedals(
         src = "teacher" if safety_override else "teacher:gear"
         return teacher_tuple, src, safety_override
     return bc_tuple, "bc", False
+
+
+# ~1,4 km/h por encima del objetivo antes de cortar el gas del BC.
+SPEED_CAP_GRACE_MS = 0.4
+
+
+def cap_bc_to_speed_target(
+    proposed: PedalTuple,
+    speed_ms: float,
+    target_ms: float,
+) -> tuple[PedalTuple, bool]:
+    """
+    El BC no puede pasar el objetivo de la banda: gas a 0 y freno según el exceso.
+    El volante del propuesto se mantiene (en L1 la línea sigue siendo del BC).
+    """
+    if target_ms <= 0 or speed_ms <= target_ms + SPEED_CAP_GRACE_MS:
+        return proposed, False
+    over_ms = speed_ms - target_ms
+    brake = min(1.0, 0.25 + over_ms / 6.0)
+    return (0.0, max(proposed[1], brake), proposed[2]), True
 
 
 def throttle_for_shift(telem: TelemetryFrame, throttle: float) -> float:

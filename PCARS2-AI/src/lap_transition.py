@@ -1,13 +1,15 @@
 """
 lap_transition.py
-Detecta el cruce de meta. No frena el coche: el fine-tune es asíncrono y un
-freno a 0 en la línea deja la marcha en punto muerto.
+Durante el fine-tune el coche frena y se queda parado.
+Si al parar no está la 1ª, da gas hasta engranarla y no arranca antes.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Tuple
+
+from pcars2_gear import ENGAGE_FIRST_THROTTLE, is_reverse_gear
 
 
 @dataclass
@@ -21,50 +23,48 @@ class SettleDecision:
 
 
 class LapTransitionGuard:
-    """Sigue el cruce de meta sin frenar. Un freno a 0 en la línea deja punto muerto."""
+    """Freno de meta solo mientras dura el fine-tune."""
 
-    DEFAULT_SETTLE_FRAMES = 90
+    HOLD_BRAKE = 0.7
+    STOPPED_SPEED_MS = 0.6
 
-    def __init__(self, track_length: float = 0.0, settle_frames: int = DEFAULT_SETTLE_FRAMES):
+    def __init__(self, track_length: float = 0.0, settle_frames: int = 0):
         self.track_length = track_length
         self.settle_frames = settle_frames
-        self._prev_lap: int = -1
-        self._prev_d: float = 0.0
-        self._settle_left: int = 0
         self._fine_tuning: bool = False
+        self._engaging_gear: bool = False
 
     def reset(self, current_lap: int = 0, lap_distance: float = 0.0) -> None:
-        self._prev_lap = current_lap
-        self._prev_d = lap_distance
-        self._settle_left = 0
+        _ = current_lap, lap_distance
         self._fine_tuning = False
+        self._engaging_gear = False
 
     @property
     def active(self) -> bool:
-        return self._settle_left > 0 or self._fine_tuning
+        return self._fine_tuning
 
-    def trigger_settle(self, frames: Optional[int] = None) -> None:
-        self._settle_left = max(self._settle_left, frames or self.settle_frames)
+    @property
+    def fine_tuning(self) -> bool:
+        return self._fine_tuning
 
     def set_fine_tuning(self, active: bool) -> None:
         self._fine_tuning = active
-        if active:
-            self.trigger_settle()
+        if not active:
+            self._engaging_gear = False
 
     def on_frame(self, current_lap: int, lap_distance: float) -> bool:
-        """Actualiza la vuelta anterior. Cruzar meta no activa el freno."""
-        self._prev_lap = current_lap
-        self._prev_d = lap_distance
-        if self._settle_left > 0 and not self._fine_tuning:
-            self._settle_left -= 1
+        """El cruce de meta no frena. La parada la abre set_fine_tuning."""
+        _ = current_lap, lap_distance
         return self.active
 
     def apply(
         self,
         teacher_tuple: Tuple[float, float, float],
         proposed: Tuple[float, float, float],
+        speed_ms: float = 0.0,
+        gear: int = 1,
     ) -> SettleDecision:
-        if not self.active:
+        if not self._fine_tuning:
             return SettleDecision(
                 active=False,
                 throttle=proposed[0],
@@ -73,13 +73,26 @@ class LapTransitionGuard:
                 skip_bc=False,
             )
 
-        _ = teacher_tuple
-        reason = "fine_tune" if self._fine_tuning else "finish_line"
+        if gear == 1 or is_reverse_gear(gear):
+            self._engaging_gear = False
+        elif speed_ms < self.STOPPED_SPEED_MS:
+            self._engaging_gear = True
+
+        if self._engaging_gear:
+            return SettleDecision(
+                active=True,
+                throttle=ENGAGE_FIRST_THROTTLE,
+                brake=0.0,
+                steering=teacher_tuple[2],
+                skip_bc=True,
+                reason="fine_tune_gear",
+            )
+
         return SettleDecision(
             active=True,
-            throttle=proposed[0],
-            brake=proposed[1],
-            steering=proposed[2],
+            throttle=0.0,
+            brake=self.HOLD_BRAKE,
+            steering=teacher_tuple[2],
             skip_bc=True,
-            reason=reason,
+            reason="fine_tune",
         )
