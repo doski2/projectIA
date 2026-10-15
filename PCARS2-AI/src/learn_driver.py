@@ -12,7 +12,8 @@ import argparse
 import os
 import sys
 import threading
-from typing import List, Optional
+from dataclasses import dataclass
+from typing import Callable, List, Optional
 
 from auto_shift import AutoShifter, auto_shift, maybe_engage_first_gear
 from pcars2_gear import cap_bc_to_speed_target, choose_bc_drive_pedals
@@ -141,6 +142,64 @@ def _load_training_data(
     return _concat_universal_chunks(chunks)
 
 
+@dataclass
+class LearnProgress:
+    """Estado de progreso del currículo durante una sesión de aprendizaje."""
+
+    stage_id: str
+    speed_band: float
+    clean_streak: int = 0
+    max_clean_streak: int = 0
+    goal_reached: bool = False
+    autonomy_announced: bool = False
+
+    def record_lap(self, clean: bool) -> None:
+        self.clean_streak = self.clean_streak + 1 if clean else 0
+        self.max_clean_streak = max(self.max_clean_streak, self.clean_streak)
+
+
+def advance_progress(prog: LearnProgress, persist: Callable[[], None]) -> None:
+    """Intenta subir de etapa y de banda de velocidad tras una vuelta."""
+    new_stage, advanced, msg = try_advance_stage(prog.stage_id, prog.clean_streak)
+    if advanced:
+        prog.stage_id = new_stage
+        prog.clean_streak = 0
+        prog.goal_reached = True
+        persist()
+        print(f"[Learn] *** {msg} ***")
+    else:
+        print(f"[Learn] {msg}")
+
+    new_band, band_advanced, band_stage, band_msg = try_advance_speed_band(
+        prog.speed_band, prog.stage_id, prog.clean_streak,
+    )
+    if band_advanced:
+        prog.speed_band = new_band
+        prog.stage_id = band_stage
+        prog.clean_streak = 0
+        prog.goal_reached = True
+        prog.autonomy_announced = False
+        persist()
+        print(f"[Learn] *** {band_msg} ***")
+    elif band_msg:
+        print(f"[Learn] {band_msg}")
+        prog.goal_reached = True
+
+
+def announce_autonomy(prog: LearnProgress) -> None:
+    stage_now = get_learn_stage(prog.stage_id)
+    if (
+        not prog.autonomy_announced
+        and stage_now.autonomous_ready
+        and prog.max_clean_streak >= stage_now.clean_laps_required
+    ):
+        prog.autonomy_announced = True
+        print(
+            "[Learn] *** Listo para autonomía total — "
+            "usa imitar_autonomo.bat cuando quieras ***"
+        )
+
+
 def run(args: argparse.Namespace) -> int:
     stage_id = args.stage or read_saved_stage(DEFAULT_LEARN_STAGE)
     speed_band = args.speed_band if args.speed_band > 0 else read_saved_speed_band()
@@ -202,26 +261,21 @@ def run(args: argparse.Namespace) -> int:
     lap_completion = LapCompletionTracker()
     laps_done = 0
     laps_since_learn = 0
-    clean_streak = 0
     override_count = 0
     lap_ticks: List[dict] = []
     frame = 0
-    current_stage_id = stage_id
-    current_speed_band = speed_band
-    autonomy_announced = False
-    max_clean_streak = 0
+    prog = LearnProgress(stage_id=stage_id, speed_band=speed_band)
     lap_guard = LapTransitionGuard(track_length=ref.track_length)
     model_lock = threading.Lock()
     fine_tune_thread: Optional[threading.Thread] = None
-    goal_reached = False
     lap_summary_rows: List[dict] = []
 
     def _persist_progress() -> None:
         save_learn_progress(
-            stage_id=current_stage_id,
+            stage_id=prog.stage_id,
             reference=args.reference,
             speed_target_kmh=args.speed_target,
-            speed_band_kmh=current_speed_band,
+            speed_band_kmh=prog.speed_band,
         )
 
     safety.reset(
@@ -244,7 +298,7 @@ def run(args: argparse.Namespace) -> int:
 
     def _run_fine_tune() -> None:
         obs, act, rid, _ = _load_training_data(
-            args.buffer, args.base_dataset, current_stage_id, current_speed_band,
+            args.buffer, args.base_dataset, prog.stage_id, prog.speed_band,
         )
         result = fine_tune_universal(
             model_path=args.model,
@@ -306,15 +360,15 @@ def run(args: argparse.Namespace) -> int:
                 and not fine_tune_thread.is_alive()
             )
             if tune_done and telem.gear == 1:
-                if goal_reached:
+                if prog.goal_reached:
                     print("[Learn] Objetivo cumplido — 1ª puesta, cerrando sesión")
                     break
                 lap_guard.set_fine_tuning(False)
                 print("[Learn] Fine-tune terminado — 1ª puesta, el BC vuelve a conducir")
 
-            stage = get_learn_stage(current_stage_id)
+            stage = get_learn_stage(prog.stage_id)
             teacher.config.speed_target_kmh = resolve_learn_speed(
-                current_stage_id, current_speed_band, args.speed_target,
+                prog.stage_id, prog.speed_band, args.speed_target,
             )
 
             status = safety.update(telem, timings)
@@ -369,8 +423,8 @@ def run(args: argparse.Namespace) -> int:
                     confidence=1.0,
                     obs_schema=OBS_SCHEMA,
                     track_name=ref.track_name or "",
-                    learn_stage=current_stage_id,
-                    speed_band_kmh=current_speed_band,
+                    learn_stage=prog.stage_id,
+                    speed_band_kmh=prog.speed_band,
                 )
 
             flags = lap_tick_safety_flags(status, decision.cte, lap_guard.active)
@@ -404,7 +458,7 @@ def run(args: argparse.Namespace) -> int:
                 teacher_reason=reason,
                 rule=rule_for_reason(reason),
                 drive_source=drive_source,
-                learn_stage=current_stage_id,
+                learn_stage=prog.stage_id,
                 safety_override=override,
                 off_track=flags.off_track,
                 off_surface=flags.off_surface,
@@ -419,60 +473,33 @@ def run(args: argparse.Namespace) -> int:
             if frame % args.log_every == 0:
                 print(
                     f"  f={frame} | {telem.speed * 3.6:5.1f} km/h | "
-                    f"CTE={decision.cte:4.1f}m | {current_stage_id}@{current_speed_band:.0f} | "
+                    f"CTE={decision.cte:4.1f}m | {prog.stage_id}@{prog.speed_band:.0f} | "
                     f"src={drive_source} | ovr={override_count}"
                 )
 
             lap_result = process_lap_rollover(
                 lap_ticks, timings.current_lap, timings.lap_distance,
-                lap_completion, current_stage_id, session_rec,
-                speed_band_kmh=current_speed_band,
+                lap_completion, prog.stage_id, session_rec,
+                speed_band_kmh=prog.speed_band,
             )
             if lap_result is not None:
                 laps_done = lap_completion.laps_done
                 lap_eval = lap_result.lap_eval
-                if lap_result.clean:
-                    clean_streak += 1
-                else:
-                    clean_streak = 0
-                max_clean_streak = max(max_clean_streak, clean_streak)
+                prog.record_lap(lap_result.clean)
 
                 print(
                     f"[Learn] Vuelta {laps_done} | {format_lap_time(lap_result.lap_time_s)} | "
                     f"{lap_eval['summary']} | CTE={lap_eval['avg_cte']}m | "
-                    f"ovr={lap_eval.get('pct_override', 0)}% | clean_streak={clean_streak}"
+                    f"ovr={lap_eval.get('pct_override', 0)}% | clean_streak={prog.clean_streak}"
                 )
                 lap_summary_rows.append(
-                    lap_summary_row_from_result(lap_result, clean_streak),
+                    lap_summary_row_from_result(lap_result, prog.clean_streak),
                 )
                 print_session_lap_board(lap_summary_rows)
 
                 lap_ticks = rotate_lap_buffer(lap_ticks)
 
-                new_stage, advanced, msg = try_advance_stage(current_stage_id, clean_streak)
-                if advanced:
-                    current_stage_id = new_stage
-                    clean_streak = 0
-                    goal_reached = True
-                    _persist_progress()
-                    print(f"[Learn] *** {msg} ***")
-                else:
-                    print(f"[Learn] {msg}")
-
-                new_band, band_advanced, band_stage, band_msg = try_advance_speed_band(
-                    current_speed_band, current_stage_id, clean_streak,
-                )
-                if band_advanced:
-                    current_speed_band = new_band
-                    current_stage_id = band_stage
-                    clean_streak = 0
-                    goal_reached = True
-                    autonomy_announced = False
-                    _persist_progress()
-                    print(f"[Learn] *** {band_msg} ***")
-                elif band_msg:
-                    print(f"[Learn] {band_msg}")
-                    goal_reached = True
+                advance_progress(prog, _persist_progress)
 
                 laps_since_learn += 1
                 teacher.reset()
@@ -481,23 +508,13 @@ def run(args: argparse.Namespace) -> int:
                     if _start_fine_tune_async():
                         laps_since_learn = 0
 
-                if goal_reached and (
+                if prog.goal_reached and (
                     fine_tune_thread is None or not fine_tune_thread.is_alive()
                 ):
                     print("[Learn] Objetivo cumplido — cerrando sesión")
                     break
 
-                stage_now = get_learn_stage(current_stage_id)
-                if (
-                    not autonomy_announced
-                    and stage_now.autonomous_ready
-                    and max_clean_streak >= stage_now.clean_laps_required
-                ):
-                    autonomy_announced = True
-                    print(
-                        "[Learn] *** Listo para autonomía total — "
-                        "usa imitar_autonomo.bat cuando quieras ***"
-                    )
+                announce_autonomy(prog)
 
                 if args.max_laps > 0 and laps_done >= args.max_laps:
                     break
@@ -510,10 +527,10 @@ def run(args: argparse.Namespace) -> int:
         buffer_rec.close()
         session_rec.record_event({
             "type": "session_stats",
-            "clean_streak": clean_streak,
-            "max_clean_streak": max_clean_streak,
-            "final_stage": current_stage_id,
-            "speed_band_kmh": current_speed_band,
+            "clean_streak": prog.clean_streak,
+            "max_clean_streak": prog.max_clean_streak,
+            "final_stage": prog.stage_id,
+            "speed_band_kmh": prog.speed_band,
             "laps_completed": laps_done,
         })
         report = session_rec.finish(laps_completed=laps_done, open_browser=args.open_report)
