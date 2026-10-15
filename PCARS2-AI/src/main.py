@@ -252,6 +252,146 @@ def parse_args() -> argparse.Namespace:
 # Entrenamiento
 # ---------------------------------------------------------------------------
 
+class MetricsAccumulator:
+    """Acumula métricas por rollout para metricas.csv (sin dependencias de SB3)."""
+
+    MAX_SPEED_MS = 97.0
+    TERM_REASONS = ("stuck", "pit_box", "wrong_way", "no_progress", "lap_done")
+
+    def __init__(self, track_length: float = 3567.0):
+        self.track_length = track_length
+        self.reset()
+
+    def reset(self) -> None:
+        self.speed_sum = 0.0
+        self.speed_count = 0
+        self.max_speed_kmh = 0.0
+        self.steer_sum = self.throttle_sum = self.brake_sum = 0.0
+        self.action_count = 0
+        self.cte_sum = 0.0
+        self.cte_count = 0
+        self.ep_count = 0
+        self.term_counts = {r: 0 for r in self.TERM_REASONS}
+        self.n_timelimit = 0
+        self.dist_total_m = 0.0
+        self.dist_prev_prog = 0.0
+
+    def add_step(self, new_obs, actions, infos, dones) -> None:
+        if new_obs is not None:
+            speed_kmh = float(new_obs[0][0]) * self.MAX_SPEED_MS * 3.6  # obs[0] = speed_norm
+            self.speed_sum += speed_kmh
+            self.speed_count += 1
+            self.max_speed_kmh = max(self.max_speed_kmh, speed_kmh)
+        if actions is not None:
+            self.steer_sum += float(actions[0][2])
+            self.throttle_sum += float(actions[0][0])
+            self.brake_sum += float(actions[0][1])
+            self.action_count += 1
+        if infos is not None:
+            cte = infos[0].get('cte', None)
+            if cte is not None:
+                self.cte_sum += cte
+                self.cte_count += 1
+            if dones is not None and dones[0]:
+                tr = infos[0].get('term_reason', '?')
+                self.ep_count += 1
+                if tr in self.term_counts:
+                    self.term_counts[tr] += 1
+                else:
+                    self.n_timelimit += 1
+        if new_obs is not None:
+            # obs[18] = progreso 0-1 en la vuelta
+            prog = float(new_obs[0][18])
+            delta = prog - self.dist_prev_prog
+            if delta < -0.5:   # wrap-around: fin de vuelta
+                delta += 1.0
+            if delta > 0:
+                self.dist_total_m += delta * self.track_length
+            self.dist_prev_prog = prog
+
+    @staticmethod
+    def _mean(total: float, n: int, digits: int) -> float:
+        return round(total / n, digits) if n > 0 else 0.0
+
+    def _pct(self, n: int) -> float:
+        return round(100 * n / self.ep_count, 1) if self.ep_count > 0 else 0.0
+
+    def csv_values(self) -> list:
+        """avg_speed, max_speed, avg_cte, steering, throttle, brake, dist_km, ep_count, pct_*."""
+        return [
+            self._mean(self.speed_sum, self.speed_count, 1),
+            round(self.max_speed_kmh, 1),
+            self._mean(self.cte_sum, self.cte_count, 3),
+            self._mean(self.steer_sum, self.action_count, 4),
+            self._mean(self.throttle_sum, self.action_count, 4),
+            self._mean(self.brake_sum, self.action_count, 4),
+            round(self.dist_total_m / 1000.0, 3),
+            self.ep_count,
+            *(self._pct(self.term_counts[r]) for r in self.TERM_REASONS),
+            self._pct(self.n_timelimit),
+        ]
+
+
+def _load_or_create_model(args, PPO, env, tb_log, model_dir, name_prefix, subdir):
+    """Devuelve (model, reset_num_timesteps) según --model / --base-model / --fresh / auto."""
+    # Prioridad:
+    #   1. --model → continuar ese checkpoint
+    #   2. --base-model → transfer learning
+    #   3. --fresh → política nueva (sin auto-carga)
+    #   4. Auto: max steps del combo → _final → base → pretrained → cero
+    if args.model:
+        print(f"[main] Cargando modelo indicado: {args.model}")
+        model = PPO.load(args.model, env=env, tensorboard_log=tb_log,
+                         custom_objects={'learning_rate': 1e-4, 'clip_range': 0.15})
+        model.ent_coef = 0.007
+        model.vf_coef  = 1.0
+        _reset_log_std(model, target_std=0.85)
+        reset_num_timesteps = False
+
+    elif args.base_model:
+        print(f"[main] Transfer learning desde: {args.base_model}")
+        model = PPO.load(args.base_model, env=env, tensorboard_log=tb_log,
+                         custom_objects={'learning_rate': 1e-4, 'clip_range': 0.2})
+        model.ent_coef = 0.01
+        reset_num_timesteps = True
+
+    else:
+        if args.fresh:
+            print(f"[main] Desde cero (--fresh): nueva política PPO para {subdir}")
+            model = _create_ppo_from_scratch(env, tb_log)
+            reset_num_timesteps = True
+        else:
+            auto_model = _find_best_model(model_dir, name_prefix, args.model_dir, subdir)
+            if auto_model and auto_model["mode"] == "continue":
+                print(f"[main] Continuando desde: {auto_model['path']}")
+                model = PPO.load(auto_model["path"], env=env, tensorboard_log=tb_log,
+                                 custom_objects={'learning_rate': 1e-4, 'clip_range': 0.15})
+                model.ent_coef  = 0.007
+                model.vf_coef   = 1.0
+                _reset_log_std(model, target_std=0.85)
+                reset_num_timesteps = False
+            elif auto_model and auto_model["mode"] == "transfer":
+                print(f"[main] Transfer learning desde modelo base: {auto_model['path']}")
+                print(f"[main] → Combo: {subdir}  (contador de pasos a cero)")
+                model = PPO.load(auto_model["path"], env=env, tensorboard_log=tb_log,
+                                 custom_objects={'learning_rate': 1e-4, 'clip_range': 0.2})
+                model.vf_coef = 1.5
+                reset_num_timesteps = True
+            else:
+                pretrained_path = os.path.join(args.model_dir, "pretrained.zip")
+                if os.path.isfile(pretrained_path):
+                    print(f"[main] Cargando pretrained.zip como base: {pretrained_path}")
+                    model = PPO.load(pretrained_path[:-4], env=env, tensorboard_log=tb_log)
+                    model.ent_coef  = 0.01
+                    model.vf_coef   = 1.5
+                    reset_num_timesteps = True
+                else:
+                    print(f"[main] Creando modelo PPO desde cero para: {subdir}")
+                    model = _create_ppo_from_scratch(env, tb_log)
+                    reset_num_timesteps = True
+    return model, reset_num_timesteps
+
+
 def train(args: argparse.Namespace) -> None:
     # Importaciones pesadas después del argparse para que --help sea rápido
     from stable_baselines3 import PPO
@@ -340,62 +480,9 @@ def train(args: argparse.Namespace) -> None:
         )
         print("[main] VecNormalize creado (stats desde cero).")
 
-    # ---- Crear o cargar modelo ----
-    # Prioridad:
-    #   1. --model → continuar ese checkpoint
-    #   2. --base-model → transfer learning
-    #   3. --fresh → política nueva (sin auto-carga)
-    #   4. Auto: max steps del combo → _final → base → pretrained → cero
-    if args.model:
-        print(f"[main] Cargando modelo indicado: {args.model}")
-        model = PPO.load(args.model, env=env, tensorboard_log=tb_log,
-                         custom_objects={'learning_rate': 1e-4, 'clip_range': 0.15})
-        model.ent_coef = 0.007
-        model.vf_coef  = 1.0
-        _reset_log_std(model, target_std=0.85)
-        reset_num_timesteps = False
-
-    elif args.base_model:
-        print(f"[main] Transfer learning desde: {args.base_model}")
-        model = PPO.load(args.base_model, env=env, tensorboard_log=tb_log,
-                         custom_objects={'learning_rate': 1e-4, 'clip_range': 0.2})
-        model.ent_coef = 0.01
-        reset_num_timesteps = True
-
-    else:
-        if args.fresh:
-            print(f"[main] Desde cero (--fresh): nueva política PPO para {subdir}")
-            model = _create_ppo_from_scratch(env, tb_log)
-            reset_num_timesteps = True
-        else:
-            auto_model = _find_best_model(model_dir, name_prefix, args.model_dir, subdir)
-            if auto_model and auto_model["mode"] == "continue":
-                print(f"[main] Continuando desde: {auto_model['path']}")
-                model = PPO.load(auto_model["path"], env=env, tensorboard_log=tb_log,
-                                 custom_objects={'learning_rate': 1e-4, 'clip_range': 0.15})
-                model.ent_coef  = 0.007
-                model.vf_coef   = 1.0
-                _reset_log_std(model, target_std=0.85)
-                reset_num_timesteps = False
-            elif auto_model and auto_model["mode"] == "transfer":
-                print(f"[main] Transfer learning desde modelo base: {auto_model['path']}")
-                print(f"[main] → Combo: {subdir}  (contador de pasos a cero)")
-                model = PPO.load(auto_model["path"], env=env, tensorboard_log=tb_log,
-                                 custom_objects={'learning_rate': 1e-4, 'clip_range': 0.2})
-                model.vf_coef = 1.5
-                reset_num_timesteps = True
-            else:
-                pretrained_path = os.path.join(args.model_dir, "pretrained.zip")
-                if os.path.isfile(pretrained_path):
-                    print(f"[main] Cargando pretrained.zip como base: {pretrained_path}")
-                    model = PPO.load(pretrained_path[:-4], env=env, tensorboard_log=tb_log)
-                    model.ent_coef  = 0.01
-                    model.vf_coef   = 1.5
-                    reset_num_timesteps = True
-                else:
-                    print(f"[main] Creando modelo PPO desde cero para: {subdir}")
-                    model = _create_ppo_from_scratch(env, tb_log)
-                    reset_num_timesteps = True
+    model, reset_num_timesteps = _load_or_create_model(
+        args, PPO, env, tb_log, model_dir, name_prefix, subdir,
+    )
 
     # ---- Callback: CSV logger ----
     from stable_baselines3.common.callbacks import BaseCallback
@@ -404,34 +491,13 @@ def train(args: argparse.Namespace) -> None:
         """Guarda métricas PPO a un CSV tras cada iteración."""
         def __init__(self, csv_path: str, track_length: float = 3567.0, raw_env=None):
             super().__init__()
-            self._csv_path    = csv_path
-            self._track_length = track_length
-            self._raw_env     = raw_env
+            self._csv_path = csv_path
+            self._raw_env = raw_env
+            self._acc = MetricsAccumulator(track_length)
             self._file = None
             self._writer = None
             self._prev_steps = 0
-            self._prev_time  = None
-            self._speed_sum   = 0.0
-            self._speed_count = 0
-            self._steer_sum    = 0.0
-            self._steer_count  = 0
-            self._throttle_sum  = 0.0
-            self._throttle_count = 0
-            self._brake_sum    = 0.0
-            self._brake_count  = 0
-            self._dist_total_m   = 0.0
-            self._dist_prev_prog = 0.0
-            # Diagnóstico: CTE, velocidad máx, terminaciones
-            self._cte_sum        = 0.0
-            self._cte_count      = 0
-            self._max_speed_kmh  = 0.0
-            self._ep_count       = 0
-            self._n_stuck        = 0
-            self._n_pit_box      = 0
-            self._n_wrong_way    = 0
-            self._n_no_progress  = 0
-            self._n_lap_done     = 0
-            self._n_timelimit    = 0
+            self._prev_time = None
 
         def _on_training_start(self):
             self._prev_steps = self.num_timesteps
@@ -454,55 +520,12 @@ def train(args: argparse.Namespace) -> None:
                 self._file.flush()
 
         def _on_step(self) -> bool:
-            # Acumular velocidad media y máxima (new_obs[0][0] = speed_norm)
-            new_obs = self.locals.get('new_obs')
-            if new_obs is not None:
-                speed_kmh = float(new_obs[0][0]) * 97.0 * 3.6  # MAX_SPEED_MS=97.0
-                self._speed_sum   += speed_kmh
-                self._speed_count += 1
-                if speed_kmh > self._max_speed_kmh:
-                    self._max_speed_kmh = speed_kmh
-            # Acumular steering, throttle y brake medios
-            actions = self.locals.get('actions')
-            if actions is not None:
-                self._steer_sum      += float(actions[0][2])
-                self._steer_count    += 1
-                self._throttle_sum   += float(actions[0][0])
-                self._throttle_count += 1
-                self._brake_sum      += float(actions[0][1])
-                self._brake_count    += 1
-            # Acumular CTE media y contar razones de terminación
-            infos = self.locals.get('infos')
-            if infos is not None:
-                cte = infos[0].get('cte', None)
-                if cte is not None:
-                    self._cte_sum   += cte
-                    self._cte_count += 1
-            dones = self.locals.get('dones')
-            if dones is not None and infos is not None and dones[0]:
-                tr = infos[0].get('term_reason', '?')
-                self._ep_count += 1
-                if tr == 'stuck':
-                    self._n_stuck += 1
-                elif tr == 'pit_box':
-                    self._n_pit_box += 1
-                elif tr == 'wrong_way':
-                    self._n_wrong_way += 1
-                elif tr == 'no_progress':
-                    self._n_no_progress += 1
-                elif tr == 'lap_done':
-                    self._n_lap_done += 1
-                else:
-                    self._n_timelimit += 1
-            # Acumular distancia recorrida usando obs[18] (progress 0-1 en vuelta)
-            if new_obs is not None:
-                prog = float(new_obs[0][18])
-                delta = prog - self._dist_prev_prog
-                if delta < -0.5:   # wrap-around: fin de vuelta
-                    delta += 1.0
-                if delta > 0:
-                    self._dist_total_m += delta * self._track_length
-                self._dist_prev_prog = prog
+            self._acc.add_step(
+                self.locals.get('new_obs'),
+                self.locals.get('actions'),
+                self.locals.get('infos'),
+                self.locals.get('dones'),
+            )
             return True
 
         def _on_rollout_end(self):
@@ -557,44 +580,12 @@ def train(args: argparse.Namespace) -> None:
                 round(log.get('train/clip_fraction', 0), 4),
                 round(log.get('train/learning_rate', 0), 6),
                 int(log.get('train/n_updates', 0)),
-                round(self._speed_sum / self._speed_count, 1) if self._speed_count > 0 else 0.0,
-                round(self._max_speed_kmh, 1),
-                round(self._cte_sum / self._cte_count, 3) if self._cte_count > 0 else 0.0,
-                round(self._steer_sum / self._steer_count, 4) if self._steer_count > 0 else 0.0,
-                round(self._throttle_sum / self._throttle_count, 4) if self._throttle_count > 0 else 0.0,
-                round(self._brake_sum / self._brake_count, 4) if self._brake_count > 0 else 0.0,
-                round(self._dist_total_m / 1000.0, 3),
-                self._ep_count,
-                round(100 * self._n_stuck       / self._ep_count, 1) if self._ep_count > 0 else 0.0,
-                round(100 * self._n_pit_box     / self._ep_count, 1) if self._ep_count > 0 else 0.0,
-                round(100 * self._n_wrong_way   / self._ep_count, 1) if self._ep_count > 0 else 0.0,
-                round(100 * self._n_no_progress / self._ep_count, 1) if self._ep_count > 0 else 0.0,
-                round(100 * self._n_lap_done    / self._ep_count, 1) if self._ep_count > 0 else 0.0,
-                round(100 * self._n_timelimit   / self._ep_count, 1) if self._ep_count > 0 else 0.0,
+                *self._acc.csv_values(),
                 udp_physics,
                 pct_udp_timeout,
                 pct_udp_backlog,
             ])
-            self._speed_sum      = 0.0
-            self._speed_count    = 0
-            self._steer_sum      = 0.0
-            self._steer_count    = 0
-            self._throttle_sum   = 0.0
-            self._throttle_count = 0
-            self._brake_sum      = 0.0
-            self._brake_count    = 0
-            self._dist_total_m   = 0.0
-            self._dist_prev_prog = 0.0
-            self._cte_sum        = 0.0
-            self._cte_count      = 0
-            self._max_speed_kmh  = 0.0
-            self._ep_count       = 0
-            self._n_stuck        = 0
-            self._n_pit_box      = 0
-            self._n_wrong_way    = 0
-            self._n_no_progress  = 0
-            self._n_lap_done     = 0
-            self._n_timelimit    = 0
+            self._acc.reset()
             if self._file:
                 self._file.flush()
 

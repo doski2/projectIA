@@ -16,6 +16,8 @@
 > (5 tests en `test_learn_progress_state.py`; complejidad 40→35, el bucle sigue en `run`). Total: 218 tests.
 > `imitation_driver.run`: extraídos `select_bc_action` y `mix_drive_action` (+`DriveMix`); complejidad 26→20,
 > 6 tests en `test_imitation_mix.py`. Total: 224 tests.
+> `main.train`: callback de métricas movido a `MetricsAccumulator` (módulo, testable, `_on_step` 15→trivial) y
+> selección de modelo a `_load_or_create_model`; complejidad 41→21; 9 tests en `test_main_metrics.py`. Total: 232 tests.
 > Pendiente de la sección 3: `learn_driver.run` (resto), `imitation_driver.run` (bucle), `main.train`, `session_report.write_html_replay`
 > y el bucle de `teaching_driver.run` (sin tests; requieren un entorno falso).
 > Pendiente: 5.1 (commit), 1.4–1.5, 2.6, 2.9, sección 3 (refactor de `run`/`train`) y 5.2–5.6.
