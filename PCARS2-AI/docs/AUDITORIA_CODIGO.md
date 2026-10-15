@@ -2,7 +2,19 @@
 
 > **Sprint 1 completado (2026-10-16):** 1.1 (se conserva la copia de la raíz), 2.1 (`off_track` muerto eliminado),
 > 2.2, 2.3, 2.7, 2.8 y 2.10 resueltos. `SPEED_BANDS_KMH` en `v2/config.py` es un re-export usado por tests y se mantiene con `noqa`.
-> Pendiente: 5.1 (commit) y el resto de secciones.
+>
+> **Sprint 2 completado (2026-10-16):** 1.2 (`telemetry_udp.apply_packet` compartido por `DriveSession` y `PCARS2Env`),
+> 1.3 (`reference_recorder.slugify` único), 2.4 (`zip(strict=True)`), 2.5 (los dos `except Exception` acotados a
+> `OSError` / `OSError, ValueError, KeyError`). Sección 4: nuevo `tests/test_shared_helpers.py` (10 tests de humo:
+> `driver_cli`, `drive_actions`, `eval_*`/`pretrain_universal`, `apply_packet`, `slugify`). Total: 209 tests.
+> **Sprint 3 (parcial, 2026-10-16):** `environment._check_done` dividido en `_check_pit_box`, `_check_stuck`,
+> `_check_no_progress` y `_check_wrong_way` (mismo orden y semántica; 4 tests nuevos en `test_environment_done_checks.py`).
+> Corregido el aviso de pyright en `drive_session.sync_physics_frame` (tipo de `packet`). Total: 213 tests.
+> Además: `auto_shift.shift` (extraído `_shift_toward_first`), `safety_monitor.update` (cuatro `_check_*`, mismo orden)
+> y `teaching_driver.run` (extraídos `_print_banner`, `_open_dataset_recorder`, `_finish`; complejidad 16→12; el bucle no se tocó).
+> Pendiente de la sección 3: `learn_driver.run`, `imitation_driver.run`, `main.train`, `session_report.write_html_replay`
+> y el bucle de `teaching_driver.run` (sin tests; requieren un entorno falso).
+> Pendiente: 5.1 (commit), 1.4–1.5, 2.6, 2.9, sección 3 (refactor de `run`/`train`) y 5.2–5.6.
 
 Fecha: 2026-10-15. Alcance: `PCARS2-AI/src`, `v2`, `scripts`, `tests` y scripts de la raíz.
 Método: análisis AST (nombres/cuerpos duplicados), `ruff` (F, B, PLW, C901) y `pytest`.

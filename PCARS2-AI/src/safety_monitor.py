@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 from pcars2_surface import SURFACE_PROFILE_STRICT, classify_surface
 from reference_recorder import ReferenceLine
@@ -114,72 +114,64 @@ class SafetyMonitor:
         if self.step_count <= self.grace_steps:
             return status
 
-        d = timings.lap_distance
-        tlen = self.ref.track_length
-        near_meta = d < 100.0 or d > tlen - 100.0
-        if cte > CTE_PIT_M and near_meta:
+        # Orden relevante: cada check muta contadores y el primero que dispara corta.
+        reason = (
+            self._check_pit_box(cte, timings)
+            or self._check_stuck(telem, status)
+            or self._check_no_progress(timings)
+            or self._check_wrong_way(telem, timings, status)
+            or surface_reason
+            or ("off_track" if cte > CTE_RECOVERY_M else None)
+        )
+        if reason:
             status.active = True
-            status.reason = "pit_box"
-            self.last_reason = status.reason
-            return status
+            status.reason = reason
+            self.last_reason = reason
+        return status
 
-        if telem.speed < self.stuck_speed_ms:
-            self.stuck_steps += 1
-            status.stuck_steps = self.stuck_steps
-            if self.stuck_steps >= self.stuck_max_steps:
-                status.active = True
-                status.reason = "stuck"
-                self.last_reason = status.reason
-                return status
-        else:
+    def _check_pit_box(self, cte: float, timings: TimingsFrame) -> Optional[str]:
+        d = timings.lap_distance
+        near_meta = d < 100.0 or d > self.ref.track_length - 100.0
+        return "pit_box" if cte > CTE_PIT_M and near_meta else None
+
+    def _check_stuck(self, telem: TelemetryFrame, status: SafetyStatus) -> Optional[str]:
+        if telem.speed >= self.stuck_speed_ms:
             self.stuck_steps = 0
+            return None
+        self.stuck_steps += 1
+        status.stuck_steps = self.stuck_steps
+        return "stuck" if self.stuck_steps >= self.stuck_max_steps else None
 
+    def _check_no_progress(self, timings: TimingsFrame) -> Optional[str]:
         lap_dist = timings.lap_distance
-        cur_lap = timings.current_lap
-        if cur_lap != self.prev_check_lap:
+        if timings.current_lap != self.prev_check_lap:
             self.progress_dist = lap_dist
             self.progress_step = self.step_count
-            self.prev_check_lap = cur_lap
+            self.prev_check_lap = timings.current_lap
         elif lap_dist > self.progress_dist + NO_PROGRESS_DIST_M:
             self.progress_dist = lap_dist
             self.progress_step = self.step_count
         elif (self.step_count - self.progress_step) >= self.no_progress_max_steps:
-            status.active = True
-            status.reason = "no_progress"
-            self.last_reason = status.reason
-            return status
+            return "no_progress"
+        return None
 
-        if telem.speed > 2.0:
-            ref_yaw = self.ref.heading_at(timings.lap_distance)
-            agent_yaw = telem.orientation[2]
-            diff = agent_yaw - ref_yaw
-            h_err_abs = abs(math.atan2(math.sin(diff), math.cos(diff)))
-            if h_err_abs > WRONGWAY_ANGLE_RAD:
-                self.wrongway_steps += 1
-                status.wrongway_steps = self.wrongway_steps
-                near_finish = d < PIT_ZONE_MARGIN_M or d > tlen - PIT_ZONE_MARGIN_M
-                max_steps = self.wrongway_finish_steps if near_finish else self.wrongway_max_steps
-                if self.wrongway_steps >= max_steps:
-                    status.active = True
-                    status.reason = "wrong_way"
-                    self.last_reason = status.reason
-                    return status
-            else:
-                self.wrongway_steps = 0
-
-        if surface_reason is not None:
-            status.active = True
-            status.reason = surface_reason
-            self.last_reason = status.reason
-            return status
-
-        if cte > CTE_RECOVERY_M:
-            status.active = True
-            status.reason = "off_track"
-            self.last_reason = status.reason
-            return status
-
-        return status
+    def _check_wrong_way(
+        self, telem: TelemetryFrame, timings: TimingsFrame, status: SafetyStatus
+    ) -> Optional[str]:
+        if telem.speed <= 2.0:
+            return None
+        d = timings.lap_distance
+        diff = telem.orientation[2] - self.ref.heading_at(d)
+        h_err_abs = abs(math.atan2(math.sin(diff), math.cos(diff)))
+        if h_err_abs <= WRONGWAY_ANGLE_RAD:
+            self.wrongway_steps = 0
+            return None
+        self.wrongway_steps += 1
+        status.wrongway_steps = self.wrongway_steps
+        tlen = self.ref.track_length
+        near_finish = d < PIT_ZONE_MARGIN_M or d > tlen - PIT_ZONE_MARGIN_M
+        max_steps = self.wrongway_finish_steps if near_finish else self.wrongway_max_steps
+        return "wrong_way" if self.wrongway_steps >= max_steps else None
 
 
 def session_tick_flags(status: SafetyStatus, cte: float) -> TickSafetyFlags:

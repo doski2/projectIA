@@ -15,10 +15,7 @@ from telemetry_udp import (
     TimingsFrame,
     RaceData,
     VehicleInfo,
-    PACKET_CAR_PHYSICS,
-    PACKET_TIMINGS,
-    PACKET_RACE_DEF,
-    PACKET_VEHICLE_NAMES,
+    apply_packet,
 )
 
 
@@ -55,17 +52,7 @@ class DriveSession:
         return None
 
     def _apply_packet(self, ptype: int, packet) -> str:
-        if ptype == PACKET_CAR_PHYSICS and packet is not None:
-            self.last_telem = packet
-            return "physics"
-        if ptype == PACKET_TIMINGS and packet is not None:
-            self.last_timings = packet
-            return "timings"
-        if ptype == PACKET_RACE_DEF and packet is not None:
-            self.race_data = packet
-        elif ptype == PACKET_VEHICLE_NAMES and packet is not None:
-            self.vehicle_info = packet
-        return "other"
+        return apply_packet(self, ptype, packet)
 
     def ingest_pending(self) -> None:
         viewed_idx = self.viewed_index()
@@ -116,7 +103,10 @@ class DriveSession:
                 self.stats["other_packets"] += 1
                 continue
 
-            key = self.physics_key(packet)
+            telem = self.last_telem
+            if telem is None:
+                continue
+            key = self.physics_key(telem)
             if anchor is not None and key == anchor:
                 self.stats["backlog_dropped"] += 1
                 continue

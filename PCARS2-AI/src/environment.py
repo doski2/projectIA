@@ -37,12 +37,9 @@ from telemetry_udp import (
     TimingsFrame,
     RaceData,
     VehicleInfo,
-    PACKET_CAR_PHYSICS,
-    PACKET_TIMINGS,
-    PACKET_RACE_DEF,
-    PACKET_VEHICLE_NAMES,
+    apply_packet,
 )
-from reference_recorder import ReferenceLine
+from reference_recorder import ReferenceLine, slugify
 from controller import DS4Controller, decode_action
 from obs_builder import (
     MAX_CTE,
@@ -644,62 +641,17 @@ class PCARS2Env(gym.Env):
         if cte > self._max_cte_seen:
             self._max_cte_seen = cte
 
-        # ---- Pit box / garaje: CTE absurda (>20 m) CERCA de la línea de meta ----
-        if self._step_count > GRACE_STEPS and cte > 20.0:
-            d    = i.lap_distance
-            tlen = self._ref.track_length
-            near_meta = d < 100.0 or d > tlen - 100.0
-            if near_meta:
-                self._term_reason = "pit_box"
-                return True, False
-
-        # ---- Atascado: velocidad ~0 durante N steps (determinista) ----
-        # Usa contador de steps en vez de reloj real para ser inmune a lag del juego.
+        # Orden relevante: cada check muta contadores y el primero que dispara corta.
         if self._step_count > GRACE_STEPS:
-            if t.speed < self._stuck_speed_ms:
-                self._stuck_steps += 1
-                if self._stuck_steps >= self._stuck_max_steps:
-                    self._term_reason = "stuck"
-                    return True, False
-            else:
-                self._stuck_steps = 0  # se mueve → reset counter
-
-        # ---- Sin progreso: lap_distance no crece +10m en N steps ----
-        # Determinista: usa step_count en vez de time.monotonic().
-        if self._step_count > GRACE_STEPS:
-            lap_dist = i.lap_distance
-            cur_lap  = i.current_lap
-            if cur_lap != self._prev_check_lap:
-                # Nueva vuelta: reiniciar tracker sin disparar el timer
-                self._progress_dist  = lap_dist
-                self._progress_step  = self._step_count
-                self._prev_check_lap = cur_lap
-            elif lap_dist > self._progress_dist + NO_PROGRESS_DIST_M:
-                self._progress_dist  = lap_dist
-                self._progress_step  = self._step_count
-            elif (self._step_count - self._progress_step) >= self._no_progress_max_steps:
-                self._term_reason = "no_progress"
+            reason = (
+                self._check_pit_box(cte, i)
+                or self._check_stuck(t)
+                or self._check_no_progress(i)
+                or self._check_wrong_way(t, i)
+            )
+            if reason:
+                self._term_reason = reason
                 return True, False
-
-        # ---- Sentido contrario: heading >160° durante N steps ----
-        # Determinista: cuenta steps consecutivos en sentido contrario.
-        if self._step_count > GRACE_STEPS and t.speed > 2.0:
-            ref_yaw   = self._ref.heading_at(i.lap_distance)
-            agent_yaw = t.orientation[2]
-            diff      = agent_yaw - ref_yaw
-            heading_err = abs(math.atan2(math.sin(diff), math.cos(diff)))
-            if heading_err > WRONGWAY_ANGLE_RAD:
-                self._wrongway_steps += 1
-                # Cerca de la línea de meta (zona del box) → tolerancia mínima
-                d    = i.lap_distance
-                tlen = self._ref.track_length
-                near_finish = d < PIT_ZONE_MARGIN_M or d > tlen - PIT_ZONE_MARGIN_M
-                max_steps = self._wrongway_finish_steps if near_finish else self._wrongway_max_steps
-                if self._wrongway_steps >= max_steps:
-                    self._term_reason = "wrong_way"
-                    return True, False
-            else:
-                self._wrongway_steps = 0
 
         # ---- Vuelta completada ----
         laps_done = i.current_lap - self._start_lap
@@ -708,6 +660,61 @@ class PCARS2Env(gym.Env):
             return False, True
 
         return False, False
+
+    def _check_pit_box(self, cte: float, i: TimingsFrame) -> Optional[str]:
+        """Pit box / garaje: CTE absurda (>20 m) CERCA de la línea de meta."""
+        if cte <= 20.0:
+            return None
+        d = i.lap_distance
+        tlen = self._ref.track_length
+        if d < 100.0 or d > tlen - 100.0:
+            return "pit_box"
+        return None
+
+    def _check_stuck(self, t: TelemetryFrame) -> Optional[str]:
+        """Velocidad ~0 durante N steps (contador de steps: inmune al lag del juego)."""
+        if t.speed < self._stuck_speed_ms:
+            self._stuck_steps += 1
+            if self._stuck_steps >= self._stuck_max_steps:
+                return "stuck"
+        else:
+            self._stuck_steps = 0  # se mueve → reset counter
+        return None
+
+    def _check_no_progress(self, i: TimingsFrame) -> Optional[str]:
+        """lap_distance no crece +NO_PROGRESS_DIST_M en N steps (determinista)."""
+        lap_dist = i.lap_distance
+        if i.current_lap != self._prev_check_lap:
+            # Nueva vuelta: reiniciar tracker sin disparar el timer
+            self._progress_dist = lap_dist
+            self._progress_step = self._step_count
+            self._prev_check_lap = i.current_lap
+        elif lap_dist > self._progress_dist + NO_PROGRESS_DIST_M:
+            self._progress_dist = lap_dist
+            self._progress_step = self._step_count
+        elif (self._step_count - self._progress_step) >= self._no_progress_max_steps:
+            return "no_progress"
+        return None
+
+    def _check_wrong_way(self, t: TelemetryFrame, i: TimingsFrame) -> Optional[str]:
+        """Heading >WRONGWAY_ANGLE_RAD durante N steps consecutivos."""
+        if t.speed <= 2.0:
+            return None
+        ref_yaw = self._ref.heading_at(i.lap_distance)
+        diff = t.orientation[2] - ref_yaw
+        heading_err = abs(math.atan2(math.sin(diff), math.cos(diff)))
+        if heading_err <= WRONGWAY_ANGLE_RAD:
+            self._wrongway_steps = 0
+            return None
+        self._wrongway_steps += 1
+        # Cerca de la línea de meta (zona del box) → tolerancia mínima
+        d = i.lap_distance
+        tlen = self._ref.track_length
+        near_finish = d < PIT_ZONE_MARGIN_M or d > tlen - PIT_ZONE_MARGIN_M
+        max_steps = self._wrongway_finish_steps if near_finish else self._wrongway_max_steps
+        if self._wrongway_steps >= max_steps:
+            return "wrong_way"
+        return None
 
     # ------------------------------------------------------------------
     # Polling UDP
@@ -720,17 +727,7 @@ class PCARS2Env(gym.Env):
 
     def _apply_packet(self, ptype: int, packet) -> str:
         """Actualiza estado interno. Devuelve 'physics', 'timings' u 'other'."""
-        if ptype == PACKET_CAR_PHYSICS and packet is not None:
-            self._last_telem = packet  # type: ignore[assignment]
-            return "physics"
-        if ptype == PACKET_TIMINGS and packet is not None:
-            self._last_timings = packet  # type: ignore[assignment]
-            return "timings"
-        if ptype == PACKET_RACE_DEF and packet is not None:
-            self._race_data = packet  # type: ignore[assignment]
-        elif ptype == PACKET_VEHICLE_NAMES and packet is not None:
-            self._vehicle_info = packet  # type: ignore[assignment]
-        return "other"
+        return apply_packet(self, ptype, packet, prefix="_")
 
     def _ingest_pending_packets(self) -> None:
         """Drena la cola UDP y deja telemetría/timings al día (sin avanzar step_count)."""
@@ -805,16 +802,6 @@ class PCARS2Env(gym.Env):
     # Detección automática de combo coche+pista
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _slugify(text: str) -> str:
-        """Convierte un texto libre en un slug seguro para nombres de archivo."""
-        import re
-        text = text.strip().lower()
-        text = re.sub(r'[\s\-/]+', '_', text)   # espacios, guiones, barras → _
-        text = re.sub(r'[^\w]', '', text)        # eliminar caracteres no alfanuméricos
-        text = re.sub(r'_+', '_', text).strip('_')
-        return text or "unknown"
-
     @property
     def combo_id(self) -> Optional[str]:
         """
@@ -824,11 +811,11 @@ class PCARS2Env(gym.Env):
         """
         if self._race_data is None:
             return None
-        track = self._slugify(self._race_data.track_location)
+        track = slugify(self._race_data.track_location)
         track_part = track  # ignora variante meteorológica; mismo modelo para toda condición
 
         if self._vehicle_info is not None and self._vehicle_info.vehicle_name:
-            car = self._slugify(self._vehicle_info.vehicle_name)
+            car = slugify(self._vehicle_info.vehicle_name)
             return f"{car}__{track_part}"
         # Sin nombre de coche: solo pista
         return track_part

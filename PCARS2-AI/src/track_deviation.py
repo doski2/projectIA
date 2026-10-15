@@ -68,7 +68,7 @@ def _terrain_summary(terrain: Sequence[int]) -> Dict[str, Any]:
         wheels.append(0)
     off_ids: List[str] = []
     grass_wheels: List[str] = []
-    for label, tid in zip(WHEEL_LABELS, wheels):
+    for label, tid in zip(WHEEL_LABELS, wheels, strict=True):
         t = int(tid)
         if t in OFF_TRACK_TERRAIN_IDS:
             off_ids.append(label)

@@ -440,3 +440,29 @@ class UDPListener:
 
     def __exit__(self, *_):
         self.close()
+
+
+# Paquete → atributo de estado (sin prefijo) que lo almacena.
+_PACKET_SLOTS = {
+    PACKET_CAR_PHYSICS:   "last_telem",
+    PACKET_TIMINGS:       "last_timings",
+    PACKET_RACE_DEF:      "race_data",
+    PACKET_VEHICLE_NAMES: "vehicle_info",
+}
+
+
+def apply_packet(state, ptype: int, packet, prefix: str = "") -> str:
+    """
+    Guarda `packet` en el atributo correspondiente de `state`
+    (`<prefix>last_telem`, `<prefix>last_timings`, `<prefix>race_data`,
+    `<prefix>vehicle_info`). Devuelve 'physics', 'timings' u 'other'.
+    """
+    slot = _PACKET_SLOTS.get(ptype)
+    if slot is None or packet is None:
+        return "other"
+    setattr(state, prefix + slot, packet)
+    if ptype == PACKET_CAR_PHYSICS:
+        return "physics"
+    if ptype == PACKET_TIMINGS:
+        return "timings"
+    return "other"

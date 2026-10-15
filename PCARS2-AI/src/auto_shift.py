@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Optional, Protocol
+from typing import Optional, Protocol, Tuple
 
 from pcars2_gear import (
     ENGAGE_FIRST_MAX_SPEED_MS,
@@ -71,6 +71,37 @@ class AutoShifter:
         controller.press_button(button)
         self.last_shift_t = time.monotonic()
 
+    def _shift_toward_first(
+        self,
+        controller: ShiftController,
+        telem: TelemetryFrame,
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Con gas activo: gestiona N / byte inválido / marchas por encima de 1ª.
+        Devuelve (handled, acción); handled=False → seguir con up/down normales.
+        """
+        if should_rb_to_first(telem):
+            # Punto muerto: solo RB. LB en N mete la marcha atrás.
+            if telem.gear <= 0:
+                if self.last_forward_gear >= 1 and self.neutral_frames <= NEUTRAL_BLIP_FRAMES:
+                    return True, None
+                self._press(controller, "rb")
+                return True, "to_first"
+            # Byte inválido tras ir en 2ª: no subir con RB.
+            if self.last_forward_gear >= 2:
+                if self.neutral_frames <= NEUTRAL_BLIP_FRAMES:
+                    return True, None
+                if telem.speed < ENGAGE_FIRST_MAX_SPEED_MS:
+                    self._press(controller, "lb")
+                    return True, "down_to_first"
+                return True, None
+            self._press(controller, "rb")
+            return True, "to_first"
+        if should_downshift_toward_first(telem):
+            self._press(controller, "lb")
+            return True, "down_to_first"
+        return False, None
+
     def shift(
         self,
         controller: ShiftController,
@@ -106,26 +137,9 @@ class AutoShifter:
         shift_throttle = throttle_for_shift(telem, throttle)
 
         if shift_throttle > THROTTLE_ACTIVE:
-            if should_rb_to_first(telem):
-                # Punto muerto: solo RB. LB en N mete la marcha atrás.
-                if telem.gear <= 0:
-                    if self.last_forward_gear >= 1 and self.neutral_frames <= NEUTRAL_BLIP_FRAMES:
-                        return None
-                    self._press(controller, "rb")
-                    return "to_first"
-                # Byte inválido tras ir en 2ª: no subir con RB.
-                if self.last_forward_gear >= 2:
-                    if self.neutral_frames <= NEUTRAL_BLIP_FRAMES:
-                        return None
-                    if telem.speed < ENGAGE_FIRST_MAX_SPEED_MS:
-                        self._press(controller, "lb")
-                        return "down_to_first"
-                    return None
-                self._press(controller, "rb")
-                return "to_first"
-            if should_downshift_toward_first(telem):
-                self._press(controller, "lb")
-                return "down_to_first"
+            handled, action = self._shift_toward_first(controller, telem)
+            if handled:
+                return action
 
         if (
             shift_throttle > THROTTLE_ACTIVE

@@ -64,7 +64,7 @@ SOURCE_AI    = "ai"
 SOURCE_AUTO  = "auto"
 
 
-def _slugify(text: str) -> str:
+def slugify(text: str) -> str:
     """Convierte un texto libre en un slug seguro para nombres de archivo."""
     import re
     text = text.strip().lower()
@@ -540,7 +540,7 @@ class ReferenceRecorder:
             try:
                 existing = ReferenceLine.load(output_path)
                 self._existing_best = existing.lap_time
-            except Exception:
+            except (OSError, ValueError, KeyError):
                 pass
 
     # ------------------------------------------------------------------
@@ -621,7 +621,7 @@ class ReferenceRecorder:
             elif ptype == PACKET_VEHICLE_NAMES and isinstance(packet, VehicleInfo):
                 if self._vehicle_info is None:
                     self._vehicle_info = packet
-                    car = _slugify(packet.vehicle_name) if packet.vehicle_name else "?"
+                    car = slugify(packet.vehicle_name) if packet.vehicle_name else "?"
                     print(f"[i] Coche    : {packet.vehicle_name}  ({car})")
                     self._announce_output_path()
 
@@ -674,11 +674,11 @@ class ReferenceRecorder:
         """
         if self._race_data is None:
             return None
-        track     = _slugify(self._race_data.track_location)
-        variation = _slugify(self._race_data.track_variation)
+        track     = slugify(self._race_data.track_location)
+        variation = slugify(self._race_data.track_variation)
         track_part = f"{track}__{variation}" if variation and variation != track else track
         if self._vehicle_info and self._vehicle_info.vehicle_name:
-            car = _slugify(self._vehicle_info.vehicle_name)
+            car = slugify(self._vehicle_info.vehicle_name)
             combo = f"{car}__{track_part}"
         else:
             combo = track_part

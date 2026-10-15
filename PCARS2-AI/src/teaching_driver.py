@@ -67,6 +67,46 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _print_banner(args: argparse.Namespace, ref, phase, speed_target: float, schema: str) -> None:
+    print(f"[Teacher] Referencia: {ref.track_name} ({ref.track_length:.0f} m)")
+    print(f"[Teacher] Fase: {phase.id} — {phase.label}")
+    print(f"[Teacher] Modo: {args.mode.upper()} | Objetivo: {speed_target:.0f} km/h")
+    print(f"[Teacher] Auto-shift: {'ON' if args.auto_shift else 'OFF'} | Log cada {args.log_every} frames")
+    print(f"[Teacher] Safety superficie: {ns_str(args, 'safety_profile')}")
+    if args.universal:
+        print(f"[Teacher] Schema: {schema} (obs agnóstico + regla when/why/how)")
+
+
+def _open_dataset_recorder(args: argparse.Namespace, ref) -> DatasetRecorder | None:
+    if args.mode != "record":
+        return None
+    default_name = "universal_teacher" if args.universal else ORIGIN_TEACHER.lower()
+    out = args.output or DatasetRecorder.default_output_path(
+        ref.track_name or "track", "formula_rookie__sugo", default_name,
+    )
+    dataset_rec = DatasetRecorder(output_path=out, origin=ORIGIN_TEACHER)
+    dataset_rec.open()
+    print(f"[Teacher] Dataset: {out}")
+    return dataset_rec
+
+
+def _finish(args, dataset_rec, diag, session_rec, laps_done: int) -> None:
+    if dataset_rec is not None:
+        dataset_rec.close()
+        print(
+            f"[Teacher] Dataset: {dataset_rec.samples_written} muestras, "
+            f"{dataset_rec.samples_skipped} omitidas"
+        )
+    print(
+        f"[Teacher] Diagnóstico: shifts={diag.shift_count} | "
+        f"safety_events={diag.safety_events} | frames={diag.frame}"
+    )
+    report = session_rec.finish(laps_completed=laps_done, open_browser=args.open_report)
+    if report.get("evaluation"):
+        ev = report["evaluation"]
+        print(f"[Teacher] Validación: {ev.get('summary', '')}")
+
+
 def run(args: argparse.Namespace) -> int:
     ref = ReferenceLine.load(ns_str(args, "reference"))
     phase = get_phase(args.phase)
@@ -77,14 +117,8 @@ def run(args: argparse.Namespace) -> int:
     safety = SafetyMonitor(ref=ref, surface_profile=ns_str(args, "safety_profile"))
     session = DriveSession()
 
-    print(f"[Teacher] Referencia: {ref.track_name} ({ref.track_length:.0f} m)")
     schema = OBS_SCHEMA if args.universal else "legacy_19"
-    print(f"[Teacher] Fase: {phase.id} — {phase.label}")
-    print(f"[Teacher] Modo: {args.mode.upper()} | Objetivo: {speed_target:.0f} km/h")
-    print(f"[Teacher] Auto-shift: {'ON' if args.auto_shift else 'OFF'} | Log cada {args.log_every} frames")
-    print(f"[Teacher] Safety superficie: {ns_str(args, 'safety_profile')}")
-    if args.universal:
-        print(f"[Teacher] Schema: {schema} (obs agnóstico + regla when/why/how)")
+    _print_banner(args, ref, phase, speed_target, schema)
     print("[Teacher] Esperando telemetría UDP (puerto 5606)...")
 
     if not session.wait_for_telemetry():
@@ -105,15 +139,7 @@ def run(args: argparse.Namespace) -> int:
     })
     print(f"[Teacher] Session log: {log_path}")
 
-    dataset_rec: DatasetRecorder | None = None
-    if args.mode == "record":
-        default_name = "universal_teacher" if args.universal else ORIGIN_TEACHER.lower()
-        out = args.output or DatasetRecorder.default_output_path(
-            ref.track_name or "track", "formula_rookie__sugo", default_name,
-        )
-        dataset_rec = DatasetRecorder(output_path=out, origin=ORIGIN_TEACHER)
-        dataset_rec.open()
-        print(f"[Teacher] Dataset: {out}")
+    dataset_rec = _open_dataset_recorder(args, ref)
 
     controller = DS4Controller(mode=args.gamepad)
     shifter = AutoShifter()
@@ -265,20 +291,7 @@ def run(args: argparse.Namespace) -> int:
         print("\n[Teacher] Detenido por el usuario.")
     finally:
         controller.release()
-        if dataset_rec is not None:
-            dataset_rec.close()
-            print(
-                f"[Teacher] Dataset: {dataset_rec.samples_written} muestras, "
-                f"{dataset_rec.samples_skipped} omitidas"
-            )
-        print(
-            f"[Teacher] Diagnóstico: shifts={diag.shift_count} | "
-            f"safety_events={diag.safety_events} | frames={diag.frame}"
-        )
-        report = session_rec.finish(laps_completed=laps_done, open_browser=args.open_report)
-        if report.get("evaluation"):
-            ev = report["evaluation"]
-            print(f"[Teacher] Validación: {ev.get('summary', '')}")
+        _finish(args, dataset_rec, diag, session_rec, laps_done)
 
     return 0
 

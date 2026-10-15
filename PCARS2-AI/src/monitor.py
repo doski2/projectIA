@@ -262,7 +262,7 @@ def build_panel(
             mtime = os.path.getmtime(csv_path)
             age   = int(time.time() - mtime)
             file_info = f"CSV encontrado · modificado hace {age}s"
-        except Exception:
+        except OSError:
             file_info = "CSV no encontrado aún"
         msg = Text()
         msg.append("Esperando primer rollout (2048 steps)...\n", style="yellow")
