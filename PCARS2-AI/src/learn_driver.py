@@ -200,6 +200,66 @@ def announce_autonomy(prog: LearnProgress) -> None:
         )
 
 
+class BackgroundFineTuner:
+    """Fine-tune del modelo (síncrono o en hilo) y recarga protegida por lock."""
+
+    def __init__(
+        self,
+        args: argparse.Namespace,
+        prog: LearnProgress,
+        lap_guard: LapTransitionGuard,
+        model: Optional[UniversalPolicy],
+    ) -> None:
+        self.args = args
+        self.prog = prog
+        self.lap_guard = lap_guard
+        self.model = model
+        self.lock = threading.Lock()
+        self._thread: Optional[threading.Thread] = None
+
+    @property
+    def running(self) -> bool:
+        return self._thread is not None and self._thread.is_alive()
+
+    @property
+    def finished(self) -> bool:
+        return self._thread is not None and not self._thread.is_alive()
+
+    def _reload_model(self) -> None:
+        if os.path.isfile(self.args.model):
+            self.model = load_universal_policy(self.args.model)
+
+    def run_sync(self) -> None:
+        args = self.args
+        obs, act, rid, _ = _load_training_data(
+            args.buffer, args.base_dataset, self.prog.stage_id, self.prog.speed_band,
+        )
+        result = fine_tune_universal(
+            model_path=args.model,
+            obs_array=obs,
+            act_array=act,
+            reason_ids=rid,
+            output_path=args.model,
+            epochs=args.fine_tune_epochs,
+            min_samples=args.min_buffer_samples,
+        )
+        if result.get("trained"):
+            with self.lock:
+                self._reload_model()
+            print(f"[Learn] Fine-tune OK — loss={result.get('best_loss', 0):.6f}")
+
+    def start_async(self) -> bool:
+        if self.running:
+            print("[Learn] Fine-tune ya en curso — se omite")
+            return False
+        # Frena en meta. El BC no sale hasta que el modelo está cargado y hay 1ª.
+        self.lap_guard.set_fine_tuning(True)
+        self._thread = threading.Thread(target=self.run_sync, daemon=True)
+        self._thread.start()
+        print("[Learn] Fine-tune en curso — frenando en meta; arranca solo con 1ª puesta")
+        return True
+
+
 def run(args: argparse.Namespace) -> int:
     stage_id = args.stage or read_saved_stage(DEFAULT_LEARN_STAGE)
     speed_band = args.speed_band if args.speed_band > 0 else read_saved_speed_band()
@@ -266,8 +326,7 @@ def run(args: argparse.Namespace) -> int:
     frame = 0
     prog = LearnProgress(stage_id=stage_id, speed_band=speed_band)
     lap_guard = LapTransitionGuard(track_length=ref.track_length)
-    model_lock = threading.Lock()
-    fine_tune_thread: Optional[threading.Thread] = None
+    tuner = BackgroundFineTuner(args, prog, lap_guard, model)
     lap_summary_rows: List[dict] = []
 
     def _persist_progress() -> None:
@@ -291,50 +350,11 @@ def run(args: argparse.Namespace) -> int:
         "Learn",
     )
 
-    def _reload_model() -> None:
-        nonlocal model
-        if os.path.isfile(args.model):
-            model = load_universal_policy(args.model)
-
-    def _run_fine_tune() -> None:
-        obs, act, rid, _ = _load_training_data(
-            args.buffer, args.base_dataset, prog.stage_id, prog.speed_band,
-        )
-        result = fine_tune_universal(
-            model_path=args.model,
-            obs_array=obs,
-            act_array=act,
-            reason_ids=rid,
-            output_path=args.model,
-            epochs=args.fine_tune_epochs,
-            min_samples=args.min_buffer_samples,
-        )
-        if result.get("trained"):
-            with model_lock:
-                _reload_model()
-            print(f"[Learn] Fine-tune OK — loss={result.get('best_loss', 0):.6f}")
-
-    def _start_fine_tune_async() -> bool:
-        nonlocal fine_tune_thread
-
-        def _worker() -> None:
-            _run_fine_tune()
-
-        if fine_tune_thread is not None and fine_tune_thread.is_alive():
-            print("[Learn] Fine-tune ya en curso — se omite")
-            return False
-        # Frena en meta. El BC no sale hasta que el modelo está cargado y hay 1ª.
-        lap_guard.set_fine_tuning(True)
-        fine_tune_thread = threading.Thread(target=_worker, daemon=True)
-        fine_tune_thread.start()
-        print("[Learn] Fine-tune en curso — frenando en meta; arranca solo con 1ª puesta")
-        return True
-
-    if model is None and os.path.isfile(args.base_dataset):
+    if tuner.model is None and os.path.isfile(args.base_dataset):
         print("[Learn] Sin modelo — entrenamiento inicial desde dataset base...")
         lap_guard.set_fine_tuning(True)
         try:
-            _run_fine_tune()
+            tuner.run_sync()
         finally:
             lap_guard.set_fine_tuning(False)
 
@@ -356,8 +376,7 @@ def run(args: argparse.Namespace) -> int:
 
             tune_done = (
                 lap_guard.fine_tuning
-                and fine_tune_thread is not None
-                and not fine_tune_thread.is_alive()
+                and tuner.finished
             )
             if tune_done and telem.gear == 1:
                 if prog.goal_reached:
@@ -378,9 +397,9 @@ def run(args: argparse.Namespace) -> int:
             obs_record = build_obs_universal(telem, timings, ref, teacher.speed_target_ms)
             lap_guard.on_frame(timings.current_lap, timings.lap_distance)
 
-            if model is not None and not lap_guard.active:
-                with model_lock:
-                    bc_action, _ = model.predict(obs_record, reason=reason)
+            if tuner.model is not None and not lap_guard.active:
+                with tuner.lock:
+                    bc_action, _ = tuner.model.predict(obs_record, reason=reason)
                 bc_tuple = decode_action(bc_action)
             else:
                 bc_tuple = teacher_tuple
@@ -505,12 +524,10 @@ def run(args: argparse.Namespace) -> int:
                 teacher.reset()
 
                 if laps_since_learn >= args.learn_every:
-                    if _start_fine_tune_async():
+                    if tuner.start_async():
                         laps_since_learn = 0
 
-                if prog.goal_reached and (
-                    fine_tune_thread is None or not fine_tune_thread.is_alive()
-                ):
+                if prog.goal_reached and not tuner.running:
                     print("[Learn] Objetivo cumplido — cerrando sesión")
                     break
 
