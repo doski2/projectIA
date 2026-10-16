@@ -49,7 +49,7 @@ from obs_builder import encoded_action_tuple
 from obs_universal import OBS_SCHEMA, OBS_UNIVERSAL_DIM, build_obs_universal
 from reference_recorder import ReferenceLine
 from safety_monitor import SafetyMonitor
-from session_log import TeachingSessionRecorder, default_log_path
+from session_log import TeachingSessionRecorder, default_log_path, vehicle_diag
 from teacher_controller import TeacherConfig, TeachingController, resolve_teacher_decision
 from track_deviation import maybe_build_track_diag
 from teacher_intents import rule_for_reason
@@ -494,6 +494,7 @@ def run(args: argparse.Namespace) -> int:
                 num_gears=telem.num_gears,
                 rpm=telem.rpm,
                 track_diag=track_diag,
+                vehicle=vehicle_diag(telem),
             )
 
             if frame % args.log_every == 0:

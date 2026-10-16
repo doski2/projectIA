@@ -41,6 +41,18 @@ def default_log_path(track: str, phase_id: str, category: str = "teaching") -> P
     return Path("logs") / category / f"{ts}_{safe_track}_{phase_id}.jsonl"
 
 
+def vehicle_diag(telem) -> dict:
+    """Respuesta real del coche (UDP) para comparar con el volante enviado."""
+    return {
+        "game_steer": round(telem.steering / 127.0, 3),
+        "raw_steer": round(telem.raw_steering / 127.0, 3),
+        "yaw_rate": round(telem.angular_velocity[1], 4),
+        "lat_accel": round(telem.local_acceleration[2], 3),
+        "terrain": list(telem.terrain),
+        "tyre_rps": [round(v, 1) for v in telem.tyre_rps],
+    }
+
+
 class TeachingSessionRecorder:
     """Escribe ticks JSONL y genera HTML al cerrar."""
 
@@ -106,6 +118,7 @@ class TeachingSessionRecorder:
         shift_event: Optional[str] = None,
         stuck_steps: Optional[int] = None,
         track_diag: Optional[dict] = None,
+        vehicle: Optional[dict] = None,
     ) -> None:
         if self._file is None:
             return
@@ -153,6 +166,8 @@ class TeachingSessionRecorder:
             row["stuck_steps"] = stuck_steps
         if track_diag:
             row["track_diag"] = track_diag
+        if vehicle:
+            row["vehicle"] = vehicle
         self._file.write(json.dumps(row, ensure_ascii=False) + "\n")
 
     def finish(self, laps_completed: int = 0, open_browser: bool = False) -> dict:

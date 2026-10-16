@@ -36,7 +36,7 @@ from obs_builder import build_obs, encoded_action_tuple
 from obs_universal import OBS_SCHEMA, build_obs_universal
 from reference_recorder import ReferenceLine
 from safety_monitor import SafetyMonitor
-from session_log import TeachingSessionRecorder, default_log_path
+from session_log import TeachingSessionRecorder, default_log_path, vehicle_diag
 from teacher_controller import TeacherConfig, TeachingController, resolve_teacher_decision
 from track_deviation import maybe_build_track_diag
 from teacher_intents import decode_reason_id, normalize_reason, rule_for_reason
@@ -296,6 +296,7 @@ def run(args: argparse.Namespace) -> int:
                 num_gears=telem.num_gears,
                 rpm=telem.rpm,
                 track_diag=track_diag,
+                vehicle=vehicle_diag(telem),
             )
 
             if recorder is not None and not lap_guard.active:
