@@ -35,6 +35,7 @@ from lap_session import (
 )
 from lap_transition import LapTransitionGuard
 from lap_tracker import format_lap_time
+from learn_guards import SustainedCteGuard, is_poor_demo
 from learn_progress import read_saved_speed_band, read_saved_stage, save_learn_progress
 from learning_curriculum import (
     DEFAULT_LEARN_STAGE,
@@ -326,6 +327,7 @@ def run(args: argparse.Namespace) -> int:
     frame = 0
     prog = LearnProgress(stage_id=stage_id, speed_band=speed_band)
     lap_guard = LapTransitionGuard(track_length=ref.track_length)
+    cte_guard = SustainedCteGuard()
     tuner = BackgroundFineTuner(args, prog, lap_guard, model)
     lap_summary_rows: List[dict] = []
 
@@ -408,9 +410,14 @@ def run(args: argparse.Namespace) -> int:
             proposed, drive_source, ovr_inc = choose_bc_drive_pedals(
                 bc_tuple, teacher_tuple, telem, override, lap_guard.active,
             )
+            cte_takeover = (
+                cte_guard.update(decision.cte) and not override and not lap_guard.active
+            )
+            if cte_takeover:
+                proposed, drive_source, ovr_inc = teacher_tuple, "teacher:cte", True
             if ovr_inc:
                 override_count += 1
-            if not lap_guard.active and not override:
+            if not lap_guard.active and not override and not cte_takeover:
                 proposed, capped = cap_bc_to_speed_target(
                     proposed, telem.speed, teacher.speed_target_ms,
                 )
@@ -430,7 +437,7 @@ def run(args: argparse.Namespace) -> int:
             if args.auto_shift:
                 auto_shift(controller, telem, final[0], final[1], shifter)
 
-            if not lap_guard.active:
+            if not lap_guard.active and not is_poor_demo(reason):
                 buffer_rec.maybe_record(
                     obs=obs_record,
                     action=encoded_action_tuple(*teacher_tuple),
@@ -447,7 +454,7 @@ def run(args: argparse.Namespace) -> int:
                 )
 
             flags = lap_tick_safety_flags(status, decision.cte, lap_guard.active)
-            lap_override = override if not lap_guard.active else False
+            lap_override = (override or cte_takeover) if not lap_guard.active else False
             lap_ticks.append(make_lap_buffer_tick(
                 session_rec.elapsed_s(),
                 telem.speed * 3.6,
@@ -522,6 +529,7 @@ def run(args: argparse.Namespace) -> int:
 
                 laps_since_learn += 1
                 teacher.reset()
+                cte_guard.reset()
 
                 if laps_since_learn >= args.learn_every:
                     if tuner.start_async():
