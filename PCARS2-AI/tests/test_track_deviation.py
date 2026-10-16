@@ -1,6 +1,5 @@
 """Tests de diagnóstico de desviación lateral."""
 
-import math
 
 from reference_recorder import ReferenceLine, ReferencePoint
 from track_deviation import build_track_diag, closest_on_reference

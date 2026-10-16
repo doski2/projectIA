@@ -1,5 +1,6 @@
 @echo off
 setlocal
+set PYTHONUTF8=1
 set "SCRIPT_DIR=%~dp0"
 set "PYTHON=%SCRIPT_DIR%..\.venv\Scripts\python.exe"
 

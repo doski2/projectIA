@@ -1,4 +1,5 @@
 @echo off
+set PYTHONUTF8=1
 cd /d "%~dp0"
 echo.
 echo  Autonomia total — solo red BC (teacher solo en emergencia)

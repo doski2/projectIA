@@ -20,3 +20,4 @@ tensorboard>=2.14.0
 
 # --- Desarrollo / tests (no necesarios para entrenar en producción) ---
 pytest>=8.0.0
+ruff>=0.6.0

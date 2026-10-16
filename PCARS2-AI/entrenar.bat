@@ -1,5 +1,6 @@
 @echo off
 setlocal EnableDelayedExpansion
+set PYTHONUTF8=1
 
 :: ============================================================
 ::  PCARS2-AI — Lanzador de entrenamiento

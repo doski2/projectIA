@@ -1,5 +1,6 @@
 @echo off
 setlocal
+set PYTHONUTF8=1
 
 :: ============================================================
 ::  PCARS2-AI — Monitor de metricas en vivo

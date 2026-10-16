@@ -1,0 +1,13 @@
+# Configuración de ruff para PCARS2-AI (ver docs/AUDITORIA_CODIGO.md, 5.4)
+target-version = "py310"
+extend-exclude = ["models", "logs", "data"]
+
+[lint]
+select = ["F", "E9", "B"]
+ignore = [
+    "B008",  # llamadas en defaults de argparse/dataclass
+    "B905",  # zip() sin strict: se revisa caso a caso
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["F811"]

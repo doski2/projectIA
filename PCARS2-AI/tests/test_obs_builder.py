@@ -1,6 +1,5 @@
 """Tests de paridad para obs_builder."""
 
-import math
 
 import numpy as np
 import pytest

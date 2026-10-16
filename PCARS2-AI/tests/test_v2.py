@@ -1,9 +1,6 @@
 """Tests para PCARS2-AI v2 (config + launcher)."""
 
-import json
-from pathlib import Path
 
-import pytest
 
 from learning_curriculum import LEARN_STAGES, SPEED_BANDS_KMH as CURR_SPEED_BANDS
 
@@ -15,7 +12,6 @@ from v2.launcher import (
     build_teaching_argv,
     find_latest_checkpoint,
     load_learn_settings,
-    project_root,
     save_learn_settings,
 )
 

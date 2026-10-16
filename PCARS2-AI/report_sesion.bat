@@ -1,4 +1,5 @@
 @echo off
+set PYTHONUTF8=1
 cd /d "%~dp0"
 if "%~1"=="" (
   echo Uso: report_sesion.bat logs\teaching\sesion.jsonl

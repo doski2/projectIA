@@ -2,7 +2,6 @@
 
 import math
 
-import pytest
 
 from reference_recorder import ReferenceLine, ReferencePoint
 from teacher_controller import (

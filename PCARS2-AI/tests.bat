@@ -1,5 +1,6 @@
 @echo off
 setlocal
+set PYTHONUTF8=1
 
 :: ============================================================
 ::  PCARS2-AI — Ejecutar tests con el venv del proyecto

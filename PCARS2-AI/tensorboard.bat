@@ -1,4 +1,5 @@
 @echo off
+set PYTHONUTF8=1
 :: ============================================================
 ::  PCARS2-AI — TensorBoard
 ::  Abre el dashboard en http://localhost:6006

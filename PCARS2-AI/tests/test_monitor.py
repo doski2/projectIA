@@ -11,7 +11,6 @@ import os
 
 import pytest
 
-import monitor
 from monitor import (
     sfloat,
     sint,

@@ -18,6 +18,9 @@
 > 6 tests en `test_imitation_mix.py`. Total: 224 tests.
 > `main.train`: callback de métricas movido a `MetricsAccumulator` (módulo, testable, `_on_step` 15→trivial) y
 > selección de modelo a `_load_or_create_model`; complejidad 41→21; 9 tests en `test_main_metrics.py`. Total: 232 tests.
+> **Higiene (2026-10-16):** 5.2 (`gemini-code-….md` movido a `docs/archivo/`), 5.4 (`ruff.toml` con F/E9/B y `ruff` en
+> `requirements.txt`; `ruff check src v2 scripts tests` limpio), 5.6 (`set PYTHONUTF8=1` en los 21 `.bat`).
+> Siguen abiertos 5.3 (`Tareas.txt`) y 5.5 (`print` → `logging`).
 > Pendiente de la sección 3: `learn_driver.run` (resto), `imitation_driver.run` (bucle), `main.train`, `session_report.write_html_replay`
 > y el bucle de `teaching_driver.run` (sin tests; requieren un entorno falso).
 > Pendiente: 5.1 (commit), 1.4–1.5, 2.6, 2.9, sección 3 (refactor de `run`/`train`) y 5.2–5.6.

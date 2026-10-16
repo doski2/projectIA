@@ -11,6 +11,7 @@
 ::    promover_base.bat  models\pcars2_ppo_1074564_steps.zip
 :: ============================================================
 setlocal
+set PYTHONUTF8=1
 
 set PYTHON=C:\Users\doski\projectIA\.venv\Scripts\python.exe
 set TARGET=models\base

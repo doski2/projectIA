@@ -1,9 +1,6 @@
 """Tests de observación universal e intenciones."""
 
-import math
 
-import numpy as np
-import pytest
 
 from obs_universal import OBS_UNIVERSAL_DIM, build_obs_universal
 from reference_recorder import ReferenceLine, ReferencePoint

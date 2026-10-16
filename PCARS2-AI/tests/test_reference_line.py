@@ -10,7 +10,6 @@ Estos tests no necesitan el juego ni hardware: construyen una referencia
 sintética en memoria y validan la geometría y la persistencia.
 """
 
-import math
 import os
 import glob
 

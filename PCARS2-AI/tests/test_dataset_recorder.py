@@ -1,6 +1,5 @@
 """Tests del dataset recorder."""
 
-import json
 import os
 import tempfile
 
