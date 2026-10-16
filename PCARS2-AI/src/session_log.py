@@ -46,6 +46,8 @@ def vehicle_diag(telem) -> dict:
     return {
         "game_steer": round(telem.steering / 127.0, 3),
         "raw_steer": round(telem.raw_steering / 127.0, 3),
+        "game_throttle": round(telem.throttle / 255.0, 3),
+        "game_brake": round(telem.brake / 255.0, 3),
         "yaw_rate": round(telem.angular_velocity[1], 4),
         "lat_accel": round(telem.local_acceleration[2], 3),
         "terrain": list(telem.terrain),
