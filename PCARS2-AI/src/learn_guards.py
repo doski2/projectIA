@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from safety_monitor import GAME_FPS
 
-CTE_SUSTAINED_M = 2.0
-CTE_RELEASE_M = 1.2
+CTE_SUSTAINED_M = 3.5
+CTE_RELEASE_M = 2.5
 CTE_SUSTAINED_S = 2.0
 
 POOR_DEMO_REASONS = frozenset({
