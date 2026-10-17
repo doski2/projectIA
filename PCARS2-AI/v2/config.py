@@ -30,6 +30,7 @@ class TeachingSettings:
     dataset_output: str = "data/universal_teacher.jsonl"
     bc_model_path: str = "models/universal_bc.pt"
     hybrid_alpha: float = 0.7
+    graduation_laps: int = 5
     max_laps: int = 0
 
 

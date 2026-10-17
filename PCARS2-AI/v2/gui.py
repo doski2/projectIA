@@ -263,7 +263,7 @@ class TrainingGui(tk.Tk):
                 "1) Graba al teacher conduciendo bien  ·  "
                 "2) Entrena el modelo BC  ·  "
                 "3) Aprende en pista (L1→L7 por banda 20→60 km/h)  ·  "
-                "4) Prueba Hybrid al dominar L7 en cada banda"
+                "4) Prueba Hybrid/Autónomo al dominar L7 (panel de abajo, velocidad propia)"
             ),
             wraplength=700,
             justify="left",
@@ -338,15 +338,64 @@ class TrainingGui(tk.Tk):
             text="▶ Aprender en pista",
             command=self._start_learn,
         ).pack(side="left", padx=(0, 8))
-        ttk.Button(
-            action_row,
-            text="Probar Hybrid",
-            command=self._start_hybrid,
-        ).pack(side="left", padx=2)
 
         ttk.Label(
             session,
             text="Avanza solo con vueltas limpias. Al cruzar meta el coche frena mientras el BC se actualiza.",
+            foreground="#666",
+            wraplength=700,
+        ).pack(anchor="w", padx=8, pady=(0, 8))
+
+        hybrid = ttk.LabelFrame(parent, text="Hybrid / Autónomo — valida sin entrenar")
+        hybrid.pack(fill="x", padx=4, pady=6)
+        hgrid = ttk.Frame(hybrid)
+        hgrid.pack(fill="x", padx=8, pady=8)
+
+        ttk.Label(hgrid, text="Velocidad (km/h):").grid(row=0, column=0, sticky="w", padx=px, pady=py)
+        self.hybrid_speed_var = tk.StringVar(value="20")
+        ttk.Combobox(
+            hgrid,
+            textvariable=self.hybrid_speed_var,
+            values=[str(int(b)) for b in SPEED_BANDS_KMH],
+            state="readonly",
+            width=6,
+        ).grid(row=0, column=1, sticky="w", padx=px, pady=py)
+        ttk.Label(
+            hgrid,
+            text="Independiente de la banda de aprendizaje (tras L7 la banda sube sola)",
+            foreground="#666",
+        ).grid(row=0, column=2, sticky="w", padx=px, pady=py)
+
+        ttk.Label(hgrid, text="Mezcla BC (alpha):").grid(row=1, column=0, sticky="w", padx=px, pady=py)
+        self.hybrid_alpha_var = tk.DoubleVar(value=0.7)
+        ttk.Spinbox(
+            hgrid, from_=0.0, to=1.0, increment=0.1, width=6,
+            textvariable=self.hybrid_alpha_var,
+        ).grid(row=1, column=1, sticky="w", padx=px, pady=py)
+
+        ttk.Label(hgrid, text="Vueltas limpias p/ graduar:").grid(row=2, column=0, sticky="w", padx=px, pady=py)
+        self.hybrid_grad_var = tk.IntVar(value=5)
+        ttk.Spinbox(
+            hgrid, from_=1, to=20, width=6, textvariable=self.hybrid_grad_var,
+        ).grid(row=2, column=1, sticky="w", padx=px, pady=py)
+
+        ttk.Label(hgrid, text="Máx. vueltas (0 = sin límite):").grid(row=3, column=0, sticky="w", padx=px, pady=py)
+        self.hybrid_laps_var = tk.IntVar(value=0)
+        ttk.Spinbox(
+            hgrid, from_=0, to=100, width=6, textvariable=self.hybrid_laps_var,
+        ).grid(row=3, column=1, sticky="w", padx=px, pady=py)
+
+        hrow = ttk.Frame(hybrid)
+        hrow.pack(fill="x", padx=8, pady=(0, 8))
+        ttk.Button(
+            hrow, text="▶ Probar Hybrid", command=self._start_hybrid,
+        ).pack(side="left", padx=(0, 8))
+        ttk.Button(
+            hrow, text="▶ Autónomo (BC sin teacher)", command=self._start_autonomous,
+        ).pack(side="left", padx=2)
+        ttk.Label(
+            hybrid,
+            text="Hybrid gradúa solo a Autónomo tras N vueltas limpias seguidas. No entrena ni modifica el modelo.",
             foreground="#666",
             wraplength=700,
         ).pack(anchor="w", padx=8, pady=(0, 8))
@@ -685,24 +734,37 @@ class TrainingGui(tk.Tk):
             "Consola abierta.\nAl cruzar meta el coche frena hasta que el BC termine de actualizar.",
         )
 
-    def _start_hybrid(self) -> None:
-        self._persist_learn_settings()
+    def _start_imitation(self, mode_id: str, title: str, info: str) -> None:
         model = self.learn_model_var.get().strip()
         settings = TeachingSettings(
             reference=self.learn_ref_var.get().strip(),
-            speed_target_kmh=self._effective_learn_speed(),
-            gamepad="xbox",
-            mode_id="hybrid",
+            speed_target_kmh=float(self.hybrid_speed_var.get()),
+            gamepad=self.learn_settings.gamepad,
+            mode_id=mode_id,
             bc_model_path=model,
+            hybrid_alpha=float(self.hybrid_alpha_var.get()),
+            graduation_laps=int(self.hybrid_grad_var.get()),
+            max_laps=int(self.hybrid_laps_var.get()),
         )
         if not self._check_reference(settings.reference) or not self._check_venv():
             return
         if not self._check_bc_model(model):
             return
         launch_teaching(settings)
-        messagebox.showinfo(
+        messagebox.showinfo(title, info)
+
+    def _start_hybrid(self) -> None:
+        self._start_imitation(
+            "hybrid",
             "Hybrid",
             "BC + teacher en consola.\nGradúa a autónomo tras vueltas limpias.",
+        )
+
+    def _start_autonomous(self) -> None:
+        self._start_imitation(
+            "autonomous",
+            "Autónomo",
+            "BC sin teacher en consola. Ctrl+C para parar.",
         )
 
     def _start_training(self) -> None:

@@ -236,6 +236,7 @@ def build_teaching_argv(settings: TeachingSettings) -> List[str]:
         argv.extend(["--model", model])
     if settings.mode_id == "hybrid":
         argv.extend(["--alpha", str(settings.hybrid_alpha)])
+        argv.extend(["--graduation-laps", str(settings.graduation_laps)])
     if settings.max_laps > 0:
         argv.extend(["--max-laps", str(settings.max_laps)])
     return argv
