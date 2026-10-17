@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple
 
 from auto_shift import AutoShifter, auto_shift, maybe_engage_first_gear
-from pcars2_gear import choose_bc_drive_pedals
+from pcars2_gear import cap_bc_to_speed_target, choose_bc_drive_pedals
 from controller import DS4Controller, decode_action
 from dataset_recorder import ORIGIN_MIXED, DatasetRecorder
 from driver_cli import add_diag_track_arg, add_safety_profile_arg, ns_str
@@ -58,6 +58,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gamepad", choices=["xbox", "ds4"], default="xbox")
     parser.add_argument("--record", default="", help="JSONL opcional para grabar MIXED")
     parser.add_argument("--max-laps", type=int, default=0)
+    parser.add_argument(
+        "--no-speed-cap", action="store_true",
+        help="No limitar al BC al objetivo de velocidad (por defecto sí, como en learn_driver)",
+    )
     parser.add_argument("--log-every", type=int, default=50)
     parser.add_argument("--graduation-laps", type=int, default=5,
                         help="Vueltas limpias para graduar a autonomous en hybrid")
@@ -243,6 +247,12 @@ def run(args: argparse.Namespace) -> int:
             mix_alpha_used = mix.mix_alpha
             if mix.override_inc:
                 override_count += 1
+            if not args.no_speed_cap and not lap_guard.active and not override and not used_teacher:
+                final, capped = cap_bc_to_speed_target(
+                    final, telem.speed, teacher.speed_target_ms,
+                )
+                if capped:
+                    drive_source = "teacher:speed"
 
             settle = lap_guard.apply(teacher_tuple, final)
             if settle.active:
