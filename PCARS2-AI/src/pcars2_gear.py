@@ -27,6 +27,8 @@ MIN_SPEED_FOR_BACKWARD = 0.12
 TEACHING_MAX_GEAR = 2
 ENGAGE_FIRST_MAX_SPEED_MS = 2.5
 ENGAGE_FIRST_THROTTLE = 0.45
+# gear=0 por encima de esto avanzando = fallo del UDP (en logs aparece a 10-60 km/h).
+UDP_GEAR_GLITCH_MIN_SPEED_MS = 4.0
 ENGAGE_FIRST_STUCK_MAX_FRAMES = 90
 
 
@@ -69,6 +71,17 @@ def backward_allows_rb_shift(telem: TelemetryFrame) -> bool:
     return is_driving_backward(telem) and not is_forward_gear(telem)
 
 
+def is_udp_gear_glitch(telem: TelemetryFrame) -> bool:
+    """
+    UDP marca gear=0 estando en 2ª y avanzando (rpm/velocidad siguen igual de coherentes).
+    Un punto muerto real no acelera: por encima de UDP_GEAR_GLITCH_MIN_SPEED_MS es un fallo
+    del dato, no hay que pedir 1ª ni tomar los pedales al BC.
+    """
+    if telem.gear != 0 or telem.speed < UDP_GEAR_GLITCH_MIN_SPEED_MS:
+        return False
+    return longitudinal_velocity_ms(telem) > 0.0
+
+
 def should_rb_to_first(telem: TelemetryFrame) -> bool:
     """
     Neutro o byte de marcha inválido → RB (en N engancha 1ª).
@@ -93,7 +106,7 @@ def should_downshift_toward_first(telem: TelemetryFrame) -> bool:
 
 def needs_gear_engagement(telem: TelemetryFrame) -> bool:
     """Teacher: priorizar 1ª antes de cruise (neutro o marcha alta a crawl)."""
-    if telem.gear == 1:
+    if telem.gear == 1 or is_udp_gear_glitch(telem):
         return False
     if telem.gear > 1:
         return should_downshift_toward_first(telem)

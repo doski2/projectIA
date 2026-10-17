@@ -77,3 +77,39 @@ def test_neutral_rolling_still_needs_teacher_engagement():
     telem = _telem(gear=0, speed=1.5, rpm=3000)
     assert should_rb_to_first(telem)
     assert needs_gear_engagement(telem)
+
+
+def test_gear_zero_while_moving_is_udp_glitch():
+    from pcars2_gear import is_udp_gear_glitch
+
+    moving = _telem(gear=0, speed=9.0, rpm=2000)
+    assert is_udp_gear_glitch(moving)
+    assert not needs_gear_engagement(moving)
+    assert not should_use_teacher_pedals(moving, False)
+
+
+def test_gear_zero_slow_or_backward_is_not_glitch():
+    from pcars2_gear import is_udp_gear_glitch
+
+    assert not is_udp_gear_glitch(_telem(gear=0, speed=1.5))
+    assert not is_udp_gear_glitch(_telem(gear=0, speed=5.0, local_vx=-5.0))
+    assert needs_gear_engagement(_telem(gear=0, speed=1.5))
+
+
+def test_auto_shifter_ignores_glitch_neutral_at_speed():
+    from auto_shift import AutoShifter
+
+    class Ctl:
+        def __init__(self):
+            self.pressed = []
+
+        def press_button(self, b):
+            self.pressed.append(b)
+
+        def apply_action(self, *_):
+            pass
+
+    shifter = AutoShifter(last_forward_gear=2, neutral_frames=50)
+    ctl = Ctl()
+    assert shifter.shift(ctl, _telem(gear=0, speed=9.0, rpm=2000), 0.4, 0.0) is None
+    assert ctl.pressed == []

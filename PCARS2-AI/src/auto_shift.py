@@ -20,6 +20,7 @@ from pcars2_gear import (
     is_driving_backward,
     is_forward_gear,
     is_reverse_gear,
+    is_udp_gear_glitch,
     num_gears_safe,
     should_downshift_toward_first,
     should_rb_to_first,
@@ -80,6 +81,8 @@ class AutoShifter:
         Con gas activo: gestiona N / byte inválido / marchas por encima de 1ª.
         Devuelve (handled, acción); handled=False → seguir con up/down normales.
         """
+        if is_udp_gear_glitch(telem):
+            return True, None
         if should_rb_to_first(telem):
             # Punto muerto: solo RB. LB en N mete la marcha atrás.
             if telem.gear <= 0:
