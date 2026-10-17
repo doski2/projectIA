@@ -211,6 +211,7 @@ def load_universal_dataset(
     min_confidence: float = 0.0,
     learn_stage: Optional[str] = None,
     speed_band_kmh: Optional[float] = None,
+    track_name: Optional[str] = None,
 ) -> tuple:
     """Carga JSONL universal_v1 → (obs, act, reason_ids, meta)."""
     obs_list: List[np.ndarray] = []
@@ -233,6 +234,8 @@ def load_universal_dataset(
             if row.get("confidence", 0.0) < min_confidence:
                 continue
             if learn_stage is not None and row.get("learn_stage") != learn_stage:
+                continue
+            if track_name and row.get("track_name") != track_name:
                 continue
             if speed_band_kmh is not None:
                 row_band = row.get("speed_band_kmh")

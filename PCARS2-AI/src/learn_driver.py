@@ -119,8 +119,9 @@ def _load_training_data(
     base_path: str,
     stage_id: str,
     speed_band_kmh: float,
+    track_name: str = "",
 ) -> tuple:
-    """Base teacher sin filtro; buffer online filtrado por etapa + banda."""
+    """Base teacher sin filtro; buffer online filtrado por etapa + banda + pista."""
     chunks = []
     if os.path.isfile(base_path):
         chunks.append(load_universal_dataset(base_path, min_quality=FINE_TUNE_MIN_QUALITY))
@@ -130,6 +131,7 @@ def _load_training_data(
             min_quality=FINE_TUNE_MIN_QUALITY,
             learn_stage=stage_id,
             speed_band_kmh=speed_band_kmh,
+            track_name=track_name or None,
         ))
     if not chunks:
         return load_universal_dataset(
@@ -137,6 +139,7 @@ def _load_training_data(
             min_quality=FINE_TUNE_MIN_QUALITY,
             learn_stage=stage_id,
             speed_band_kmh=speed_band_kmh,
+            track_name=track_name or None,
         )
     if len(chunks) == 1:
         return chunks[0]
@@ -210,8 +213,10 @@ class BackgroundFineTuner:
         prog: LearnProgress,
         lap_guard: LapTransitionGuard,
         model: Optional[UniversalPolicy],
+        track_name: str = "",
     ) -> None:
         self.args = args
+        self.track_name = track_name
         self.prog = prog
         self.lap_guard = lap_guard
         self.model = model
@@ -234,6 +239,7 @@ class BackgroundFineTuner:
         args = self.args
         obs, act, rid, _ = _load_training_data(
             args.buffer, args.base_dataset, self.prog.stage_id, self.prog.speed_band,
+            self.track_name,
         )
         result = fine_tune_universal(
             model_path=args.model,
@@ -328,7 +334,9 @@ def run(args: argparse.Namespace) -> int:
     prog = LearnProgress(stage_id=stage_id, speed_band=speed_band)
     lap_guard = LapTransitionGuard(track_length=ref.track_length)
     cte_guard = SustainedCteGuard()
-    tuner = BackgroundFineTuner(args, prog, lap_guard, model)
+    tuner = BackgroundFineTuner(
+        args, prog, lap_guard, model, ref.track_name or "",
+    )
     lap_summary_rows: List[dict] = []
 
     def _persist_progress() -> None:

@@ -79,3 +79,28 @@ def test_load_training_data_filters_buffer_by_speed_band(tmp_path):
 
     obs, _act, _rid, _meta = _load_training_data(str(buffer), str(base), "l1_linea", 20.0)
     assert len(obs) == 2  # base + solo banda 20
+
+
+def test_load_training_data_filters_buffer_by_track(tmp_path):
+    base = tmp_path / "base.jsonl"
+    buffer = tmp_path / "buffer.jsonl"
+    _write_sample(base, FINE_TUNE_MIN_QUALITY + 0.1)
+    rows = []
+    for track in ("SUGO_GP", "SPA"):
+        rows.append(json.dumps({
+            "obs_schema": OBS_SCHEMA,
+            "obs": [0.0] * OBS_UNIVERSAL_DIM,
+            "action": [0.2, 0.0, 0.0],
+            "quality": FINE_TUNE_MIN_QUALITY + 0.1,
+            "confidence": 1.0,
+            "teacher_reason": "hold",
+            "learn_stage": "l1_linea",
+            "speed_band_kmh": 20.0,
+            "track_name": track,
+        }))
+    buffer.write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+    obs, *_ = _load_training_data(str(buffer), str(base), "l1_linea", 20.0, "SPA")
+    assert len(obs) == 2  # base + solo la fila SPA
+    obs, *_ = _load_training_data(str(buffer), str(base), "l1_linea", 20.0)
+    assert len(obs) == 3  # sin pista: no filtra
