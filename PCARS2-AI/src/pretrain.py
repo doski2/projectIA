@@ -318,9 +318,8 @@ def pretrain(
     patience_counter = 0
     for epoch in range(1, epochs + 1):
         total_loss = 0.0
-        for obs_batch, act_batch in loader:
-            obs_batch = obs_batch.to(device)
-            act_batch = act_batch.to(device)
+        for batch in loader:
+            obs_batch, act_batch = (t.to(device) for t in batch)
             pred, _, _ = policy.forward(obs_batch, deterministic=True)
             loss = loss_fn(pred, act_batch)
             optimizer.zero_grad()

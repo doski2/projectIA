@@ -183,8 +183,8 @@ def load_dataset(
     meta: List[dict] = []
 
     with open(path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
+        for raw in f:
+            line = raw.strip()
             if not line:
                 continue
             row = json.loads(line)
@@ -220,8 +220,8 @@ def load_universal_dataset(
     meta: List[dict] = []
 
     with open(path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
+        for raw in f:
+            line = raw.strip()
             if not line:
                 continue
             row = json.loads(line)

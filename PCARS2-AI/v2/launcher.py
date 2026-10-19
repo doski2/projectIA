@@ -11,7 +11,14 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-from .config import LearnSettings, TeachingSettings, TrainingSettings, get_mode, get_teaching_mode
+from .config import (
+    LearnSettings,
+    TeachingSettings,
+    TrainingSettings,
+    get_mode,
+    get_teaching_mode,
+    settings_to_dict,
+)
 
 _SRC = Path(__file__).resolve().parent.parent / "src"
 if str(_SRC) not in sys.path:
@@ -67,12 +74,6 @@ def load_learn_settings() -> Optional[LearnSettings]:
     from .config import learn_settings_from_dict
 
     return learn_settings_from_dict(json.loads(path.read_text(encoding="utf-8")))
-
-
-def settings_to_dict(settings: TrainingSettings) -> dict:
-    from .config import settings_to_dict as _to_dict
-
-    return _to_dict(settings)
 
 
 def list_references() -> List[str]:

@@ -26,8 +26,8 @@ def _load_ticks(path: Path) -> tuple[dict | None, list[dict]]:
     session = None
     ticks: list[dict] = []
     with path.open(encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
+        for raw in f:
+            line = raw.strip()
             if not line:
                 continue
             row = json.loads(line)

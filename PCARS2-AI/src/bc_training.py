@@ -63,11 +63,8 @@ def _train_loop(
     for epoch in range(1, epochs + 1):
         model.train()
         total = 0.0
-        for obs_b, act_b, rh_b, rid_b in loader:
-            obs_b = obs_b.to(device)
-            act_b = act_b.to(device)
-            rh_b = rh_b.to(device)
-            rid_b = rid_b.to(device)
+        for batch in loader:
+            obs_b, act_b, rh_b, rid_b = (t.to(device) for t in batch)
 
             pred_act = model(obs_b, rh_b)
             x = torch.cat([obs_b, rh_b], dim=-1)

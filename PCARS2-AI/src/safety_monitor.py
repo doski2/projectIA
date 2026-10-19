@@ -214,6 +214,10 @@ def tick_off_track_cte(tick: dict) -> bool:
     return abs(float(tick.get("cte", 0.0))) >= CTE_RECOVERY_M
 
 
+def pct(count: int, total: int) -> float:
+    return round(100.0 * count / total, 1) if total > 0 else 0.0
+
+
 def off_track_pct_breakdown(ticks: List[dict]) -> dict:
     """Porcentajes off_surface / off_track_cte / total (union) para métricas y HTML."""
     n = len(ticks)
@@ -230,11 +234,8 @@ def off_track_pct_breakdown(ticks: List[dict]) -> dict:
         if t.get("off_track") or tick_off_surface(t) or tick_off_track_cte(t)
     )
 
-    def _pct(count: int, total: int) -> float:
-        return round(100.0 * count / total, 1) if total else 0.0
-
     return {
-        "pct_off_track": _pct(n_total, n),
-        "pct_off_surface": _pct(n_surface, n),
-        "pct_off_track_cte": _pct(n_cte, n),
+        "pct_off_track": pct(n_total, n),
+        "pct_off_surface": pct(n_surface, n),
+        "pct_off_track_cte": pct(n_cte, n),
     }

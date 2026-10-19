@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from safety_monitor import off_track_pct_breakdown
+from safety_monitor import off_track_pct_breakdown, pct as _pct
 
 
 @dataclass
@@ -132,10 +132,6 @@ BRAKE_REASONS = {"brake_overspeed", "recover_line"}
 
 def get_phase(phase_id: str) -> ValidationPhase:
     return PHASES.get(phase_id, PHASES[DEFAULT_PHASE])
-
-
-def _pct(n: int, total: int) -> float:
-    return round(100.0 * n / total, 1) if total > 0 else 0.0
 
 
 def _p95(values: List[float]) -> float:

@@ -73,7 +73,7 @@ class TrainingGui(tk.Tk):
         self._populate_refs()
         self._apply_settings_to_ui()
         self._on_mode_change()
-        self._on_learn_stage_change()
+        self._on_learn_settings_change()
 
     def _build_ui(self) -> None:
         header = ttk.Label(
@@ -321,7 +321,7 @@ class TrainingGui(tk.Tk):
             width=22,
         )
         stage_combo.grid(row=2, column=1, sticky="w", padx=px, pady=py)
-        stage_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_learn_stage_change())
+        stage_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_learn_settings_change())
 
         self.learn_speed_hint = ttk.Label(grid, text="", foreground="#666")
         self.learn_speed_hint.grid(row=3, column=1, sticky="w", padx=px, pady=py)
@@ -432,7 +432,7 @@ class TrainingGui(tk.Tk):
             increment=5,
             width=6,
             textvariable=self.learn_speed_var,
-            command=self._on_learn_speed_change,
+            command=self._on_learn_settings_change,
         ).pack(side="left")
         ttk.Label(override_row, text="0 = usa banda (normalmente no tocar)").pack(side="left", padx=8)
 
@@ -551,17 +551,6 @@ class TrainingGui(tk.Tk):
         self._update_learn_speed_hint()
         self._persist_learn_settings()
         self._update_learn_command()
-
-    def _on_learn_stage_change(self) -> None:
-        stage_id = self.learn_stage_var.get().strip()
-        band = self._current_learn_band()
-        self.learn_stage_desc.config(text=stage_blurb(stage_id, band))
-        self._update_learn_speed_hint()
-        self._persist_learn_settings()
-        self._update_learn_command()
-
-    def _on_learn_speed_change(self) -> None:
-        self._on_learn_settings_change()
 
     def _on_learn_settings_change(self) -> None:
         stage_id = self.learn_stage_var.get().strip()
