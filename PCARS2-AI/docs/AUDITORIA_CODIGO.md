@@ -23,10 +23,11 @@
 > Siguen abiertos 5.3 (`Tareas.txt`) y 5.5 (`print` → `logging`).
 > **Continuación (2026-10-19):** 1.4 (un único `_on_learn_settings_change` en `v2/gui.py`), 1.5 (`pct` único en
 > `safety_monitor`, reutilizado por `validation_phases`; `launcher` importa `settings_to_dict` de `config`),
-> 2.6 (ya sin avisos de ruff). 241 tests, ruff limpio.
+> 2.6 (ya sin avisos de ruff), 2.9 (sin `PLW2901` en `bc_training`, `pretrain`, `dataset_recorder` ni
+> `analyze_session_deviation`). 241 tests, ruff limpio.
 > Pendiente de la sección 3: `learn_driver.run` (resto), `imitation_driver.run` (bucle), `main.train`, `session_report.write_html_replay`
 > y el bucle de `teaching_driver.run` (sin tests; requieren un entorno falso).
-> Pendiente: 2.9, sección 3 (refactor de `run`/`train`) y 5.2–5.6.
+> Pendiente: sección 3 (refactor de `run`/`train`) y 5.2–5.6.
 
 Fecha: 2026-10-15. Alcance: `PCARS2-AI/src`, `v2`, `scripts`, `tests` y scripts de la raíz.
 Método: análisis AST (nombres/cuerpos duplicados), `ruff` (F, B, PLW, C901) y `pytest`.
