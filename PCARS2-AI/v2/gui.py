@@ -262,7 +262,7 @@ class TrainingGui(tk.Tk):
             text=(
                 "1) Graba al teacher conduciendo bien  ·  "
                 "2) Entrena el modelo BC  ·  "
-                "3) Aprende en pista (L1→L7 por banda 20→60 km/h)  ·  "
+                "3) Aprende en pista (L1→L7 por banda 20→80 km/h)  ·  "
                 "4) Prueba Hybrid/Autónomo al dominar L7 (panel de abajo, velocidad propia)"
             ),
             wraplength=700,

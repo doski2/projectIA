@@ -161,8 +161,8 @@ LEARN_STAGES: Dict[str, LearnStage] = {
 
 DEFAULT_LEARN_STAGE = "l1_linea"
 DEFAULT_SPEED_BAND_KMH = 20.0
-SPEED_BANDS_KMH = [20.0, 30.0, 40.0, 50.0, 60.0]
-MAX_SPEED_BAND_KMH = 60.0
+SPEED_BANDS_KMH = [20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0]
+MAX_SPEED_BAND_KMH = 80.0
 
 
 def get_learn_stage(stage_id: str) -> LearnStage:

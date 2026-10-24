@@ -47,3 +47,43 @@ def test_vehicle_diag_fields():
     assert d["yaw_rate"] == 0.2 and d["lat_accel"] == 3.0
     assert d["game_throttle"] == 1.0 and d["game_brake"] == 0.0
     assert d["terrain"] == [0, 0, 7, 7] and d["tyre_rps"][0] == 10.1
+
+
+def test_guard_spin_trigger_fires_without_waiting_hold():
+    g = SustainedCteGuard(enter_m=3.5, release_m=2.5, hold_s=2.0)
+    assert g.update(2.6, speed_ms=16.0, heading_err=-0.7)
+    assert g.active
+
+
+def test_guard_spin_trigger_ignores_slow_or_small_deviation():
+    g = SustainedCteGuard()
+    assert not g.update(2.6, speed_ms=5.0, heading_err=-0.8)  # lento
+    assert not g.update(1.5, speed_ms=16.0, heading_err=-0.8)  # cerca de la línea
+    assert not g.update(2.6, speed_ms=16.0, heading_err=0.3)  # rumbo normal
+
+
+def test_stuck_abort_after_hold():
+    from learn_guards import StuckOffTrackAbort
+
+    a = StuckOffTrackAbort(hold_s=10.0)
+    assert not a.update(19.0, 0.0, now=100.0)
+    assert not a.update(19.0, 0.0, now=109.9)
+    assert a.update(19.0, 0.0, now=110.0)
+
+
+def test_stuck_abort_resets_when_moving_or_near_line():
+    from learn_guards import StuckOffTrackAbort
+
+    a = StuckOffTrackAbort(hold_s=10.0)
+    a.update(19.0, 0.0, now=100.0)
+    assert not a.update(19.0, 3.0, now=108.0)  # se movió
+    assert not a.update(19.0, 0.0, now=112.0)  # reinicia la cuenta
+    a.update(19.0, 0.0, now=113.0)
+    assert not a.update(2.0, 0.0, now=125.0)  # volvió a la línea
+
+
+def test_guard_spin_release_needs_heading_recovered():
+    g = SustainedCteGuard(enter_m=3.5, release_m=2.5, hold_s=2.0)
+    assert g.update(2.6, speed_ms=16.0, heading_err=-0.7)
+    assert g.update(2.4, speed_ms=16.0, heading_err=-0.7)  # sin rebote
+    assert not g.update(2.0, speed_ms=16.0, heading_err=-0.1)

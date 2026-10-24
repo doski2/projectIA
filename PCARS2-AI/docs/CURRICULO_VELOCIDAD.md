@@ -11,7 +11,7 @@ No optimizar tiempo de vuelta hasta conseguir vueltas limpias en todas las banda
 ## Idea en una frase
 
 Completa **L1→L7** en la banda **20 km/h**. Prueba **Hybrid** en esa banda. Sube a **30 km/h** y
-repite L1→L7. Así hasta **60 km/h**.
+repite L1→L7. Así hasta **80 km/h**.
 
 ---
 
@@ -23,7 +23,9 @@ repite L1→L7. Así hasta **60 km/h**.
 | **30**  | Ritmo intermedio                          |
 | **40**  | Ritmo medio-alto                          |
 | **50**  | Ritmo alto                                |
-| **60**  | Máximo del currículo actual               |
+| **60**  | Ritmo muy alto                            |
+| **70**  | Curvas empiezan a limitar al teacher      |
+| **80**  | Máximo del currículo actual               |
 
 La **banda** fija el objetivo del teacher (`speed_target_kmh`) durante toda la sesión L1–L7.
 El buffer online guarda `learn_stage` + `speed_band_kmh` para que el fine-tune solo use datos de la
@@ -64,7 +66,7 @@ Tras dominar **L7**, el sistema reinicia en **L1** con la siguiente banda (p. ej
 Detalle record / marchas / qué entra al JSONL:
 [TEACHING_MARCHAS_Y_DATASET.md](TEACHING_MARCHAS_Y_DATASET.md)
 
-### Por cada banda (20 → 30 → 40 → 50 → 60)
+### Por cada banda (20 → 30 → 40 → 50 → 60 → 70 → 80)
 
 1. **GUI** → pestaña *Aprendizaje (BC)*
    - Banda: p. ej. `20`
@@ -258,9 +260,9 @@ maratones de 50 vueltas en un solo circuito sin equilibrar el dataset base (ver
 
 ## Siguiente paso después del currículo
 
-Cuando **60 km/h** y **L7** estén dominados:
+Cuando **80 km/h** y **L7** estén dominados:
 
-1. Hybrid estable en 60 km/h
+1. Hybrid estable en 80 km/h
 2. Autónomo con supervisión
 3. Multi-pista: JSONL curados por circuito + `entrenar_bc` multi-dataset (ver
 

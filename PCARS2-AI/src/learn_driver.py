@@ -40,7 +40,7 @@ from lap_session import (
 )
 from lap_transition import LapTransitionGuard
 from lap_tracker import format_lap_time
-from learn_guards import SustainedCteGuard, is_poor_demo
+from learn_guards import StuckOffTrackAbort, SustainedCteGuard, is_poor_demo
 from learn_progress import read_saved_speed_band, read_saved_stage, save_learn_progress
 from learning_curriculum import (
     DEFAULT_LEARN_STAGE,
@@ -339,6 +339,7 @@ def run(args: argparse.Namespace) -> int:
     prog = LearnProgress(stage_id=stage_id, speed_band=speed_band)
     lap_guard = LapTransitionGuard(track_length=ref.track_length)
     cte_guard = SustainedCteGuard()
+    stuck_abort = StuckOffTrackAbort()
     tuner = BackgroundFineTuner(
         args, prog, lap_guard, model, ref.track_name or "",
     )
@@ -407,6 +408,13 @@ def run(args: argparse.Namespace) -> int:
 
             status = safety.update(telem, timings)
             decision = resolve_teacher_decision(teacher, telem, timings, safety, status)
+            if stuck_abort.update(decision.cte, telem.speed):
+                print(
+                    f"[Learn] Coche parado a {abs(decision.cte):.0f} m de la línea más de "
+                    f"{stuck_abort.hold_s:.0f} s (¿muro?) — cierro la sesión; "
+                    "reinicia el coche y vuelve a lanzar."
+                )
+                break
             teacher_tuple = decision.as_tuple()
             reason = decision.reason
             obs_record = build_obs_universal(telem, timings, ref, teacher.speed_target_ms)
@@ -424,7 +432,9 @@ def run(args: argparse.Namespace) -> int:
                 bc_tuple, teacher_tuple, telem, override, lap_guard.active,
             )
             cte_takeover = (
-                cte_guard.update(decision.cte) and not override and not lap_guard.active
+                cte_guard.update(decision.cte, telem.speed, decision.heading_err)
+                and not override
+                and not lap_guard.active
             )
             if cte_takeover:
                 proposed, drive_source, ovr_inc = teacher_tuple, "teacher:cte", True
