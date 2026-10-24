@@ -46,3 +46,29 @@ def test_gear_engage_does_not_flip_back_to_brake():
     held = guard.apply((0.0, 0.0, 0.0), (0.0, 0.0, 0.0), speed_ms=0.0, gear=1)
     assert held.reason == "fine_tune"
     assert held.brake == LapTransitionGuard.HOLD_BRAKE
+
+
+def test_engage_timeout_releases_gas_then_retries():
+    guard = LapTransitionGuard()
+    guard.set_fine_tuning(True)
+    z = (0.0, 0.0, 0.0)
+    for _ in range(LapTransitionGuard.ENGAGE_TIMEOUT_FRAMES):
+        s = guard.apply(z, z, speed_ms=0.0, gear=0)
+        assert s.reason == "fine_tune_gear"
+    s = guard.apply(z, z, speed_ms=0.0, gear=0)
+    assert s.reason == "fine_tune"
+    assert s.throttle == 0.0 and s.brake == LapTransitionGuard.HOLD_BRAKE
+    assert guard.engage_timeouts == 1
+    for _ in range(LapTransitionGuard.ENGAGE_RECOVER_FRAMES - 1):
+        assert guard.apply(z, z, speed_ms=0.0, gear=0).reason == "fine_tune"
+    assert guard.apply(z, z, speed_ms=0.0, gear=0).reason == "fine_tune_gear"
+
+
+def test_engage_counter_resets_when_first_gear_found():
+    guard = LapTransitionGuard()
+    guard.set_fine_tuning(True)
+    z = (0.0, 0.0, 0.0)
+    for _ in range(100):
+        guard.apply(z, z, speed_ms=0.0, gear=0)
+    guard.apply(z, z, speed_ms=0.0, gear=1)
+    assert guard._engage_frames == 0

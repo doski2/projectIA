@@ -36,6 +36,8 @@ STALL_SPEED_MS = 0.5
 SHIFT_COOLDOWN_S = 0.18
 # Un 0 de pocos frames tras ir en 2ª es un fallo del UDP, no punto muerto.
 NEUTRAL_BLIP_FRAMES = 4
+# Reintento de RB en punto muerto durante el settle (opt-in: learn/imitation).
+NEUTRAL_RETRY_COOLDOWN_S = 0.6
 
 
 class ShiftController(Protocol):
@@ -57,9 +59,14 @@ class AutoShifter:
     last_shift_t: float = 0.0
     last_forward_gear: int = 0
     neutral_frames: int = 0
+    last_action: Optional[str] = None
+    neutral_retry_s: float = 0.0
 
     def ready(self) -> bool:
-        return time.monotonic() - self.last_shift_t >= self.cooldown_s
+        cooldown = self.cooldown_s
+        if self.last_action == "to_first":
+            cooldown = max(cooldown, self.neutral_retry_s)
+        return time.monotonic() - self.last_shift_t >= cooldown
 
     def _observe_gear(self, telem: TelemetryFrame) -> None:
         if is_forward_gear(telem):
@@ -122,12 +129,23 @@ class AutoShifter:
 
         self._observe_gear(telem)
 
+        if not self.ready():
+            return None
+
+        action = self._shift_inner(controller, telem, throttle, brake)
+        self.last_action = action
+        return action
+
+    def _shift_inner(
+        self,
+        controller: ShiftController,
+        telem: TelemetryFrame,
+        throttle: float,
+        brake: float,
+    ) -> Optional[str]:
         ratio = rpm_ratio(telem)
         gear = telem.gear
         num_gears = num_gears_safe(telem)
-
-        if not self.ready():
-            return None
 
         if backward_allows_rb_shift(telem):
             self._press(controller, "rb")

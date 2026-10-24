@@ -15,7 +15,12 @@ import threading
 from dataclasses import dataclass
 from typing import Callable, List, Optional
 
-from auto_shift import AutoShifter, auto_shift, maybe_engage_first_gear
+from auto_shift import (
+    NEUTRAL_RETRY_COOLDOWN_S,
+    AutoShifter,
+    auto_shift,
+    maybe_engage_first_gear,
+)
 from pcars2_gear import cap_bc_to_speed_target, choose_bc_drive_pedals
 from bc_training import fine_tune_universal
 from controller import DS4Controller, decode_action
@@ -323,7 +328,7 @@ def run(args: argparse.Namespace) -> int:
         return 1
 
     controller = DS4Controller(mode=args.gamepad)
-    shifter = AutoShifter()
+    shifter = AutoShifter(neutral_retry_s=NEUTRAL_RETRY_COOLDOWN_S)
     start_lap = session.last_timings.current_lap if session.last_timings else 0
     lap_completion = LapCompletionTracker()
     laps_done = 0
@@ -442,8 +447,9 @@ def run(args: argparse.Namespace) -> int:
                 final = proposed
 
             controller.apply_action(*final)
+            shift_event = None
             if args.auto_shift:
-                auto_shift(controller, telem, final[0], final[1], shifter)
+                shift_event = auto_shift(controller, telem, final[0], final[1], shifter)
 
             if not lap_guard.active and not is_poor_demo(reason):
                 buffer_rec.maybe_record(
@@ -501,6 +507,7 @@ def run(args: argparse.Namespace) -> int:
                 gear=telem.gear,
                 num_gears=telem.num_gears,
                 rpm=telem.rpm,
+                shift_event=shift_event,
                 track_diag=track_diag,
                 vehicle=vehicle_diag(telem),
             )

@@ -71,6 +71,18 @@ def test_auto_shift_neutral_to_first_at_any_speed():
         assert ctrl.pressed[-1] == "rb"
 
 
+def test_neutral_rb_retry_is_slower_than_normal_cooldown():
+    import time
+
+    ctrl = FakeController()
+    shifter = AutoShifter(cooldown_s=0.01, neutral_retry_s=0.6)
+    telem = _telem(gear=0, speed=0.0)
+    assert auto_shift(ctrl, telem, 0.5, 0.0, shifter) == "to_first"
+    time.sleep(0.05)
+    assert auto_shift(ctrl, telem, 0.5, 0.0, shifter) is None
+    assert ctrl.pressed == ["rb"]
+
+
 def test_auto_shift_cooldown_prevents_spam():
     ctrl = FakeController()
     shifter = AutoShifter(cooldown_s=0.2)
@@ -177,3 +189,4 @@ def test_reverse_gear_uses_rb_not_lb():
     telem = _telem(gear=3, rpm=2000, speed=0.4)
     assert auto_shift(ctrl, telem, 0.0, 0.5, shifter) is None
     assert ctrl.pressed == []
+
