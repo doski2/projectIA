@@ -25,9 +25,13 @@
 > `safety_monitor`, reutilizado por `validation_phases`; `launcher` importa `settings_to_dict` de `config`),
 > 2.6 (ya sin avisos de ruff), 2.9 (sin `PLW2901` en `bc_training`, `pretrain`, `dataset_recorder` ni
 > `analyze_session_deviation`). 241 tests, ruff limpio.
-> Pendiente de la sección 3: `learn_driver.run` (resto), `imitation_driver.run` (bucle), `main.train`, `session_report.write_html_replay`
-> y el bucle de `teaching_driver.run` (sin tests; requieren un entorno falso).
-> Pendiente: sección 3 (refactor de `run`/`train`) y 5.2–5.6.
+> **Estado a 2026-10-24 (244 tests, ruff limpio):** abiertos solo la sección 3 (13 funciones con C901 > 10:
+> `learn_driver.run` 29, `imitation_driver.run` 22, `main.train` 21, `session_report.write_html_replay` 19 y
+> ocho entre 11 y 13), la sección 4 (`teaching_driver` y `teaching_diag` sin tests; `imitation_driver`,
+> `session_report` y `eval_driver` con uno) y 5.3 (`Tareas.txt`) y 5.5 (199 `print` → `logging`).
+> 5.1 resuelto con el commit del fix de marchas: `LapTransitionGuard` con timeout de engrane,
+> `AutoShifter.neutral_retry_s` (opt-in en learn/imitation) y `shift_event` en el log de ticks.
+> Los bucles de `run` se refactorizan cuando acabe el currículo (no tocar un bucle que funciona).
 
 Fecha: 2026-10-15. Alcance: `PCARS2-AI/src`, `v2`, `scripts`, `tests` y scripts de la raíz.
 Método: análisis AST (nombres/cuerpos duplicados), `ruff` (F, B, PLW, C901) y `pytest`.
@@ -158,12 +162,12 @@ Módulos **sin ningún test** que los referencie:
 
 | # | Prioridad | Tema |
 | --- | --- | --- |
-| 5.1 | P1 | Hay cambios sin commit en 9 ficheros (`auto_shift`, `lap_transition`, `learn_driver`, `pcars2_gear`, tests, `Tareas.txt`, `fix_markdownlint.py`). Commitear tras revisar. |
-| 5.2 | P2 | `gemini-code-1777834144518.md` (raíz, 200 KB): volcado de una conversación, parece ajeno al proyecto. Moverlo a `docs/archivo/` o borrarlo. |
+| 5.1 | P1 | (resuelto 2026-10-24) Había cambios sin commit en 9 ficheros (`auto_shift`, `lap_transition`, `learn_driver`, `pcars2_gear`, tests, `Tareas.txt`, `fix_markdownlint.py`). Commitear tras revisar. |
+| 5.2 | P2 | (resuelto) `gemini-code-1777834144518.md` (raíz, 200 KB): volcado de una conversación, parece ajeno al proyecto. Moverlo a `docs/archivo/` o borrarlo. |
 | 5.3 | P2 | `Tareas.txt` mezcla lista de fases con una nota suelta (`pendiente: l2`). Pasar a `docs/ROADMAP_CONDICIONES.md` o a issues. |
-| 5.4 | P3 | `requirements.txt`: añadir `ruff` en dependencias de desarrollo y un `pyproject.toml` con su configuración (C901 en 15, ignorar PLW2901 si se prefiere). |
+| 5.4 | P3 | (resuelto) `requirements.txt`: añadir `ruff` en dependencias de desarrollo y un `pyproject.toml` con su configuración (C901 en 15, ignorar PLW2901 si se prefiere). |
 | 5.5 | P3 | 198 `print(` en `src`: migrar a `logging` (niveles y salida a fichero) manteniendo la salida de consola en los CLI. |
-| 5.6 | P3 | Mojibake en consola Windows (`cuerpo id�ntico`): forzar `PYTHONUTF8=1` en los `.bat`. |
+| 5.6 | P3 | (resuelto) Mojibake en consola Windows (`cuerpo id�ntico`): forzar `PYTHONUTF8=1` en los `.bat`. |
 
 ---
 
