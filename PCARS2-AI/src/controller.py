@@ -21,6 +21,8 @@ Requisito adicional (Windows):
 
 import vgamepad as vg
 
+from steering_curve import compensate_steering
+
 # ---------------------------------------------------------------------------
 # Rangos de la acción del agente (normalizados)
 # ---------------------------------------------------------------------------
@@ -41,7 +43,9 @@ class DS4Controller:
     Controlador virtual para Project CARS 2. Soporta Xbox 360 y DualShock 4.
 
     Parámetros:
-      mode : 'xbox' (por defecto) o 'ds4'
+      mode       : 'xbox' (por defecto) o 'ds4'
+      steer_comp : True → envía la orden inversa a la curva medida del juego
+                   (steering_curve.py) para que el volante aplicado ≈ pedido
 
     Mapeo de ejes:
       Acelerador = RT/R2  |  Freno = LT/L2  |  Volante = joystick izquierdo X
@@ -53,8 +57,9 @@ class DS4Controller:
         ctrl.release()
     """
 
-    def __init__(self, mode: str = 'xbox'):
+    def __init__(self, mode: str = 'xbox', steer_comp: bool = False):
         self._mode = mode.lower()
+        self._steer_comp = steer_comp
         if self._mode == 'ds4':
             self._gamepad = vg.VDS4Gamepad()
             print('[Controller] Modo: DualShock 4 (VDS4Gamepad)')
@@ -92,6 +97,8 @@ class DS4Controller:
         throttle = max(0.0, min(1.0, float(throttle)))
         brake    = max(0.0, min(1.0, float(brake)))
         steering = max(-1.0, min(1.0, float(steering)))
+        if self._steer_comp:
+            steering = compensate_steering(steering)
 
         # Trail-braking: permitir overlap parcial de pedales (throttle + brake)
         # Solo anular throttle si el freno es predominante (>0.3).

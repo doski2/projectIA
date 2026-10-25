@@ -211,6 +211,7 @@ class LearnSettings:
     open_report: bool = True
     speed_target_kmh: float = 0.0  # 0 = usa banda; >0 = override fino (avanzado)
     speed_band_kmh: float = 20.0  # banda fija L1–L7 (teacher a este objetivo)
+    steer_comp: bool = False  # compensar la curva de respuesta del volante (experimental)
 
 
 LEARN_STAGE_IDS: List[str] = list(LEARN_STAGES.keys())

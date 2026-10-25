@@ -281,6 +281,8 @@ def build_learn_argv(settings: LearnSettings) -> List[str]:
         argv.extend(["--speed-band", str(int(settings.speed_band_kmh))])
     if settings.speed_target_kmh > 0:
         argv.extend(["--speed-target", str(settings.speed_target_kmh)])
+    if settings.steer_comp:
+        argv.append("--steer-comp")
     return argv
 
 

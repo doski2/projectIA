@@ -21,7 +21,12 @@ from auto_shift import (
     auto_shift,
     maybe_engage_first_gear,
 )
-from pcars2_gear import cap_bc_to_speed_target, choose_bc_drive_pedals
+from pcars2_gear import (
+    STEER_DAMP_REF_MS,
+    cap_bc_to_speed_target,
+    choose_bc_drive_pedals,
+    damp_bc_steering,
+)
 from bc_training import fine_tune_universal
 from controller import DS4Controller, decode_action
 import numpy as np
@@ -86,6 +91,14 @@ def parse_args() -> argparse.Namespace:
                         help="Fine-tune cada N vueltas completas")
     parser.add_argument("--fine-tune-epochs", type=int, default=8)
     parser.add_argument("--max-laps", type=int, default=0, help="0 = sin límite")
+    parser.add_argument(
+        "--steer-comp", action="store_true",
+        help="Compensa la curva de respuesta del volante del juego (steering_curve.py)",
+    )
+    parser.add_argument(
+        "--steer-damp-kmh", type=float, default=STEER_DAMP_REF_MS * 3.6,
+        help="Por encima de esta velocidad el volante del BC se reduce ∝ 1/v (0 = desactivado)",
+    )
     parser.add_argument("--gamepad", choices=["xbox", "ds4"], default="xbox")
     parser.add_argument("--log-every", type=int, default=50)
     parser.add_argument("--session-log", default="")
@@ -327,7 +340,7 @@ def run(args: argparse.Namespace) -> int:
         print("[Error] Sin telemetría UDP.")
         return 1
 
-    controller = DS4Controller(mode=args.gamepad)
+    controller = DS4Controller(mode=args.gamepad, steer_comp=args.steer_comp)
     shifter = AutoShifter(neutral_retry_s=NEUTRAL_RETRY_COOLDOWN_S)
     start_lap = session.last_timings.current_lap if session.last_timings else 0
     lap_completion = LapCompletionTracker()
@@ -440,6 +453,8 @@ def run(args: argparse.Namespace) -> int:
                 proposed, drive_source, ovr_inc = teacher_tuple, "teacher:cte", True
             if ovr_inc:
                 override_count += 1
+            if drive_source == "bc" and not lap_guard.active:
+                proposed = damp_bc_steering(proposed, telem.speed, args.steer_damp_kmh / 3.6)
             if not lap_guard.active and not override and not cte_takeover:
                 proposed, capped = cap_bc_to_speed_target(
                     proposed, telem.speed, teacher.speed_target_ms,

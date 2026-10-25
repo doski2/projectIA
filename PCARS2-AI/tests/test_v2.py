@@ -156,6 +156,8 @@ def test_speed_bands_reach_80_and_chain_to_the_end():
     from learning_curriculum import MAX_SPEED_BAND_KMH, next_speed_band
 
     assert CURR_SPEED_BANDS[-1] == MAX_SPEED_BAND_KMH == 80.0
+    assert next_speed_band(50.0) == 55.0
+    assert next_speed_band(55.0) == 60.0
     assert next_speed_band(60.0) == 70.0
     assert next_speed_band(70.0) == 80.0
     assert next_speed_band(80.0) is None

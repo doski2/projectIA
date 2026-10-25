@@ -1,1 +1,1 @@
-pendiente: l1 50
+pendiente: l2 55

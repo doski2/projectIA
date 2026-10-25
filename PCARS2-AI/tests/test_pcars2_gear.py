@@ -1,5 +1,7 @@
 """Tests de heurísticas de marcha UDP."""
 
+import pytest
+
 from pcars2_gear import (
     backward_allows_rb_shift,
     cap_bc_to_speed_target,
@@ -113,3 +115,18 @@ def test_auto_shifter_ignores_glitch_neutral_at_speed():
     ctl = Ctl()
     assert shifter.shift(ctl, _telem(gear=0, speed=9.0, rpm=2000), 0.4, 0.0) is None
     assert ctl.pressed == []
+
+
+def test_damp_bc_steering_scales_inverse_with_speed():
+    from pcars2_gear import damp_bc_steering
+
+    assert damp_bc_steering((0.3, 0.0, 0.8), 10.0, 12.5) == (0.3, 0.0, 0.8)  # bajo la ref
+    t, b, s = damp_bc_steering((0.3, 0.1, -0.8), 25.0, 12.5)
+    assert (t, b) == (0.3, 0.1)
+    assert s == pytest.approx(-0.4)
+
+
+def test_damp_bc_steering_disabled_with_zero_ref():
+    from pcars2_gear import damp_bc_steering
+
+    assert damp_bc_steering((0.3, 0.0, 0.8), 30.0, 0.0) == (0.3, 0.0, 0.8)

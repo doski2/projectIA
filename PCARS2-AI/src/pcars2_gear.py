@@ -167,6 +167,22 @@ def cap_bc_to_speed_target(
     return (0.0, max(proposed[1], brake), proposed[2]), True
 
 
+# El volante del BC se aprendió a ritmos bajos: la ganancia de guiñada crece con la velocidad
+# (yaw ≈ v·δ/L) y por encima de ~45 km/h el lazo oscila. Se escala δ ∝ 1/v desde esta velocidad.
+STEER_DAMP_REF_MS = 12.5
+
+
+def damp_bc_steering(
+    proposed: PedalTuple,
+    speed_ms: float,
+    ref_ms: float = STEER_DAMP_REF_MS,
+) -> PedalTuple:
+    """Reduce el volante del BC en proporción inversa a la velocidad (ref_ms <= 0: desactivado)."""
+    if ref_ms <= 0 or speed_ms <= ref_ms:
+        return proposed
+    return (proposed[0], proposed[1], proposed[2] * ref_ms / speed_ms)
+
+
 def throttle_for_shift(telem: TelemetryFrame, throttle: float) -> float:
     """
     Gas mínimo para auto_shift en neutro (RB a 1ª).

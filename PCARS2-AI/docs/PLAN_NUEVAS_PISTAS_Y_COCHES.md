@@ -62,6 +62,7 @@ Aplica antes de cualquier pista nueva con ese coche.
 1. **Ajustes del mando.** Mismos valores que ahora (zona muerta de dirección 0, sensibilidad de
    dirección y pedales 50, sensibilidad de velocidad 0). Cambian por coche solo si el juego los
    guarda por coche.
+   Tabla completa en [CONFIGURACION_JUEGO.md](CONFIGURACION_JUEGO.md).
 2. **Calibración corta.** Una sesión de `aprender` de 5-10 min y la tabla "enviado / aplicado"
    de volante, gas y freno (campo `vehicle` de cada tick). Esperado: pendiente razonable y sin
    zona muerta. Si no, ajustar el mando antes de seguir.

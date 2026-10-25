@@ -326,6 +326,14 @@ class TrainingGui(tk.Tk):
         self.learn_speed_hint = ttk.Label(grid, text="", foreground="#666")
         self.learn_speed_hint.grid(row=3, column=1, sticky="w", padx=px, pady=py)
 
+        self.learn_steer_comp_var = tk.BooleanVar(value=self.learn_settings.steer_comp)
+        ttk.Checkbutton(
+            grid,
+            text="Compensar curva del volante (experimental)",
+            variable=self.learn_steer_comp_var,
+            command=self._on_learn_settings_change,
+        ).grid(row=4, column=1, sticky="w", padx=px, pady=py)
+
         self.learn_stage_desc = ttk.Label(
             session, text="", wraplength=700, foreground="#444", justify="left",
         )
@@ -521,6 +529,7 @@ class TrainingGui(tk.Tk):
             open_report=True,
             speed_band_kmh=float(self.learn_band_var.get()),
             speed_target_kmh=float(self.learn_speed_var.get()),
+            steer_comp=bool(self.learn_steer_comp_var.get()),
         )
 
     def _persist_learn_settings(self) -> None:

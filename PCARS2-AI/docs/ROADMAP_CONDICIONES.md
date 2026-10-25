@@ -58,6 +58,7 @@ Disponibles en telemetría UDP (`pcars2_udp_data_reference.md`; enums en `src/pc
 | Desgaste neumático                       | `sTyreWear`                                                  | Menos agarre al final de stint |
 | Combustible                              | `sFuelLevel`, `sFuelCapacity`                                | Peso, balance                  |
 | Daño / suspensión                        | `sSuspensionDamage`, etc.                                    | Comportamiento degradado       |
+| Temperatura y daño de frenos             | `sBrakeTempCelsius[4]`, `sBrakeDamage[4]` (hoy no se leen en `TelemetryFrame`) | Fade, avería, distancia de frenada |
 
 **Enfoque:** currículo por condiciones (como las bandas de velocidad): primero seco/setup base →
 stint con desgaste → lluvia/frío, etc.
@@ -82,6 +83,69 @@ Opciones documentadas para más adelante:
 
 Optimización de tiempo, gestión de stint, adaptación fina. Solo cuando BC sea estable en las capas
 anteriores.
+
+---
+
+## Deuda de conducción: solape de gas y freno (resolver antes de activar daños)
+
+**Estado:** documentado 2026-10-25, **sin implementar**. Decisión: por ahora solo se documenta.
+
+**Qué pasa.** El coche acelera y frena a la vez durante transiciones y en parte de la conducción de
+crucero. No es trail-braking intencionado.
+
+- **Origen en el teacher.** `TeachingController` suaviza gas y freno por separado con límites de
+  tasa (`_smooth`, `throttle_rate` / `brake_rate`). Al pasar de acelerar a frenar, un pedal baja
+  mientras el otro sube y durante la transición hay los dos pulsados.
+- **Medido en las etiquetas del teacher** (acción decodificada, gas y freno > 0,05 a la vez):
+
+  | Dataset                                      | Solape | Por situación |
+  | -------------------------------------------- | -----: | ------------- |
+  | `data/universal_teacher.jsonl` (base)        |   64 % | `brake_overspeed` 94 %, `maintain_speed` 54 %, `accel_straight` 8 % |
+  | `data/online_buffer.jsonl` (400 000 primeras) |  3,8 % | `brake_overspeed` 32 %, `maintain_speed` 2 % |
+
+  Nunca con ambos pedales por encima de 0,2: son solapes pequeños pero constantes.
+- **El BC lo hereda y lo amplifica.** Al ser una regresión sobre intenciones distintas, promedia y
+  a menudo devuelve gas y freno bajos a la vez: 14-52 % de los ticks del BC a más de 40 km/h en las
+  sesiones de aprendizaje del 2026-10-24 y 25.
+- **El pedal se aplica fielmente.** `vehicle.game_throttle` y `game_brake` coinciden con lo
+  enviado, así que el coche recibe ese solape tal cual.
+- **No es (con estos datos) la causa del zigzag del volante.** El solape no sube de forma
+  consistente justo antes de las salidas de línea, y en el trompo de 60 km/h el freno estaba a 0.
+
+**Por qué hay que corregirlo.** Hoy se ejecuta con daños, desgaste y averías desactivados (ver
+[CONFIGURACION_JUEGO.md](CONFIGURACION_JUEGO.md): *Tipo de daño*, *Fallos mecánicos*, *Desgaste de
+los neumáticos* y *Uso de combustible* en «Desact.»). Con esas opciones activas, frenar con gas
+pisado:
+
+- calienta los frenos (`sBrakeTempCelsius`) y provoca **fade**: peor distancia de frenada
+  (`sBrakeDamage` también),
+- desgasta antes frenos y neumáticos y aumenta el riesgo de averías mecánicas,
+- gasta combustible y energía sin avanzar, y empeora el rendimiento de frenada que optimizaría
+  un PPO.
+
+El agente se ha entrenado hasta aquí sin esos costes, así que no tiene ninguna presión para
+evitar el hábito.
+
+**Plan (en este orden, nada hecho):**
+
+1. **Exclusión de pedales al actuar** (interruptor tipo `--pedal-exclusive`): si un pedal pasa de
+   ~0,05, el otro va a 0, con un margen para no vibrar entre ambos. Se puede probar sin reentrenar.
+2. **Corregir el teacher:** suavizar un único eje de pedal (gas − freno) para que la transición
+   pase por cero. Las etiquetas nuevas saldrán sin solape.
+3. **Reetiquetar el dataset existente** al reentrenar o compactar la base: en cada fila, poner a 0
+   el pedal menor. Evita que el BC siga aprendiendo el hábito de los datos antiguos. (La compactación
+   de `online_buffer.jsonl`, 1,45 GB y 49 % de filas casi idénticas a la anterior, está pendiente
+   por separado.)
+4. **PPO:** espacio de acción con **un solo eje de pedal** en [-1, 1] (negativo = freno), de modo
+   que el solape sea imposible por construcción, y penalización explícita por temperatura de
+   frenos.
+5. **Leer la telemetría de frenos:** añadir `sBrakeTempCelsius[4]` y `sBrakeDamage[4]` a
+   `TelemetryFrame` (están en [pcars2_udp_data_reference.md](../../pcars2_udp_data_reference.md))
+   y registrarlos en el log de ticks, para medir el efecto antes y después de los cambios.
+
+**Criterio de «hecho»:** solape inferior al 2 % de los ticks del BC a más de 40 km/h con
+`--pedal-exclusive` activo o con el teacher corregido, sin empeorar CTE ni tiempo de vuelta, y
+temperatura de frenos legible en el log.
 
 ---
 

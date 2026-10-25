@@ -23,6 +23,7 @@ repite L1→L7. Así hasta **80 km/h**.
 | **30**  | Ritmo intermedio                          |
 | **40**  | Ritmo medio-alto                          |
 | **50**  | Ritmo alto                                |
+| **55**  | Escalón corto: el BC oscila al saltar 50→60 |
 | **60**  | Ritmo muy alto                            |
 | **70**  | Curvas empiezan a limitar al teacher      |
 | **80**  | Máximo del currículo actual               |
@@ -66,7 +67,7 @@ Tras dominar **L7**, el sistema reinicia en **L1** con la siguiente banda (p. ej
 Detalle record / marchas / qué entra al JSONL:
 [TEACHING_MARCHAS_Y_DATASET.md](TEACHING_MARCHAS_Y_DATASET.md)
 
-### Por cada banda (20 → 30 → 40 → 50 → 60 → 70 → 80)
+### Por cada banda (20 → 30 → 40 → 50 → 55 → 60 → 70 → 80)
 
 1. **GUI** → pestaña *Aprendizaje (BC)*
    - Banda: p. ej. `20`
