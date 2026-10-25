@@ -115,6 +115,10 @@ GAME_FPS = _GAME_FPS
 
 # Al reiniciar, el coche debe quedar en pista (CTE bajo): si no, se repite la reposición.
 START_MAX_CTE_M = 6.0
+# Back no reposiciona con el coche rodando: se frena hasta bajar de esta velocidad (m/s).
+STOP_BEFORE_BACK_MS = 1.0
+STOP_BEFORE_BACK_TIMEOUT_S = 15.0
+GRID_LINE_M = 30.0   # lap_distance menor: parrilla de salida; el CTE es distancia a la línea
 START_REPOSITION_RETRIES = 1   # Back deja el coche junto al box: más intentos no lo mueven
 
 # Pasos seguidos sin frame de física nuevo tras los que se trunca el episodio
@@ -280,6 +284,8 @@ class PCARS2Env(gym.Env):
         self._cur_time:           float = 0.0             # tiempo de vuelta del juego, último paso
         self._prev_current_time:  float = 0.0             # ... y el del paso anterior
         self._lap_time_s:         Optional[float] = None  # tiempo de la vuelta completada
+        self._ep_start_time:      float = 0.0             # cronómetro del juego en el primer paso
+        self._ep_start_dist:      float = 0.0             # lap_distance en el primer paso
         self._udp_stats = self._fresh_udp_stats()
 
         # Umbrales en frames de juego (_step_count solo avanza con CAR_PHYSICS nuevo).
@@ -375,6 +381,8 @@ class PCARS2Env(gym.Env):
         self._cur_time           = 0.0
         self._prev_current_time  = 0.0
         self._lap_time_s         = None
+        self._ep_start_time      = 0.0
+        self._ep_start_dist      = 0.0
 
         # Sincronizar hasta tener un frame de telemetría y timings válidos
         self._last_telem   = None
@@ -423,8 +431,20 @@ class PCARS2Env(gym.Env):
             print("[Env] No consigo meter la 1ª tras reposicionar; el episodio puede arrancar parado.")
         return ok
 
+    def _brake_to_stop(self) -> bool:
+        """Frena recto hasta casi parar (Back no funciona con el coche a velocidad)."""
+        deadline = time.monotonic() + STOP_BEFORE_BACK_TIMEOUT_S
+        while self._last_telem is not None and self._last_telem.speed > STOP_BEFORE_BACK_MS:
+            if time.monotonic() >= deadline:
+                print("[Env] No consigo parar el coche antes de Back; la reposición puede fallar.")
+                return False
+            self._controller.apply_action(0.0, 1.0, 0.0)
+            self._sync_physics_frame()
+        return True
+
     def _reposition_car(self) -> None:
-        """Botón Back = reposición en pista de PCARS2."""
+        """Parar y pulsar Back (= reposición en pista de PCARS2)."""
+        self._brake_to_stop()
         self._controller.neutral()
         time.sleep(0.3)                       # espera a que el juego procese el neutral
         self._controller.press_button('back')
@@ -449,7 +469,7 @@ class PCARS2Env(gym.Env):
             t, i = self._last_telem, self._last_timings
             assert t is not None and i is not None   # los deja _wait_for_telemetry
             cte = self._ref.cross_track_error(t.position, i.lap_distance)
-            if cte <= START_MAX_CTE_M:
+            if cte <= START_MAX_CTE_M or i.lap_distance < GRID_LINE_M:
                 return True
             if attempt == START_REPOSITION_RETRIES:
                 break
@@ -489,6 +509,9 @@ class PCARS2Env(gym.Env):
             if self._last_timings is not None:
                 self._prev_current_time = self._cur_time
                 self._cur_time = self._last_timings.current_time
+                if self._step_count == 1:
+                    self._ep_start_time = self._cur_time
+                    self._ep_start_dist = self._last_timings.lap_distance
 
             # 3. Calcular recompensa
             reward = self._compute_reward(throttle, brake, steering)
@@ -727,7 +750,11 @@ class PCARS2Env(gym.Env):
         if laps_done >= MAX_LAPS_PER_EPISODE:
             self._term_reason = "lap_done"
             # el juego pone a cero el tiempo al cruzar meta: vale el del paso anterior
-            self._lap_time_s = self._prev_current_time
+            # y se descuenta lo que tardó el reinicio; solo vale si el episodio empezó en la línea
+            self._lap_time_s = (
+                self._prev_current_time - self._ep_start_time
+                if self._ep_start_dist < GRID_LINE_M else None
+            )
             return False, True
 
         return False, False

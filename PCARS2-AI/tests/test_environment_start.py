@@ -46,13 +46,13 @@ def test_info_carries_gear_and_speed_target():
 def _env_arranque(ctes):
     env = object.__new__(PCARS2Env)
     env._controller = MagicMock()
-    env._last_telem = SimpleNamespace(position=(0, 0, 0))
+    env._last_telem = SimpleNamespace(position=(0, 0, 0), speed=0.0)
     env._last_timings = SimpleNamespace(lap_distance=0.0)
     env._ref = SimpleNamespace(cross_track_error=MagicMock(side_effect=list(ctes)))
 
     def reponer_telemetria():
-        env._last_telem = SimpleNamespace(position=(0, 0, 0))
-        env._last_timings = SimpleNamespace(lap_distance=0.0)
+        env._last_telem = SimpleNamespace(position=(0, 0, 0), speed=0.0)
+        env._last_timings = SimpleNamespace(lap_distance=500.0)
 
     env._wait_for_telemetry = MagicMock(side_effect=reponer_telemetria)
     return env
@@ -68,6 +68,7 @@ def test_start_on_track_does_not_reposition(monkeypatch):
 def test_start_in_the_pit_repositions_again_until_on_track(monkeypatch, capsys):
     monkeypatch.setattr(environment.time, "sleep", lambda s: None)
     env = _env_arranque([11.7, 0.5])
+    env._last_timings = SimpleNamespace(lap_distance=500.0)
     assert env._ensure_on_track() is True
     assert env._controller.press_button.call_count == 1
     assert env._wait_for_telemetry.call_count == 1
@@ -76,6 +77,7 @@ def test_start_in_the_pit_repositions_again_until_on_track(monkeypatch, capsys):
 def test_start_gives_up_after_the_retries(monkeypatch, capsys):
     monkeypatch.setattr(environment.time, "sleep", lambda s: None)
     env = _env_arranque([11.7] * 10)
+    env._last_timings = SimpleNamespace(lap_distance=500.0)
     assert env._ensure_on_track() is False
     assert env._controller.press_button.call_count == environment.START_REPOSITION_RETRIES
     assert "fuera de la pista" in capsys.readouterr().out
@@ -104,3 +106,55 @@ def test_no_engage_when_already_in_first(monkeypatch):
     env._last_telem = SimpleNamespace(gear=1)
     monkeypatch.setattr(environment, "engage_first_gear", lambda *a: (_ for _ in ()).throw(AssertionError))
     assert env._engage_first() is True
+
+
+def test_grid_start_behind_the_line_is_not_repositioned(monkeypatch):
+    """En la parrilla (lap_distance ~0) el CTE es distancia hasta la línea, no estar fuera de pista."""
+    monkeypatch.setattr(environment.time, "sleep", lambda s: None)
+    env = _env_arranque([11.7])
+    env._last_timings = SimpleNamespace(lap_distance=0.0)
+    assert env._ensure_on_track() is True
+    env._controller.press_button.assert_not_called()
+
+
+def _env_rodando(speeds):
+    env = object.__new__(PCARS2Env)
+    env._controller = MagicMock()
+    env._last_telem = SimpleNamespace(speed=speeds[0])
+    it = iter(speeds[1:])
+
+    def sync():
+        env._last_telem = SimpleNamespace(speed=next(it))
+        return True
+
+    env._sync_physics_frame = MagicMock(side_effect=sync)
+    return env
+
+
+def test_reposition_brakes_to_a_stop_before_pressing_back(monkeypatch):
+    """Back no funciona con el coche rodando: hay que parar primero."""
+    monkeypatch.setattr(environment.time, "sleep", lambda s: None)
+    env = _env_rodando([17.0, 12.0, 6.0, 2.0, 0.3])
+    order = []
+    env._controller.apply_action.side_effect = lambda *a: order.append(("accion", a))
+    env._controller.press_button.side_effect = lambda b: order.append(("boton", b))
+    env._reposition_car()
+    assert order[0] == ("accion", (0.0, 1.0, 0.0))
+    assert order[-1] == ("boton", "back")
+    assert env._sync_physics_frame.call_count == 4
+
+
+def test_reposition_does_not_brake_when_already_stopped(monkeypatch):
+    monkeypatch.setattr(environment.time, "sleep", lambda s: None)
+    env = _env_rodando([0.2])
+    env._reposition_car()
+    env._sync_physics_frame.assert_not_called()
+    env._controller.press_button.assert_called_once_with("back")
+
+
+def test_brake_to_stop_gives_up_after_the_timeout(monkeypatch, capsys):
+    monkeypatch.setattr(environment.time, "sleep", lambda s: None)
+    monkeypatch.setattr(environment, "STOP_BEFORE_BACK_TIMEOUT_S", 0.0)
+    env = _env_rodando([17.0, 17.0, 17.0])
+    assert env._brake_to_stop() is False
+    assert "No consigo parar" in capsys.readouterr().out

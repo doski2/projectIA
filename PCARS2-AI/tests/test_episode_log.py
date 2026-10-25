@@ -50,17 +50,26 @@ def _env_cerca_de_meta(prev_time):
     env._start_lap = 2
     env._term_reason = "?"
     env._prev_current_time = prev_time
+    env._ep_start_time = 5.5       # el cronómetro del juego ya marcaba 5,5 s al primer paso
+    env._ep_start_dist = 3.0
     env._lap_time_s = None
     env._speed_target_ms = 60.0 / 3.6
     return env
 
 
-def test_lap_time_is_the_last_time_before_the_game_resets_it():
+def test_lap_time_excludes_the_time_spent_in_reset():
     env = _env_cerca_de_meta(prev_time=231.4)
     assert env._check_done() == (False, True)
-    assert env._term_reason == "lap_done" and env._lap_time_s == 231.4
+    assert env._term_reason == "lap_done" and env._lap_time_s == 231.4 - 5.5
     info = env._build_info(0.3, 0.0, 0.0, 0.0)
-    assert info["lap_time_s"] == 231.4
+    assert info["lap_time_s"] == 231.4 - 5.5
+
+
+def test_lap_time_absent_if_the_episode_did_not_start_at_the_line():
+    env = _env_cerca_de_meta(prev_time=231.4)
+    env._ep_start_dist = 1500.0           # vuelta parcial: no es comparable con una vuelta entera
+    env._check_done()
+    assert env._lap_time_s is None
 
 
 def test_lap_time_absent_when_the_episode_ends_otherwise():
