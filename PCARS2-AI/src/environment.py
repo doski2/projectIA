@@ -25,7 +25,7 @@ import math
 import time
 from typing import Optional, Tuple
 
-from auto_shift import AutoShifter, auto_shift
+from auto_shift import AutoShifter, auto_shift, engage_first_gear
 
 import numpy as np
 import gymnasium as gym
@@ -389,6 +389,7 @@ class PCARS2Env(gym.Env):
         self._wait_for_telemetry()
         self._udp_ready = True
         self._ensure_on_track()
+        self._engage_first()
 
         # ---- Warm-up: gas a fondo N frames para que el coche arranque antes de
         #              entregar el control al agente (el coche llega ~30-50 km/h).
@@ -409,6 +410,18 @@ class PCARS2Env(gym.Env):
         self._start_lap = self._last_timings.current_lap
         obs = self._build_obs()
         return obs, {}
+
+    def _engage_first(self) -> bool:
+        """Back deja el coche en punto muerto (marcha 0): se mete la 1ª antes del calentamiento."""
+        if self._last_telem is not None and self._last_telem.gear == 1:
+            return True
+        ok = engage_first_gear(
+            self._controller, self._shifter, lambda: self._last_telem, self._sync_physics_frame,
+        )
+        self._controller.neutral()
+        if not ok:
+            print("[Env] No consigo meter la 1ª tras reposicionar; el episodio puede arrancar parado.")
+        return ok
 
     def _reposition_car(self) -> None:
         """Botón Back = reposición en pista de PCARS2."""
@@ -431,6 +444,7 @@ class PCARS2Env(gym.Env):
 
     def _ensure_on_track(self) -> bool:
         """Tras reposicionar el coche debe estar en pista; si no, repite la reposición."""
+        cte = float("inf")
         for attempt in range(START_REPOSITION_RETRIES + 1):
             t, i = self._last_telem, self._last_timings
             assert t is not None and i is not None   # los deja _wait_for_telemetry

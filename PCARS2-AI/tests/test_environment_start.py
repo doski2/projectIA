@@ -79,3 +79,28 @@ def test_start_gives_up_after_the_retries(monkeypatch, capsys):
     assert env._ensure_on_track() is False
     assert env._controller.press_button.call_count == environment.START_REPOSITION_RETRIES
     assert "fuera de la pista" in capsys.readouterr().out
+
+
+def test_reset_engages_first_gear_before_warmup(monkeypatch):
+    """El coche sale de Back en punto muerto: hay que meter la 1ª antes del calentamiento."""
+    calls = []
+    env = object.__new__(PCARS2Env)
+    env._controller = MagicMock()
+    env._shifter = object()
+    env._last_telem = SimpleNamespace(gear=0)
+    env._sync_physics_frame = MagicMock(return_value=True)
+    monkeypatch.setattr(
+        environment, "engage_first_gear",
+        lambda ctrl, sh, get_telem, sync: calls.append((ctrl, sh, get_telem(), sync)) or True,
+    )
+    assert env._engage_first() is True
+    ctrl, sh, telem, sync = calls[0]
+    assert ctrl is env._controller and sh is env._shifter and telem.gear == 0
+    assert sync == env._sync_physics_frame
+
+
+def test_no_engage_when_already_in_first(monkeypatch):
+    env = object.__new__(PCARS2Env)
+    env._last_telem = SimpleNamespace(gear=1)
+    monkeypatch.setattr(environment, "engage_first_gear", lambda *a: (_ for _ in ()).throw(AssertionError))
+    assert env._engage_first() is True

@@ -29,6 +29,7 @@ from ppo_defaults import (
     ANCHOR_EPOCHS,
     ANCHOR_LR,
     ANCHOR_TARGET_KL,
+    BC_PULL,
     CRITIC_WARMUP_STEPS,
     DEFAULT_BC_STD,
     PPO_NET_ARCH,
@@ -301,6 +302,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--anchor-target-kl", type=float, default=ANCHOR_TARGET_KL, metavar="KL",
         help="Corta las épocas de una actualización si la KL aproximada supera este valor.",
+    )
+    parser.add_argument(
+        "--bc-pull", type=float, default=BC_PULL, metavar="A",
+        help="Tras cada actualización devuelve esta fracción (0-1) del desvío del actor hacia el BC "
+             "inicial: evita que la conducción se degrade poco a poco. 0 = desactivado.",
     )
     parser.add_argument(
         "--critic-warmup-steps",
@@ -720,6 +726,9 @@ def train(args: argparse.Namespace) -> None:
     if getattr(args, "anchored_to_bc", False) and args.critic_warmup_steps > 0:
         from ppo_anchor import FreezeActorCallback
         callbacks.insert(1, FreezeActorCallback(args.critic_warmup_steps))
+    if getattr(args, "anchored_to_bc", False) and args.bc_pull > 0:
+        from ppo_anchor import PullToBCCallback
+        callbacks.append(PullToBCCallback(args.bc_pull))
 
     try:
         model.learn(

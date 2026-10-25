@@ -80,3 +80,29 @@ class HoldBrakeDuringUpdateCallback(BaseCallback):
 
     def _on_step(self) -> bool:
         return True
+
+
+class PullToBCCallback(BaseCallback):
+    """Tras cada actualización, devuelve una fracción `alpha` de los pesos del actor hacia el BC.
+
+    Sustituye a una penalización KL: el actor no puede alejarse acumulativamente de lo imitado,
+    pero sigue pudiendo moverse en cada rollout. `alpha` 0 lo desactiva. No toca el crítico.
+    """
+
+    def __init__(self, alpha: float):
+        super().__init__()
+        self.alpha = alpha
+        self._ref: list = []
+
+    def _on_training_start(self) -> None:
+        self._ref = [p.detach().clone() for p in _actor_params(self.model.policy)]
+
+    def _on_rollout_start(self) -> None:
+        if self.alpha <= 0 or not self._ref:
+            return
+        with torch.no_grad():
+            for p, ref in zip(_actor_params(self.model.policy), self._ref):
+                p.add_(self.alpha * (ref - p))
+
+    def _on_step(self) -> bool:
+        return True

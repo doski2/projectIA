@@ -12,4 +12,5 @@ DEFAULT_BC_STD = 0.1
 ANCHOR_LR = 3e-5
 ANCHOR_EPOCHS = 4
 ANCHOR_TARGET_KL = 0.02
+BC_PULL = 0.05          # fracción del desvío del actor que se recupera tras cada actualización
 CRITIC_WARMUP_STEPS = 8192
