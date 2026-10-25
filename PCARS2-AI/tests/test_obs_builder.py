@@ -119,6 +119,7 @@ def test_env_build_obs_parity():
     ref = _straight_ref()
     env = PCARS2Env.__new__(PCARS2Env)
     env._ref = ref
+    env._obs_schema = "legacy_19"
     env._last_telem = _telem_at(25.0)
     env._last_timings = _timings_at(25.0)
 

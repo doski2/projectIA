@@ -28,6 +28,8 @@ repite L1→L7. Así hasta **80 km/h**.
 | **70**  | Curvas empiezan a limitar al teacher      |
 | **80**  | Máximo del currículo actual               |
 
+**Estado (2026-10-25):** bandas 20 a 55 completadas, con L1–L7 aptas en la 55. En curso: **L1 en 60**.
+
 La **banda** fija el objetivo del teacher (`speed_target_kmh`) durante toda la sesión L1–L7.
 El buffer online guarda `learn_stage` + `speed_band_kmh` para que el fine-tune solo use datos de la
 etapa y banda actuales.
@@ -72,16 +74,21 @@ Detalle record / marchas / qué entra al JSONL:
 1. **GUI** → pestaña *Aprendizaje (BC)*
    - Banda: p. ej. `20`
    - Etapa: `L1` (o la última guardada en `v2/user_learn_settings.json`)
-2. **▶ Aprender en pista** (`aprender.bat`)
+2. **▶ Aprender en pista** (`aprender.bat`) — con la casilla **Compensar curva del volante**
+   activada (`--steer-comp`; ver [CONFIGURACION_JUEGO.md](CONFIGURACION_JUEGO.md)). Mantenerla
+   igual durante toda la banda para no mezclar plantas distintas
    - BC conduce, teacher corrige, fine-tune cada **N** vueltas (`learn_every` en
 
         `v2/user_learn_settings.json`, p. ej. **2**)
 
-   - Cada fine-tune mezcla **`base-dataset`** completo (`universal_teacher.jsonl`) +
+   - Cada fine-tune mezcla **`base-dataset`** completo (`universal_teacher.jsonl`) + el buffer
+     compactado `data/curated_buffer.npz` (`--curated`) +
 
         `data/online_buffer.jsonl` (buffer filtrado por etapa/banda)
 
-   - Al cruzar meta: freno corto (`settle`) y, si toca, espera mientras entrena en segundo plano
+   - Al cruzar meta: freno corto (`settle`) y, si toca, espera mientras entrena en segundo plano.
+     Esa parada **no cuenta como atasco** (`SafetyMonitor.hold`; ver
+     [AUDITORIA_CODIGO.md](AUDITORIA_CODIGO.md), 8.1)
    - Avanza de etapa solo con vueltas **limpias** seguidas (mínimo **2** en L1; no basta con 2
 
         vueltas “contadas” si no son limpias)
@@ -265,11 +272,19 @@ Cuando **80 km/h** y **L7** estén dominados:
 
 1. Hybrid estable en 80 km/h
 2. Autónomo con supervisión
-3. Multi-pista: JSONL curados por circuito + `entrenar_bc` multi-dataset (ver
+3. Preparar la base: el buffer ya está compactado (`curate_dataset.py`, ver
+   [AUDITORIA_CODIGO.md](AUDITORIA_CODIGO.md), 8.3); queda reetiquetar sin solape de gas y freno (ver
+   [ROADMAP_CONDICIONES.md](ROADMAP_CONDICIONES.md), «Deuda de conducción»)
+4. Multi-pista: JSONL curados por circuito + `entrenar_bc` multi-dataset (ver
 
-   [TEACHING_MARCHAS_Y_DATASET.md](TEACHING_MARCHAS_Y_DATASET.md))
+   [TEACHING_MARCHAS_Y_DATASET.md](TEACHING_MARCHAS_Y_DATASET.md) y
+   [PLAN_NUEVAS_PISTAS_Y_COCHES.md](PLAN_NUEVAS_PISTAS_Y_COCHES.md))
 
-4. RL fine-tune (PPO) solo si BC es estable — ver `ENTRENAMIENTO.md`
+5. RL fine-tune (PPO) solo si BC es estable, anclado al BC — ver `ENTRENAMIENTO.md` y la
+   «Secuencia hacia la carrera» del roadmap
+
+Lo que viene después de PPO (reglaje, condiciones, rivales, box y estrategia) está en
+[ROADMAP_CONDICIONES.md](ROADMAP_CONDICIONES.md).
 
 ### Después (no ahora): condiciones avanzadas
 

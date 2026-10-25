@@ -41,13 +41,25 @@ from telemetry_udp import (
 )
 from reference_recorder import ReferenceLine, slugify
 from controller import DS4Controller, decode_action
+from drive_session import DriveSession
+from safety_monitor import (
+    GAME_FPS as _GAME_FPS,
+    GRACE_STEPS,
+    NO_PROGRESS_DIST_M,
+    PIT_ZONE_MARGIN_M,
+    WRONGWAY_ANGLE_RAD,
+    WRONGWAY_NEAR_FINISH_S,
+    WRONGWAY_TIME_S,
+)
 from obs_builder import (
     MAX_CTE,
     MAX_HEADING_ERR,
     MAX_SPEED_DELTA,
     MAX_SPEED_MS,
+    OBS_DIM,
     build_obs,
 )
+from obs_universal import OBS_SCHEMA, OBS_UNIVERSAL_DIM, build_obs_universal
 
 # ---------------------------------------------------------------------------
 # Límites del espacio de observación
@@ -87,21 +99,22 @@ SPEED_TARGET_STEP_KMH = 5.0
 
 # Detección de coche sin progreso (cubre marcha atrás, box y atasco lento)
 # Debe avanzar al menos NO_PROGRESS_DIST_M metros en NO_PROGRESS_TIME_S (vía GAME_FPS)
-NO_PROGRESS_DIST_M  = 10.0
 NO_PROGRESS_TIME_S  = 12.0
 # Con curriculum el agente suele ir fuera de línea: dar más margen antes de cortar.
 NO_PROGRESS_CURRICULUM_TIME_S = 30.0
 
 # Detección de sentido contrario: error de heading >160° durante >N steps → terminar
 # 160° equivale a "prácticamente al revés" (180° = exactamente invertido)
-WRONGWAY_ANGLE_RAD       = math.radians(160)
-WRONGWAY_TIME_S          = 2.0    # referencia temporal (se convierte a steps)
-WRONGWAY_NEAR_FINISH_S   = 0.3    # referencia temporal cerca de meta
-PIT_ZONE_MARGIN_M        = 300.0  # metros alrededor de la línea de meta que forman la zona restringida
+# (WRONGWAY_*, PIT_ZONE_MARGIN_M, NO_PROGRESS_DIST_M y GRACE_STEPS vienen de safety_monitor)
 
-# FPS del juego: los contadores de terminación avanzan una vez por frame de juego
-# (cada iteración del bucle interno en step(), no por decisión del agente).
-GAME_FPS = 25.0
+# FPS del juego (60 Hz medidos en los logs; una sola fuente en safety_monitor): los
+# contadores de terminación avanzan una vez por frame de juego (cada iteración del
+# bucle interno en step(), no por decisión del agente).
+GAME_FPS = _GAME_FPS
+
+# Pasos seguidos sin frame de física nuevo tras los que se trunca el episodio
+# (UDP caído o juego en pausa), en vez de colgarse sin avanzar los contadores.
+MAX_SYNC_FAILURES = 5
 
 # Detección de atascado: velocidad baja durante N frames de juego consecutivos
 STUCK_SPEED_MS = 1.0
@@ -112,12 +125,32 @@ STUCK_TIME_BASICS_S = 15.0    # ~15 s antes de cortar (vs 8 s)
 # Penalización extra de volante a baja velocidad en básicos (evita girar a tope atascado)
 BASICS_LOW_SPEED_MS = 5.0 / 3.6  # 5 km/h
 
-# Pasos iniciales de gracia al inicio del episodio (no se penaliza off-track)
-# Ampliado para dar tiempo al coche a volver al trazado tras reposicionamiento
-GRACE_STEPS = 250
-
 # Vuelta máxima por episodio (evitar episodios infinitos en entrenamiento)
 MAX_LAPS_PER_EPISODE = 1
+
+
+LEGACY_OBS_SCHEMA = "legacy_19"
+
+
+def observation_space_for(obs_schema: str) -> spaces.Box:
+    """Espacio de observación según el esquema: `legacy_19` o `universal_v1` (CTE con signo)."""
+    if obs_schema == OBS_SCHEMA:
+        return spaces.Box(
+            low=np.full(OBS_UNIVERSAL_DIM, -1.0, dtype=np.float32),
+            high=np.ones(OBS_UNIVERSAL_DIM, dtype=np.float32),
+            dtype=np.float32,
+        )
+    if obs_schema != LEGACY_OBS_SCHEMA:
+        raise ValueError(f"obs_schema desconocido: {obs_schema!r}")
+    low = np.array([
+        0, 0, -1, -1, -1, -1, -1,   # 0-6  speed/cte/delta/slip/yaw/lat/long
+        0, 0,                        # 7-8  rpm/gear
+        -1, -1,                      # 9-10 heading_err/curvatura
+        0, 0,  0,  0,               # 11-14 lookahead×2 + ref_thr/brk
+        -1, -1,  0,                 # 15-17 wheelspin/lockup/throttle_cur
+        0,                           # 18  progress
+    ], dtype=np.float32)
+    return spaces.Box(low=low, high=np.ones(OBS_DIM, dtype=np.float32), dtype=np.float32)
 
 
 def termination_frame_count(time_s: float) -> int:
@@ -185,8 +218,10 @@ class PCARS2Env(gym.Env):
         basics:            bool  = False,
         speed_target_kmh:  float = 0.0,
         render_mode:       Optional[str] = None,
+        obs_schema:        str   = LEGACY_OBS_SCHEMA,
     ):
         super().__init__()
+        self._obs_schema = obs_schema
 
         # --- Referencia de trazado ---
         self._ref = ReferenceLine.load(reference_path)
@@ -222,21 +257,8 @@ class PCARS2Env(gym.Env):
                   f"incremento +{SPEED_TARGET_STEP_KMH:.0f} km/h cada {SPEED_TARGET_WINDOW:,} pasos.")
 
         # --- Spaces ---
-        # 19 observaciones — esenciales para conducción
-        # 0:speed 1:cte 2:delta 3:slip 4:yaw 5:lat 6:long
-        # 7:rpm 8:gear 9:heading_err 10:curv
-        # 11:lk50 12:lk100 13:ref_thr 14:ref_brk
-        # 15:wheelspin 16:lockup 17:throttle_cur 18:progress
-        _low  = np.array([
-            0, 0, -1, -1, -1, -1, -1,   # 0-6  speed/cte/delta/slip/yaw/lat/long
-            0, 0,                        # 7-8  rpm/gear
-            -1, -1,                      # 9-10 heading_err/curvatura
-            0, 0,  0,  0,               # 11-14 lookahead×2 + ref_thr/brk
-            -1, -1,  0,                 # 15-17 wheelspin/lockup/throttle_cur
-            0,                           # 18  progress
-        ], dtype=np.float32)
-        _high = np.ones(19, dtype=np.float32)
-        self.observation_space = spaces.Box(low=_low, high=_high, dtype=np.float32)
+        # legacy_19 (ver obs_builder) o universal_v1 (17, CTE con signo; ver obs_universal)
+        self.observation_space = observation_space_for(obs_schema)
         self.action_space = spaces.Box(
             low   = np.full(3, -1.0, dtype=np.float32),
             high  = np.full(3,  1.0, dtype=np.float32),
@@ -270,6 +292,7 @@ class PCARS2Env(gym.Env):
         self._prev_check_lap:    int   = -1      # vuelta en el último check de progreso
         self._wrongway_steps:    int   = 0       # contador de steps en sentido contrario
         self._physics_anchor:     Optional[tuple] = None  # clave del último frame aceptado
+        self._sync_fail_steps:    int = 0                 # pasos seguidos sin frame nuevo
         self._udp_stats = self._fresh_udp_stats()
 
         # Umbrales en frames de juego (_step_count solo avanza con CAR_PHYSICS nuevo).
@@ -304,12 +327,7 @@ class PCARS2Env(gym.Env):
     @staticmethod
     def _physics_key(frame: TelemetryFrame) -> tuple:
         """Identidad ligera de un frame de física (detecta duplicados en cola UDP)."""
-        return (
-            round(frame.speed, 2),
-            round(frame.position[0], 1),
-            round(frame.position[1], 1),
-            round(frame.position[2], 1),
-        )
+        return DriveSession.physics_key(frame)
 
     # ------------------------------------------------------------------
     # Gymnasium API
@@ -369,6 +387,7 @@ class PCARS2Env(gym.Env):
         self._ep_reward          = 0.0
         self._episode           += 1
         self._physics_anchor     = None
+        self._sync_fail_steps    = 0
 
         # Sincronizar hasta tener un frame de telemetría y timings válidos
         self._last_telem   = None
@@ -424,7 +443,12 @@ class PCARS2Env(gym.Env):
 
             # 2. Esperar un frame CAR_PHYSICS nuevo (no contar timeouts como frame)
             if not self._sync_physics_frame():
+                self._sync_fail_steps += 1
+                if self._sync_fail_steps >= MAX_SYNC_FAILURES:
+                    self._term_reason = "udp_timeout"
+                    truncated = True
                 break
+            self._sync_fail_steps = 0
 
             self._step_count += 1
 
@@ -458,7 +482,10 @@ class PCARS2Env(gym.Env):
 
     def _build_obs(self) -> np.ndarray:
         if self._last_telem is None or self._last_timings is None:
-            return np.zeros(19, dtype=np.float32)
+            return np.zeros(OBS_UNIVERSAL_DIM if self._obs_schema == OBS_SCHEMA else OBS_DIM, dtype=np.float32)
+        if self._obs_schema == OBS_SCHEMA:
+            return build_obs_universal(
+                self._last_telem, self._last_timings, self._ref, self._speed_target_ms)
         return build_obs(self._last_telem, self._last_timings, self._ref)
 
     # ------------------------------------------------------------------

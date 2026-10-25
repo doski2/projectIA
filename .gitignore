@@ -13,6 +13,8 @@ env/
 # Project specific
 PCARS2-AI/logs/
 PCARS2-AI/data/*.jsonl
+PCARS2-AI/data/*.npz
+PCARS2-AI/data/archive/
 PCARS2-AI/models/*.pt
 PCARS2-AI/v2/user_learn_settings.json
 PCARS2-AI/v2/user_settings.json

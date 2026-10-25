@@ -339,6 +339,10 @@ def pretrain(
             print(f"  [BC] Early stopping en época {epoch} (sin mejora en {patience} épocas)")
             break
 
+    # ---- Anclar la std: PPO nace con 1,0 y destruiría lo imitado ----
+    from ppo_anchor import anchor_log_std
+    anchor_log_std(model)
+
     # ---- Guardar modelo ----
     os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else ".", exist_ok=True)
     model.save(output_path)

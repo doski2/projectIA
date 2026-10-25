@@ -14,7 +14,7 @@ from reference_recorder import ReferenceLine
 from telemetry_udp import TelemetryFrame, TimingsFrame
 
 # Umbrales alineados con environment.py (modo básicos / teaching)
-GAME_FPS = 25.0
+GAME_FPS = 60.0  # el juego emite a 60 Hz (t_s avanza 0,016 s por tick en los logs)
 GRACE_STEPS = 250
 
 NO_PROGRESS_DIST_M = 10.0
@@ -92,6 +92,14 @@ class SafetyMonitor:
         self.prev_check_lap = current_lap
         self.max_cte_seen = 0.0
         self.last_reason = ""
+
+    def hold(self, timings: TimingsFrame) -> None:
+        """Parada intencionada (p. ej. fine-tune): los contadores de atasco no avanzan."""
+        self.stuck_steps = 0
+        self.wrongway_steps = 0
+        self.progress_dist = timings.lap_distance
+        self.progress_step = self.step_count
+        self.prev_check_lap = timings.current_lap
 
     def update(
         self,

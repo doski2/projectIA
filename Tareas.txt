@@ -1,1 +1,2 @@
 pendiente: l2 55
+auditoria_codigo punto 7 por hacer los fix

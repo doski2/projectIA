@@ -104,3 +104,28 @@ def test_load_training_data_filters_buffer_by_track(tmp_path):
     assert len(obs) == 2  # base + solo la fila SPA
     obs, *_ = _load_training_data(str(buffer), str(base), "l1_linea", 20.0)
     assert len(obs) == 3  # sin pista: no filtra
+
+
+def test_load_training_data_adds_curated_for_the_current_stage_and_band(tmp_path):
+    from curate_dataset import curate
+
+    base = tmp_path / "base.jsonl"
+    raw = tmp_path / "raw.jsonl"
+    curated = tmp_path / "curated.npz"
+    _write_sample(base, 1.0)
+    rows = []
+    for stage, band, speed in (("l7_banda", 55.0, 0.2), ("l7_banda", 20.0, 0.4), ("l1_linea", 55.0, 0.6)):
+        obs = [0.0] * OBS_UNIVERSAL_DIM
+        obs[0] = speed
+        rows.append({
+            "obs_schema": OBS_SCHEMA, "obs": obs, "action": [0.1, 0.0, 0.0], "quality": 1.0,
+            "teacher_reason": "hold", "reason_id": 1, "track_name": "SUGO_GP",
+            "learn_stage": stage, "speed_band_kmh": band,
+        })
+    raw.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    curate(str(raw), str(curated), maintain_cap=1.0)
+
+    obs, _act, _rid, _meta = _load_training_data(
+        str(tmp_path / "nuevo.jsonl"), str(base), "l7_banda", 55.0, "SUGO_GP", str(curated),
+    )
+    assert len(obs) == 2          # base + la fila curada de l7_banda/55

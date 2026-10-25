@@ -213,6 +213,7 @@ una captura de cada una.
   [PLAN_NUEVAS_PISTAS_Y_COCHES.md](PLAN_NUEVAS_PISTAS_Y_COCHES.md).
 - **Marchas.** RB sube y LB baja ([TEACHING_MARCHAS_Y_DATASET.md](TEACHING_MARCHAS_Y_DATASET.md)).
   «Tiempo de cambio mínimo» en 0 y «Visor RPM/marchas» en No no afectan al envío de botones.
+- **Frecuencia de telemetría.** Con el juego renderizando a 120 fps, la telemetría UDP sigue a ~60 Hz (intervalo mediano 0,017 s en los logs de 2026-10-25), porque es un ajuste aparte de los fps. `GAME_FPS = 60` ([safety_monitor.py](../src/safety_monitor.py)) depende de ese valor: si cambia la tasa UDP del juego, hay que cambiar la constante.
 - **Oscilación del volante a 55-60 km/h.** Con *Sensibilidad de velocidad* = 0 el juego no reduce
   el volante al subir la velocidad. Ya se amortigua del lado del código
   (`damp_bc_steering`, argumento `--steer-damp-kmh` de `learn_driver`). *Sensibilidad de

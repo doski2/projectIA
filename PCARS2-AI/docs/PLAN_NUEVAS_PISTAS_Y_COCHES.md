@@ -1,8 +1,11 @@
 # Plan — nuevas pistas y nuevos coches
 
 **Estado:** plan (no probado fuera de Sugo + Formula Rookie)
-**Actualizado:** 2026-10-17
+**Actualizado:** 2026-10-25
 **Prerrequisito:** L1→L7 en banda 20 dominado y Hybrid/Autónomo limpios (hecho en Sugo).
+La configuración del juego y del mando con la que se grabó todo está en
+[CONFIGURACION_JUEGO.md](CONFIGURACION_JUEGO.md): comprobar que coincide antes de grabar en otra
+pista y apuntar los cambios en su registro.
 
 Objetivo: que una pista o un coche nuevo **aprenda la pista**, no los básicos (seguir línea,
 acelerar, frenar). Eso ya lo sabe el modelo; hay que reutilizarlo, no repetir L1 desde cero.
@@ -84,8 +87,17 @@ Aplica antes de cualquier pista nueva con ese coche.
   `data/online_buffer_<pista>.jsonl`.
 - **Dataset base compartido.** `universal_teacher.jsonl` acepta varias pistas. Sin filtro, así
   que cada fine-tune lo lee entero: si crece mucho, conviene un archivo por coche.
-- **Tamaño.** El buffer de Sugo tiene ~587 000 filas (500 MB) y cada fine-tune lo lee de nuevo
-  (~9 s con filtro). Archiva buffers de bandas ya superadas.
+- **Tamaño.** El buffer de Sugo tiene ~1 706 000 filas (1,45 GB) y cada fine-tune lo lee entero
+  para filtrarlo (~27 s de análisis solo para leerlo). El 49 % de las filas son casi idénticas a
+  la anterior (60 Hz) y el 85 % son `maintain_speed`. Antes de mezclar una segunda pista conviene
+  **compactarlo** (un tick de cada ~4, conservando todas las situaciones raras) y archivar los
+  buffers de bandas ya superadas.
+- **Solape de gas y freno.** El 64 % de las etiquetas de `universal_teacher.jsonl` lo tienen (por
+  el suavizado del teacher). Reetiquetar (poner a 0 el pedal menor) al compactar, para no
+  arrastrar el hábito a la pista nueva. Ver «Deuda de conducción» en
+  [ROADMAP_CONDICIONES.md](ROADMAP_CONDICIONES.md).
+- **Las bases son de una sola pista.** `universal_teacher.jsonl` solo tiene `SUGO_GP`; el buffer
+  se filtra por `track_name`. Una pista nueva empieza con buffer propio.
 - **Archivar antes de cambiar** (`archivar_sesion.bat`), no borrar.
 
 ---
@@ -105,6 +117,10 @@ Aplica antes de cualquier pista nueva con ese coche.
 
 ## Orden recomendado
 
-1. Terminar L1→L7 y validación en banda 30 en Sugo (o hasta 40).
-2. **Segunda pista con el mismo coche** (Flujo A): es el test que más información da.
-3. Solo entonces, nuevo coche (Flujo B).
+1. Terminar L1→L7 por banda en Sugo (hoy en 55 km/h, con la compensación del volante activa) y
+   dejar Hybrid y Autónomo limpios.
+2. Compactar y reetiquetar la base (ver «Gestión de datos»).
+3. **Segunda pista con el mismo coche** (Flujo A): es el test que más información da.
+4. Nuevo coche (Flujo B).
+5. PPO en solitario para ser competitivo contra el reloj, y después reglaje, condiciones y
+   rivales: «Secuencia hacia la carrera» en [ROADMAP_CONDICIONES.md](ROADMAP_CONDICIONES.md).

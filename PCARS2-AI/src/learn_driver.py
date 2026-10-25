@@ -28,6 +28,7 @@ from pcars2_gear import (
     damp_bc_steering,
 )
 from bc_training import fine_tune_universal
+from curate_dataset import load_curated
 from controller import DS4Controller, decode_action
 import numpy as np
 
@@ -77,6 +78,8 @@ def parse_args() -> argparse.Namespace:
                         help="Dataset inicial de record.bat (replay en fine-tune)")
     parser.add_argument("--buffer", default="data/online_buffer.jsonl",
                         help="Buffer incremental de correcciones del teacher")
+    parser.add_argument("--curated", default="data/curated_buffer.npz",
+                        help="Buffer compactado por curate_dataset.py (se suma al buffer nuevo)")
     parser.add_argument(
         "--stage",
         default=None,
@@ -138,11 +141,19 @@ def _load_training_data(
     stage_id: str,
     speed_band_kmh: float,
     track_name: str = "",
+    curated_path: str = "",
 ) -> tuple:
-    """Base teacher sin filtro; buffer online filtrado por etapa + banda + pista."""
+    """Base teacher sin filtro; curado y buffer online filtrados por etapa + banda + pista."""
     chunks = []
     if os.path.isfile(base_path):
         chunks.append(load_universal_dataset(base_path, min_quality=FINE_TUNE_MIN_QUALITY))
+    if curated_path and os.path.isfile(curated_path):
+        chunks.append(load_curated(
+            curated_path,
+            learn_stage=stage_id,
+            speed_band_kmh=speed_band_kmh,
+            track_name=track_name or None,
+        ))
     if os.path.isfile(buffer_path):
         chunks.append(load_universal_dataset(
             buffer_path,
@@ -257,7 +268,7 @@ class BackgroundFineTuner:
         args = self.args
         obs, act, rid, _ = _load_training_data(
             args.buffer, args.base_dataset, self.prog.stage_id, self.prog.speed_band,
-            self.track_name,
+            self.track_name, args.curated,
         )
         result = fine_tune_universal(
             model_path=args.model,
@@ -420,6 +431,9 @@ def run(args: argparse.Namespace) -> int:
             )
 
             status = safety.update(telem, timings)
+            if lap_guard.active:
+                # El fine-tune mantiene el coche frenado a propósito: no cuenta como atasco.
+                safety.hold(timings)
             decision = resolve_teacher_decision(teacher, telem, timings, safety, status)
             if stuck_abort.update(decision.cte, telem.speed):
                 print(

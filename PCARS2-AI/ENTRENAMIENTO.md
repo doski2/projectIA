@@ -2,7 +2,7 @@
 
 Documentación operativa: modos, comandos, logs, revisión de sesiones y flujo supervisado.
 
-**Última actualización:** 2026-10-10
+**Última actualización:** 2026-10-25
 
 ---
 
@@ -57,7 +57,10 @@ Ruta recomendada antes de depender solo de PPO:
 
 7. **BC Drive / Hybrid** — `imitar_bc.bat` / `imitar_hybrid.bat` o GUI; teacher como fallback.
 8. **Autonomous** — tras currículo estable o `imitar_autonomo.bat`.
-9. **PPO fine-tune** — cuando BC sea estable:
+9. **PPO fine-tune** — cuando BC sea estable. Antes: base compactada y reetiquetada sin solape de
+   gas y freno, un solo eje de pedal, observación ampliada y compensación del volante en el
+   entorno (prerrequisitos completos en
+   [docs/ROADMAP_CONDICIONES.md](docs/ROADMAP_CONDICIONES.md), «Capa 4»):
 
    ```bat
    ```

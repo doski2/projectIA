@@ -56,7 +56,7 @@ class _FakePPO:
 
 
 def _args(**kw):
-    base = dict(model=None, base_model=None, fresh=False, model_dir="models")
+    base = dict(model=None, base_model=None, fresh=False, model_dir="models", bc_std=0.1)
     base.update(kw)
     return SimpleNamespace(**base)
 
@@ -68,9 +68,22 @@ def test_model_arg_continues_and_keeps_timesteps(monkeypatch):
     assert reset is False and model.ent_coef == 0.007 and model.vf_coef == 1.0
 
 
-def test_base_model_transfers(monkeypatch):
-    model, reset = m._load_or_create_model(_args(base_model="b.zip"), _FakePPO, None, None, "d", "p", "s")
+def test_base_model_transfers_and_anchors_to_bc(monkeypatch):
+    import ppo_anchor
+
+    anchored = []
+    monkeypatch.setattr(ppo_anchor, "anchor_log_std", lambda mod, std: anchored.append(std) or True)
+    args = _args(base_model="b.zip")
+    model, reset = m._load_or_create_model(args, _FakePPO, None, None, "d", "p", "s")
     assert reset is True and model.ent_coef == 0.01
+    assert anchored == [0.1] and args.anchored_to_bc is True
+
+
+def test_continue_does_not_anchor(monkeypatch):
+    monkeypatch.setattr(m, "_reset_log_std", lambda *a, **k: None)
+    args = _args(model="x.zip")
+    m._load_or_create_model(args, _FakePPO, None, None, "d", "p", "s")
+    assert not getattr(args, "anchored_to_bc", False)
 
 
 def test_fresh_creates_from_scratch(monkeypatch):

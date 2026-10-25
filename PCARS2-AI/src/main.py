@@ -55,6 +55,15 @@ def _reset_log_std(model, target_std: float = 0.8) -> None:
         pass  # Algunos tipos de política no tienen log_std separado
 
 
+def _anchor_from_bc(model, args) -> None:
+    """Modelo que nace del BC: std pequeña y actor congelado mientras el crítico aprende."""
+    from ppo_anchor import anchor_log_std
+
+    if anchor_log_std(model, args.bc_std):
+        print(f"[main] log_std anclado al BC: std={args.bc_std:.2f}")
+    args.anchored_to_bc = True
+
+
 def _create_ppo_from_scratch(env, tb_log):
     """Nueva política PPO con la arquitectura estándar del proyecto."""
     from stable_baselines3 import PPO
@@ -222,6 +231,16 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--obs-schema",
+        choices=("legacy_19", "universal_v1"),
+        default="legacy_19",
+        help=(
+            "Observación del entorno. `universal_v1` (17 dim) lleva el CTE con signo y es la "
+            "misma que usa el BC actual; los modelos PPO guardados con otro esquema no son "
+            "compatibles."
+        ),
+    )
+    parser.add_argument(
         "--speed-target-kmh",
         type=float,
         default=0.0,
@@ -231,6 +250,22 @@ def parse_args() -> argparse.Namespace:
             "de ese valor en ambas direcciones. Sube +5 km/h cada 10k pasos si el promedio "
             "está dentro de ±10 km/h del objetivo. 0 = desactivado (por defecto)."
         ),
+    )
+    parser.add_argument(
+        "--bc-std",
+        type=float,
+        default=0.1,
+        metavar="STD",
+        help="Desviación inicial de la política cuando se parte de un modelo BC/base "
+             "(PPO nace con 1,0 y destruiría lo imitado).",
+    )
+    parser.add_argument(
+        "--critic-warmup-steps",
+        type=int,
+        default=8192,
+        metavar="N",
+        help="Pasos con el actor congelado al partir de un modelo BC/base, para que el "
+             "crítico aprenda a valorar antes de tocar la política. 0 = desactivado.",
     )
     parser.add_argument(
         "--seed",
@@ -353,6 +388,7 @@ def _load_or_create_model(args, PPO, env, tb_log, model_dir, name_prefix, subdir
         model = PPO.load(args.base_model, env=env, tensorboard_log=tb_log,
                          custom_objects={'learning_rate': 1e-4, 'clip_range': 0.2})
         model.ent_coef = 0.01
+        _anchor_from_bc(model, args)
         reset_num_timesteps = True
 
     else:
@@ -376,6 +412,7 @@ def _load_or_create_model(args, PPO, env, tb_log, model_dir, name_prefix, subdir
                 model = PPO.load(auto_model["path"], env=env, tensorboard_log=tb_log,
                                  custom_objects={'learning_rate': 1e-4, 'clip_range': 0.2})
                 model.vf_coef = 1.5
+                _anchor_from_bc(model, args)
                 reset_num_timesteps = True
             else:
                 pretrained_path = os.path.join(args.model_dir, "pretrained.zip")
@@ -384,6 +421,7 @@ def _load_or_create_model(args, PPO, env, tb_log, model_dir, name_prefix, subdir
                     model = PPO.load(pretrained_path[:-4], env=env, tensorboard_log=tb_log)
                     model.ent_coef  = 0.01
                     model.vf_coef   = 1.5
+                    _anchor_from_bc(model, args)
                     reset_num_timesteps = True
                 else:
                     print(f"[main] Creando modelo PPO desde cero para: {subdir}")
@@ -436,6 +474,7 @@ def train(args: argparse.Namespace) -> None:
         curriculum=args.curriculum,
         basics=args.basics,
         speed_target_kmh=args.speed_target_kmh,
+        obs_schema=args.obs_schema,
     )
     _mon_env  = Monitor(raw_env)
     _vec_env  = DummyVecEnv([lambda: _mon_env])   # SB3 requiere VecEnv para VecNormalize
@@ -621,10 +660,15 @@ def train(args: argparse.Namespace) -> None:
         f"       TensorBoard: {tb_info}\n"
     )
 
+    callbacks = [checkpoint_cb, csv_cb]
+    if getattr(args, "anchored_to_bc", False) and args.critic_warmup_steps > 0:
+        from ppo_anchor import FreezeActorCallback
+        callbacks.insert(0, FreezeActorCallback(args.critic_warmup_steps))
+
     try:
         model.learn(
             total_timesteps      = args.timesteps,
-            callback             = [checkpoint_cb, csv_cb],
+            callback             = callbacks,
             reset_num_timesteps  = reset_num_timesteps,
             progress_bar         = False,
         )

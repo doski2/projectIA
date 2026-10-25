@@ -82,7 +82,54 @@ Opciones documentadas para más adelante:
 ### Capa 4 — RL (PPO)
 
 Optimización de tiempo, gestión de stint, adaptación fina. Solo cuando BC sea estable en las capas
-anteriores.
+anteriores. **Sí se va a usar**: el BC no puede aprender a ir más rápido que su teacher; PPO es lo
+que lo permite. Ver «Secuencia hacia la carrera» abajo.
+
+**Por qué después del BC y no antes:** PPO desde cero necesita millones de pasos y el juego no se
+acelera (una vuelta son ~3,5 min reales). Partiendo de un BC que ya conduce limpio, esas muestras
+se emplean en ganar ritmo y no en aprender a no salirse; sin esa base, además, se sale
+constantemente y, con daños activos, acaba en averías.
+
+**Prerrequisitos (ninguno hecho todavía):**
+
+1. BC estable: Hybrid y Autónomo con vueltas limpias en la banda más alta del currículo.
+2. Base de datos compactada y reetiquetada sin solape de gas y freno (ver
+   «Deuda de conducción» más abajo).
+3. Un solo eje de pedal en la acción (negativo = freno), con penalización de temperatura de frenos.
+4. Observación ampliada con la física del coche (`universal_v2`, reentrenar el BC).
+5. Compensación de la curva del volante activa también en el entorno de PPO
+   (`DS4Controller(steer_comp=True)`; hoy `environment.py` no la aplica).
+6. Anclar la política al BC (penalización KL o tasa de aprendizaje muy baja al principio) para no
+   perder lo aprendido.
+
+**Estado del código:** existe `main.train` + `environment.py` (observación `obs_builder` y pedales
+independientes, **no** la observación universal). **Nunca se ha probado con el modelo actual**
+(confirmado 2026-10-25): el primer paso de la fase PPO es comprobar que arranca, qué observación
+usa y si coincide con la del BC, antes de planificar nada sobre él.
+La revisión de código del 2026-10-25 encontró fallos que hay que resolver antes (el entorno no
+detecta un coche parado, los tiempos están calculados a 25 Hz cuando el juego va a 60, el CTE de
+la observación no tiene signo y no hay ancla al BC): ver
+[AUDITORIA_CODIGO.md](AUDITORIA_CODIGO.md), sección 7.
+
+## Secuencia hacia la carrera
+
+Meta final: correr contra otros coches (adelantar y defender), con box, estrategia y reglaje
+para optimizar el tiempo.
+
+| Paso | Qué                                                              | Estado |
+| ---- | ---------------------------------------------------------------- | ------ |
+| 1    | Currículo L1→L7 por banda (20 → 80 km/h) con compensación del volante | En curso (55 km/h) |
+| 2    | Hybrid y Autónomo estables en Sugo en la banda máxima            | Pendiente |
+| 3    | Compactar y reetiquetar la base; pedal único; `universal_v2`     | Pendiente |
+| 4    | Segunda pista con el mismo coche ([PLAN_NUEVAS_PISTAS_Y_COCHES.md](PLAN_NUEVAS_PISTAS_Y_COCHES.md)) | Pendiente |
+| 5    | PPO en solitario hasta ser competitivo contra el reloj (referencia IA: 213,9 s en Sugo) | Pendiente |
+| 6    | Reglaje por bucle externo (el setup no llega por UDP)            | Pendiente |
+| 7    | Condiciones: temperatura, desgaste, combustible, daños (capa 2)  | Pendiente |
+| 8    | Rivales: seguir sin chocar → adelantar y defender                | Pendiente |
+| 9    | Box y estrategia                                                 | Pendiente |
+
+Los pasos 3 y 4 pueden invertirse si la segunda pista se quiere antes: en ese caso la compactación
+se hace antes de mezclar datos de dos pistas.
 
 ---
 
@@ -180,10 +227,11 @@ vueltas limpias) antes de abrir condiciones.
 
 ## Resumen en una línea
 
-**Ahora:** dominar L1→L7 y multi-pista con lo universal.
-**Después:** temperatura, combustible, desgaste (UDP en vivo).
-**Más tarde:** setup/diferenciales como contexto de sesión.
-**Al final:** RL para rendimiento.
+**Ahora:** dominar L1→L7 por banda (en 55 km/h) con la compensación del volante activa.
+**Después:** Hybrid/Autónomo estables, base compactada sin solape de pedales y segunda pista.
+**Luego:** PPO anclado al BC para ser competitivo contra el reloj.
+**Más tarde:** reglaje, condiciones (temperatura, combustible, desgaste, daños) y rivales.
+**Al final:** adelantar y defender posición, box y estrategia.
 
 ---
 
