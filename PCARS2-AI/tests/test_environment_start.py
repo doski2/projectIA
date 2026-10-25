@@ -158,3 +158,27 @@ def test_brake_to_stop_gives_up_after_the_timeout(monkeypatch, capsys):
     env = _env_rodando([17.0, 17.0, 17.0])
     assert env._brake_to_stop() is False
     assert "No consigo parar" in capsys.readouterr().out
+
+
+def _env_tras_actualizacion(speed, gear):
+    env = object.__new__(PCARS2Env)
+    env._controller = MagicMock()
+    env._shifter = object()
+    env._last_telem = SimpleNamespace(speed=speed, gear=gear)
+    env._sync_physics_frame = MagicMock(return_value=True)
+    return env
+
+
+def test_resume_after_update_engages_first_when_the_car_is_stopped(monkeypatch):
+    """El freno de la pausa de PPO deja el coche parado en mitad de la pista, a veces en punto muerto."""
+    calls = []
+    monkeypatch.setattr(environment, "engage_first_gear", lambda *a: calls.append(a) or True)
+    env = _env_tras_actualizacion(speed=0.2, gear=0)
+    env.resume_after_update()
+    assert env._sync_physics_frame.called and len(calls) == 1
+
+
+def test_resume_after_update_leaves_a_moving_or_in_gear_car_alone(monkeypatch):
+    monkeypatch.setattr(environment, "engage_first_gear", lambda *a: (_ for _ in ()).throw(AssertionError))
+    _env_tras_actualizacion(speed=15.0, gear=3).resume_after_update()
+    _env_tras_actualizacion(speed=0.0, gear=1).resume_after_update()      # parado pero en 1ª: arranca solo

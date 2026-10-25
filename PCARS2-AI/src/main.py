@@ -274,6 +274,11 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--laps-per-episode", type=int, default=1, metavar="N",
+        help="Vueltas por episodio. Con 2 el tiempo registrado es el de la segunda (lanzada), "
+             "comparable con una vuelta de referencia; con 1 incluye el arranque desde parado.",
+    )
+    parser.add_argument(
         "--no-speed-ramp", action="store_true",
         help="La velocidad objetivo no sube sola (+5 km/h por ventana): queda fija en "
              "--speed-target-kmh. Útil para comparar tiradas.",
@@ -530,6 +535,7 @@ def train(args: argparse.Namespace) -> None:
         obs_schema=args.obs_schema,
         steer_comp=args.steer_comp,
         speed_ramp=not args.no_speed_ramp,
+        laps_per_episode=args.laps_per_episode,
     )
     _mon_env  = Monitor(raw_env)
     _vec_env  = DummyVecEnv([lambda: _mon_env])   # SB3 requiere VecEnv para VecNormalize
@@ -554,6 +560,10 @@ def train(args: argparse.Namespace) -> None:
 
     os.makedirs(log_dir,   exist_ok=True)
     os.makedirs(model_dir, exist_ok=True)
+
+    # La consola también se guarda: las líneas [Env] / [Ep n] explican cómo termina cada episodio
+    from console_log import start_console_log
+    start_console_log(os.path.join(log_dir, 'consola.log'))   # se cierra al salir; cada línea se vuelca al instante
 
     tb_log = log_dir if tb_log else None
 
@@ -720,7 +730,7 @@ def train(args: argparse.Namespace) -> None:
     episodes_path = os.path.join(log_dir, 'episodios.csv')
     print(f"[main] Episodios CSV -> {episodes_path}")
     callbacks = [
-        HoldBrakeDuringUpdateCallback(raw_env.hold_brake),
+        HoldBrakeDuringUpdateCallback(raw_env.hold_brake, raw_env.resume_after_update),
         checkpoint_cb, csv_cb, EpisodeLogCallback(episodes_path),
     ]
     if getattr(args, "anchored_to_bc", False) and args.critic_warmup_steps > 0:

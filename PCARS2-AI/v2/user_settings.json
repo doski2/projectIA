@@ -1,7 +1,7 @@
 {
   "reference": "src/refs/sugo_ai.json",
-  "timesteps": 50000,
-  "speed_target_kmh": 60.0,
+  "timesteps": 200000,
+  "speed_target_kmh": 65.0,
   "frame_skip": 1,
   "warmup_steps": 30,
   "gamepad": "xbox",

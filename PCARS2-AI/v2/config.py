@@ -115,7 +115,7 @@ TRAINING_MODES: List[TrainingMode] = [
             "para poder comparar tiradas."
         ),
         cli_flags=[
-            "--obs-schema", "universal_v1", "--steer-comp", "--no-speed-ramp",
+            "--obs-schema", "universal_v1", "--steer-comp", "--no-speed-ramp", "--laps-per-episode", "2",
             "--base-model", "models/ppo_universal_base.zip",
         ],
         default_overrides={

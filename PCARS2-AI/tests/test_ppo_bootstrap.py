@@ -51,3 +51,11 @@ def test_hold_brake_callback_fires_before_each_update():
     cb._on_rollout_end()
     cb._on_rollout_end()
     assert len(calls) == 2
+
+
+def test_hold_brake_callback_resumes_when_a_new_rollout_starts():
+    calls = []
+    cb = HoldBrakeDuringUpdateCallback(lambda: calls.append("freno"), lambda: calls.append("reanudar"))
+    cb._on_rollout_end()
+    cb._on_rollout_start()
+    assert calls == ["freno", "reanudar"]

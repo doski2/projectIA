@@ -135,7 +135,7 @@ STUCK_TIME_BASICS_S = 15.0    # ~15 s antes de cortar (vs 8 s)
 BASICS_LOW_SPEED_MS = 5.0 / 3.6  # 5 km/h
 
 # Vuelta máxima por episodio (evitar episodios infinitos en entrenamiento)
-MAX_LAPS_PER_EPISODE = 1
+MAX_LAPS_PER_EPISODE = 1   # valor por defecto de PCARS2Env(laps_per_episode=...)
 
 
 def termination_frame_count(time_s: float) -> int:
@@ -206,6 +206,7 @@ class PCARS2Env(gym.Env):
         obs_schema:        str   = LEGACY_OBS_SCHEMA,
         steer_comp:        bool  = False,
         speed_ramp:        bool  = True,
+        laps_per_episode:  int   = MAX_LAPS_PER_EPISODE,
     ):
         super().__init__()
         self._obs_schema = obs_schema
@@ -217,6 +218,7 @@ class PCARS2Env(gym.Env):
         self._basics          = basics
         self._speed_target_ms = max(0.0, speed_target_kmh) / 3.6  # 0 = desactivado
         self._speed_ramp      = speed_ramp   # False: el objetivo no sube solo
+        self._laps_per_episode = max(1, laps_per_episode)
         self._spd_win_steps   = 0
         self._spd_win_sum     = 0.0
         print(
@@ -537,6 +539,13 @@ class PCARS2Env(gym.Env):
         """Frena a fondo y recto: el juego no se pausa mientras PPO actualiza la red."""
         self._controller.apply_action(0.0, 1.0, 0.0)
 
+    def resume_after_update(self) -> None:
+        """Tras la pausa de PPO el coche está parado en mitad de la pista: refresca y mete la 1ª."""
+        self._sync_physics_frame()
+        t = self._last_telem
+        if t is not None and t.speed < STOP_BEFORE_BACK_MS and t.gear != 1:
+            self._engage_first()
+
     def close(self):
         self._controller.release()
         self._listener.close()
@@ -747,14 +756,17 @@ class PCARS2Env(gym.Env):
 
         # ---- Vuelta completada ----
         laps_done = i.current_lap - self._start_lap
-        if laps_done >= MAX_LAPS_PER_EPISODE:
+        if laps_done >= self._laps_per_episode:
             self._term_reason = "lap_done"
-            # el juego pone a cero el tiempo al cruzar meta: vale el del paso anterior
-            # y se descuenta lo que tardó el reinicio; solo vale si el episodio empezó en la línea
-            self._lap_time_s = (
-                self._prev_current_time - self._ep_start_time
-                if self._ep_start_dist < GRID_LINE_M else None
-            )
+            # el juego pone a cero el tiempo al cruzar meta: vale el del paso anterior.
+            # Solo vale si el episodio empezó en la línea. Con 1 vuelta incluye el arranque desde
+            # parado, y hay que descontar lo que tardó el reinicio; con 2 se mide la última, lanzada.
+            if self._ep_start_dist >= GRID_LINE_M:
+                self._lap_time_s = None
+            elif self._laps_per_episode == 1:
+                self._lap_time_s = self._prev_current_time - self._ep_start_time
+            else:
+                self._lap_time_s = self._prev_current_time
             return False, True
 
         return False, False

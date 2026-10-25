@@ -71,12 +71,18 @@ class FreezeActorCallback(BaseCallback):
 class HoldBrakeDuringUpdateCallback(BaseCallback):
     """El juego sigue en marcha mientras PPO actualiza la red: frena el coche durante la pausa."""
 
-    def __init__(self, hold: Callable[[], None]):
+    def __init__(self, hold: Callable[[], None], resume: Callable[[], None] | None = None):
         super().__init__()
         self._hold = hold
+        self._resume = resume
 
     def _on_rollout_end(self) -> None:
         self._hold()
+
+    def _on_rollout_start(self) -> None:
+        # el coche quedó parado en mitad de la pista (a veces en punto muerto): hay que reanudarlo
+        if self._resume is not None:
+            self._resume()
 
     def _on_step(self) -> bool:
         return True

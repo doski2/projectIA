@@ -1,4 +1,4 @@
-# pyright: reportArgumentType=false, reportAttributeAccessIssue=false
+# pyright: reportArgumentType=false, reportAttributeAccessIssue=false, reportOptionalMemberAccess=false
 """Registro por episodio (episodios.csv), tiempo de vuelta y ajustes de actualización de PPO."""
 
 import csv
@@ -50,6 +50,7 @@ def _env_cerca_de_meta(prev_time):
     env._start_lap = 2
     env._term_reason = "?"
     env._prev_current_time = prev_time
+    env._laps_per_episode = 1
     env._ep_start_time = 5.5       # el cronómetro del juego ya marcaba 5,5 s al primer paso
     env._ep_start_dist = 3.0
     env._lap_time_s = None
@@ -115,3 +116,22 @@ def test_logger_rotates_a_file_with_an_old_header(tmp_path):
 def test_sync_tolerance_is_about_three_seconds():
     import environment
     assert environment.MAX_SYNC_FAILURES * 0.1 >= 3.0
+
+
+def test_two_lap_episode_times_the_second_lap_only():
+    env = _env_cerca_de_meta(prev_time=212.0)
+    env._laps_per_episode = 2
+    env._last_timings.current_lap = 3          # _start_lap = 2: solo una vuelta hecha
+    assert env._check_done() == (False, False)
+    env._last_timings.current_lap = 4          # segunda vuelta terminada
+    assert env._check_done() == (False, True)
+    assert env._lap_time_s == 212.0            # sin descontar nada: la 2ª vuelta es lanzada
+
+
+def test_two_lap_episode_not_timed_when_it_started_mid_lap():
+    env = _env_cerca_de_meta(prev_time=212.0)
+    env._laps_per_episode = 2
+    env._ep_start_dist = 1500.0
+    env._last_timings.current_lap = 4
+    env._check_done()
+    assert env._lap_time_s is None
