@@ -15,7 +15,8 @@ from typing import Callable
 import torch
 from stable_baselines3.common.callbacks import BaseCallback
 
-DEFAULT_BC_STD = 0.1
+from ppo_defaults import DEFAULT_BC_STD
+
 
 
 def anchor_log_std(model, std: float = DEFAULT_BC_STD) -> bool:

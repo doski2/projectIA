@@ -111,11 +111,11 @@ TRAINING_MODES: List[TrainingMode] = [
         description=(
             "PPO parte del BC destilado (models/ppo_universal_base.zip; genéralo con "
             "src/ppo_bootstrap.py), observación universal_v1, compensación del volante y "
-            "frame_skip 1 (el BC actúa a 60 Hz). Reward completa; el objetivo sube +5 km/h "
-            "cada 10 000 pasos si la media está en banda."
+            "frame_skip 1 (el BC actúa a 60 Hz). Reward completa; el objetivo queda fijo (sin rampa) "
+            "para poder comparar tiradas."
         ),
         cli_flags=[
-            "--obs-schema", "universal_v1", "--steer-comp",
+            "--obs-schema", "universal_v1", "--steer-comp", "--no-speed-ramp",
             "--base-model", "models/ppo_universal_base.zip",
         ],
         default_overrides={

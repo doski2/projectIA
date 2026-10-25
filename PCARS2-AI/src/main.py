@@ -25,6 +25,14 @@ import glob
 import csv
 
 from checkpoints import pick_latest_checkpoint, resolve_combo_checkpoint
+from ppo_defaults import (
+    ANCHOR_EPOCHS,
+    ANCHOR_LR,
+    ANCHOR_TARGET_KL,
+    CRITIC_WARMUP_STEPS,
+    DEFAULT_BC_STD,
+    PPO_NET_ARCH,
+)
 import time as _time
 import torch
 from typing import Optional
@@ -83,7 +91,7 @@ def _create_ppo_from_scratch(env, tb_log):
 
     return PPO(
         policy              = "MlpPolicy",
-        policy_kwargs       = dict(net_arch=[256, 256, 128]),
+        policy_kwargs       = dict(net_arch=PPO_NET_ARCH),
         env                 = env,
         learning_rate       = 1e-4,
         n_steps             = 2048,
@@ -265,6 +273,11 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--no-speed-ramp", action="store_true",
+        help="La velocidad objetivo no sube sola (+5 km/h por ventana): queda fija en "
+             "--speed-target-kmh. Útil para comparar tiradas.",
+    )
+    parser.add_argument(
         "--steer-comp", action="store_true",
         help="Compensa la curva de respuesta del volante del juego (steering_curve.py); "
              "igual que en learn_driver. Mantenerla igual que al grabar el BC.",
@@ -272,27 +285,27 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--bc-std",
         type=float,
-        default=0.1,
+        default=DEFAULT_BC_STD,
         metavar="STD",
         help="Desviación inicial de la política cuando se parte de un modelo BC/base "
              "(PPO nace con 1,0 y destruiría lo imitado).",
     )
     parser.add_argument(
-        "--anchor-lr", type=float, default=3e-5, metavar="LR",
+        "--anchor-lr", type=float, default=ANCHOR_LR, metavar="LR",
         help="Tasa de aprendizaje al partir de un modelo BC/base (más baja que la normal).",
     )
     parser.add_argument(
-        "--anchor-epochs", type=int, default=4, metavar="N",
+        "--anchor-epochs", type=int, default=ANCHOR_EPOCHS, metavar="N",
         help="Épocas por actualización al partir de un modelo BC/base.",
     )
     parser.add_argument(
-        "--anchor-target-kl", type=float, default=0.02, metavar="KL",
+        "--anchor-target-kl", type=float, default=ANCHOR_TARGET_KL, metavar="KL",
         help="Corta las épocas de una actualización si la KL aproximada supera este valor.",
     )
     parser.add_argument(
         "--critic-warmup-steps",
         type=int,
-        default=8192,
+        default=CRITIC_WARMUP_STEPS,
         metavar="N",
         help="Pasos con el actor congelado al partir de un modelo BC/base, para que el "
              "crítico aprenda a valorar antes de tocar la política. 0 = desactivado.",
@@ -510,6 +523,7 @@ def train(args: argparse.Namespace) -> None:
         speed_target_kmh=args.speed_target_kmh,
         obs_schema=args.obs_schema,
         steer_comp=args.steer_comp,
+        speed_ramp=not args.no_speed_ramp,
     )
     _mon_env  = Monitor(raw_env)
     _vec_env  = DummyVecEnv([lambda: _mon_env])   # SB3 requiere VecEnv para VecNormalize

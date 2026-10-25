@@ -15,13 +15,18 @@ from stable_baselines3.common.callbacks import BaseCallback
 
 FIELDS = (
     "timestamp", "total_timesteps", "fin", "pasos", "lap_distance_m", "cte_m",
-    "speed_kmh", "lap_time_s", "ep_reward",
+    "speed_kmh", "marcha", "objetivo_kmh", "lap_time_s", "ep_reward",
 )
 
 
 class EpisodeLogger:
     def __init__(self, path: str):
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        if os.path.isfile(path) and os.path.getsize(path) > 0:
+            with open(path, encoding="utf-8") as f:
+                header = f.readline().strip().split(",")
+            if header != list(FIELDS):
+                os.replace(path, f"{path}.old-{time.strftime('%Y%m%dT%H%M%S')}")
         new = not os.path.isfile(path) or os.path.getsize(path) == 0
         self._file = open(path, "a", newline="", encoding="utf-8")
         self._writer = csv.writer(self._file)
@@ -40,6 +45,8 @@ class EpisodeLogger:
             info.get("lap_distance", ""),
             info.get("cte", ""),
             info.get("speed_kmh", ""),
+            info.get("gear", ""),
+            info.get("speed_target_kmh", ""),
             "" if lap_time is None else lap_time,
             episode.get("r", ""),
         ])

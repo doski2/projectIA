@@ -82,3 +82,16 @@ def test_curate_appends_to_an_existing_output(tmp_path):
     assert stats["previous"] == 5 and stats["total"] == 8
     assert len(load_curated(str(dst), speed_band_kmh=60.0)[0]) == 3
     assert len(load_curated(str(dst), speed_band_kmh=20.0)[0]) == 5
+
+
+def test_rows_without_reason_id_get_it_from_the_teacher_reason(tmp_path):
+    """Igual que load_universal_dataset: sin reason_id se codifica teacher_reason (no 0)."""
+    from teacher_intents import encode_reason_id
+
+    src, dst = tmp_path / "b.jsonl", tmp_path / "c.npz"
+    row = _row(0, reason="brake_overspeed")
+    del row["reason_id"]
+    _write(src, [row])
+    curate(str(src), str(dst), maintain_cap=1.0)
+    _, _, rid, _ = load_curated(str(dst))
+    assert rid.tolist() == [encode_reason_id("brake_overspeed")] != [0]

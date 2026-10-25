@@ -59,6 +59,7 @@ from obs_builder import (
     OBS_DIM,
     build_obs,
 )
+from obs_spaces import LEGACY_OBS_SCHEMA, observation_space_for
 from obs_universal import OBS_SCHEMA, OBS_UNIVERSAL_DIM, build_obs_universal
 
 # ---------------------------------------------------------------------------
@@ -112,9 +113,13 @@ NO_PROGRESS_CURRICULUM_TIME_S = 30.0
 # bucle interno en step(), no por decisión del agente).
 GAME_FPS = _GAME_FPS
 
+# Al reiniciar, el coche debe quedar en pista (CTE bajo): si no, se repite la reposición.
+START_MAX_CTE_M = 6.0
+START_REPOSITION_RETRIES = 1   # Back deja el coche junto al box: más intentos no lo mueven
+
 # Pasos seguidos sin frame de física nuevo tras los que se trunca el episodio
 # (UDP caído o juego en pausa), en vez de colgarse sin avanzar los contadores.
-MAX_SYNC_FAILURES = 5
+MAX_SYNC_FAILURES = 30   # ~3 s a udp_timeout 0,1 s: tolera tirones del juego (p. ej. tras Back)
 
 # Detección de atascado: velocidad baja durante N frames de juego consecutivos
 STUCK_SPEED_MS = 1.0
@@ -127,30 +132,6 @@ BASICS_LOW_SPEED_MS = 5.0 / 3.6  # 5 km/h
 
 # Vuelta máxima por episodio (evitar episodios infinitos en entrenamiento)
 MAX_LAPS_PER_EPISODE = 1
-
-
-LEGACY_OBS_SCHEMA = "legacy_19"
-
-
-def observation_space_for(obs_schema: str) -> spaces.Box:
-    """Espacio de observación según el esquema: `legacy_19` o `universal_v1` (CTE con signo)."""
-    if obs_schema == OBS_SCHEMA:
-        return spaces.Box(
-            low=np.full(OBS_UNIVERSAL_DIM, -1.0, dtype=np.float32),
-            high=np.ones(OBS_UNIVERSAL_DIM, dtype=np.float32),
-            dtype=np.float32,
-        )
-    if obs_schema != LEGACY_OBS_SCHEMA:
-        raise ValueError(f"obs_schema desconocido: {obs_schema!r}")
-    low = np.array([
-        0, 0, -1, -1, -1, -1, -1,   # 0-6  speed/cte/delta/slip/yaw/lat/long
-        0, 0,                        # 7-8  rpm/gear
-        -1, -1,                      # 9-10 heading_err/curvatura
-        0, 0,  0,  0,               # 11-14 lookahead×2 + ref_thr/brk
-        -1, -1,  0,                 # 15-17 wheelspin/lockup/throttle_cur
-        0,                           # 18  progress
-    ], dtype=np.float32)
-    return spaces.Box(low=low, high=np.ones(OBS_DIM, dtype=np.float32), dtype=np.float32)
 
 
 def termination_frame_count(time_s: float) -> int:
@@ -220,6 +201,7 @@ class PCARS2Env(gym.Env):
         render_mode:       Optional[str] = None,
         obs_schema:        str   = LEGACY_OBS_SCHEMA,
         steer_comp:        bool  = False,
+        speed_ramp:        bool  = True,
     ):
         super().__init__()
         self._obs_schema = obs_schema
@@ -230,6 +212,7 @@ class PCARS2Env(gym.Env):
         self._curriculum      = curriculum and not basics
         self._basics          = basics
         self._speed_target_ms = max(0.0, speed_target_kmh) / 3.6  # 0 = desactivado
+        self._speed_ramp      = speed_ramp   # False: el objetivo no sube solo
         self._spd_win_steps   = 0
         self._spd_win_sum     = 0.0
         print(
@@ -359,10 +342,7 @@ class PCARS2Env(gym.Env):
         self._term_reason   = "?"
 
         # Reposicionar el coche en pista (botón Back = reposición en PCARS2)
-        self._controller.neutral()
-        time.sleep(0.3)                      # espera a que el juego procese el neutral
-        self._controller.press_button('back') # reposicionar en pista
-        time.sleep(1.0)                      # espera a que el juego complete la reposición
+        self._reposition_car()
 
         # Bajar a 1ª MIENTRAS el motor está girando (throttle activo).
         # PCARS2 bloquea el downshift con el coche parado y motor frío;
@@ -406,16 +386,9 @@ class PCARS2Env(gym.Env):
                 "      → Asegúrate de estar EN PISTA (no en menús ni en boxes)\n"
                 "      → UDP activado en Opciones del juego, puerto 5606\n"
             )
-        _warned = False
-        _t0 = time.monotonic()
-        while self._last_telem is None or self._last_timings is None:
-            self._ingest_pending_packets()
-            if self._last_telem is None or self._last_timings is None:
-                self._recv_blocking_packet()
-            if not _warned and time.monotonic() - _t0 > 10:
-                print("[Env] Sin datos UDP tras 10s. Comprueba la config del juego.")
-                _warned = True
+        self._wait_for_telemetry()
         self._udp_ready = True
+        self._ensure_on_track()
 
         # ---- Warm-up: gas a fondo N frames para que el coche arranque antes de
         #              entregar el control al agente (el coche llega ~30-50 km/h).
@@ -431,9 +404,50 @@ class PCARS2Env(gym.Env):
             self._physics_key(self._last_telem)
             if self._last_telem is not None else None
         )
+        # _wait_for_telemetry / _ensure_on_track dejan siempre un frame de timings válido
+        assert self._last_timings is not None
         self._start_lap = self._last_timings.current_lap
         obs = self._build_obs()
         return obs, {}
+
+    def _reposition_car(self) -> None:
+        """Botón Back = reposición en pista de PCARS2."""
+        self._controller.neutral()
+        time.sleep(0.3)                       # espera a que el juego procese el neutral
+        self._controller.press_button('back')
+        time.sleep(1.0)                       # espera a que el juego complete la reposición
+
+    def _wait_for_telemetry(self) -> None:
+        """Bloquea hasta tener un frame de telemetría y timings válidos."""
+        _warned = False
+        _t0 = time.monotonic()
+        while self._last_telem is None or self._last_timings is None:
+            self._ingest_pending_packets()
+            if self._last_telem is None or self._last_timings is None:
+                self._recv_blocking_packet()
+            if not _warned and time.monotonic() - _t0 > 10:
+                print("[Env] Sin datos UDP tras 10s. Comprueba la config del juego.")
+                _warned = True
+
+    def _ensure_on_track(self) -> bool:
+        """Tras reposicionar el coche debe estar en pista; si no, repite la reposición."""
+        for attempt in range(START_REPOSITION_RETRIES + 1):
+            t, i = self._last_telem, self._last_timings
+            assert t is not None and i is not None   # los deja _wait_for_telemetry
+            cte = self._ref.cross_track_error(t.position, i.lap_distance)
+            if cte <= START_MAX_CTE_M:
+                return True
+            if attempt == START_REPOSITION_RETRIES:
+                break
+            print(f"[Env] El coche está a {cte:.1f} m de la línea (¿pit o box?): "
+                  f"repito la reposición ({attempt + 1}/{START_REPOSITION_RETRIES}).")
+            self._reposition_car()
+            self._last_telem = None
+            self._last_timings = None
+            self._wait_for_telemetry()
+        print(f"[Env] Sigue fuera de la pista (CTE {cte:.1f} m) tras {START_REPOSITION_RETRIES} "
+              "reposiciones: mete el coche en pista a mano; este episodio puede ser inútil.")
+        return False
 
     def step(self, action):
         throttle, brake, steering = decode_action(action)
@@ -525,7 +539,7 @@ class PCARS2Env(gym.Env):
             avg_ms = self._spd_win_sum / self._spd_win_steps
             avg_kmh = avg_ms * 3.6
             tgt_kmh = self._speed_target_ms * 3.6
-            if abs(avg_ms - self._speed_target_ms) <= SPEED_TARGET_TOL_KMH / 3.6:
+            if self._speed_ramp and abs(avg_ms - self._speed_target_ms) <= SPEED_TARGET_TOL_KMH / 3.6:
                 self._speed_target_ms += SPEED_TARGET_STEP_KMH / 3.6
                 print(
                     f"[SpeedTarget] ✓ avg={avg_kmh:.1f} km/h ≈ objetivo {tgt_kmh:.1f} km/h "
@@ -931,5 +945,7 @@ class PCARS2Env(gym.Env):
             "step":           self._step_count,
             "lap":            i.current_lap,
             "sector":         i.sector,
+            "gear":           t.gear,
+            "speed_target_kmh": round(self._speed_target_ms * 3.6, 1),
             "lap_time_s":     self._lap_time_s if self._term_reason == "lap_done" else None,
         }

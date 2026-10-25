@@ -168,7 +168,7 @@ def test_bc_anclado_mode_builds_the_anchored_ppo_command():
     apply_mode_defaults(s)
     argv = build_argv(s)
     assert argv[argv.index("--obs-schema") + 1] == "universal_v1"
-    assert "--steer-comp" in argv
+    assert "--steer-comp" in argv and "--no-speed-ramp" in argv
     assert argv[argv.index("--base-model") + 1] == "models/ppo_universal_base.zip"
     assert argv[argv.index("--frame-skip") + 1] == "1"
     assert "--fresh" not in argv and "--model" not in argv and "--basics" not in argv

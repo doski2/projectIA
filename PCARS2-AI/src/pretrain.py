@@ -243,32 +243,11 @@ def pretrain(
     output_path:   str,
 ):
     from stable_baselines3 import PPO
-    import gymnasium as gym
-    from gymnasium import spaces
+    from obs_spaces import DummyEnv, LEGACY_OBS_SCHEMA
+    from ppo_defaults import PPO_NET_ARCH
 
     # ---- Entorno ficticio con los mismos espacios que PCARS2Env ----
-    _low  = np.array([
-        0, 0, -1, -1, -1, -1, -1,   # 0-6  speed/cte/delta/slip/yaw/lat/long
-        0, 0,                        # 7-8  rpm/gear
-        -1, -1,                      # 9-10 heading_err/curv
-        0, 0,  0,  0,               # 11-14 lk50/lk100/ref_thr/ref_brk
-        -1, -1,  0,                 # 15-17 wheelspin/lockup/throttle_cur
-        0,                           # 18  progress
-    ], dtype=np.float32)
-
-    class DummyEnv(gym.Env):
-        def __init__(self):
-            self.observation_space = spaces.Box(
-                low=_low, high=np.ones(19, dtype=np.float32), dtype=np.float32)
-            self.action_space = spaces.Box(
-                low=np.full(3, -1.0, dtype=np.float32),
-                high=np.full(3,  1.0, dtype=np.float32),
-                dtype=np.float32,
-            )
-        def reset(self, **kwargs): return np.zeros(19, dtype=np.float32), {}
-        def step(self, action):    return np.zeros(19, dtype=np.float32), 0.0, False, False, {}
-
-    env = DummyEnv()
+    env = DummyEnv(LEGACY_OBS_SCHEMA)
 
     # ---- Crear o cargar modelo PPO (misma arquitectura que main.py) ----
     model = None
@@ -286,7 +265,7 @@ def pretrain(
             print("[BC] Creando modelo PPO desde cero (net_arch=[256,256,128])...")
         model = PPO(
             policy        = "MlpPolicy",
-            policy_kwargs = dict(net_arch=[256, 256, 128]),
+            policy_kwargs = dict(net_arch=PPO_NET_ARCH),
             env           = env,
             learning_rate = learning_rate,
             verbose       = 0,

@@ -25,6 +25,7 @@ from typing import Optional
 import numpy as np
 
 from obs_universal import OBS_SCHEMA, OBS_UNIVERSAL_DIM
+from teacher_intents import encode_reason_id
 
 DEFAULT_RAW = "data/online_buffer.jsonl"
 DEFAULT_OUT = "data/curated_buffer.npz"
@@ -75,7 +76,10 @@ def curate(
             last[key] = (obs, act)
             obs_l.append(obs)
             act_l.append(act)
-            rid_l.append(int(row.get("reason_id") or 0))
+            rid = row.get("reason_id")
+            if rid is None:
+                rid = encode_reason_id(row.get("teacher_reason", ""))
+            rid_l.append(int(rid))
             maintain_l.append(row.get("teacher_reason", "") == MAINTAIN_REASON)
             quality_l.append(row.get("quality", 0.0))
             stage_l.append(row.get("learn_stage") or "")

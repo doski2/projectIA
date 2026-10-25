@@ -116,8 +116,15 @@ prerrequisitos 2, 3 y 4 siguen sin hacerse. Lo que se cerró para poder probarla
 - GUI: pestaña *RL (PPO)* -> modo **Anclado al BC (universal)** (mismos flags que el `.bat`; los demás modos usan la observación antigua, `frame_skip` 4 y, según los ajustes guardados, `--fresh`).
 - Logs en `logs/formula_rookie__sugo/`: `metricas.csv` (medias por rollout; botón *Monitor*) y `episodios.csv`, una fila por episodio con el motivo de fin, los metros recorridos al terminar, el CTE, la velocidad, el tiempo de vuelta (solo si acaba en `lap_done`) y la recompensa. Esa es la tabla para comparar con el BC y con la referencia de 213,9 s. TensorBoard con su botón y checkpoints en `models/formula_rookie__sugo/`. No hay informe HTML por vuelta.
 - Actualizaciones suaves al partir del BC (`--anchor-lr` 3e-5, `--anchor-epochs` 4, `--anchor-target-kl` 0,02): en la primera prueba (50 000 pasos) `clip_fraction` rondaba 0,3 y `approx_kl` 0,03-0,05 con desviación 0,1, y el CTE medio subió de ~0,85 a ~1,05 m. Esa prueba también mostró 2 de ~5 episodios en `stuck` con CTE ~5 m: es la línea base del modelo destilado sin profesor ni amortiguación de volante.
-- Lanzador: `ppo_probar.bat` (50 000 pasos, objetivo 60 km/h; el entorno sube la velocidad objetivo
-  +5 km/h cada 10 000 pasos si la media está en banda).
+- Lanzador: `ppo_probar.bat` (50 000 pasos, objetivo fijo de 60 km/h con `--no-speed-ramp`). Sin esa opción
+  el entorno sube el objetivo +5 km/h cada 10 000 pasos si la media está a ±10 km/h; en la segunda prueba
+  (2026-10-25) eso hizo que la recompensa por paso empeorase de -0,14 a -0,38 aunque la conducción no cambiaba
+  (59 km/h, CTE ~0,9), así que `ep_rew_mean` dejó de servir como señal. Para ver si aprende a ir más rápido,
+  fija un objetivo mayor (65-70) en vez de dejarlo subir.
+- Tolerancia UDP: 30 pasos seguidos sin frame (~3 s) antes de truncar con `udp_timeout`; con 5 (0,5 s), la tercera prueba cortó 6 de 10 episodios seguidos tras reposicionar. `episodios.csv` se renombra a `.old-<fecha>` si cambia la cabecera.
+- Arranque: *Back* deja el coche junto al box (CTE ~11,7 m, no en el pit), así que repetirlo no lo mueve: 1 reintento. El primer episodio de cada tirada sigue siendo anómalo; ignóralo al comparar. El reinicio comprueba que el coche queda en pista (CTE <= 6 m) y repite la reposición;
+  en las dos primeras pruebas los primeros episodios eran el coche parado en el pit (CTE ~11,7 m). `episodios.csv`
+  guarda también la marcha y el objetivo de velocidad de cada episodio.
 
 Qué mirar: `pct_lap_done` y `avg_cte` en `metricas.csv` (no deben empeorar respecto al BC),
 `pct_stuck` / `pct_wrong_way`, y la `std` de la política, que debe subir despacio. Una vuelta son

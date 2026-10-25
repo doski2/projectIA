@@ -225,7 +225,7 @@ comprobaron con un script o con los logs; los marcados «probable» salen de lee
 | 7.2.3 | P2 | `pretrain.py:build_dataset` | Reimplementa `build_obs` entera a partir de los puntos de la referencia, en vez de reutilizarla (origen de 7.1.8). |
 | 7.2.4 | P2 | `obs_universal.py` y `obs_builder.py` | Pendiente, deslizamiento, guiñada, aceleraciones, patinaje, bloqueo, gas, rpm y marcha se calculan dos veces con el mismo código. |
 | 7.2.5 | P2 | `main.py:_load_or_create_model` | Tres bloques `PPO.load(...)` casi idénticos con números mágicos (`learning_rate` 1e-4, `clip_range` 0,15 / 0,2, `ent_coef` 0,007 / 0,01, `vf_coef` 1,0 / 1,5). Las ramas `--model` y «continuar» son idénticas, y las de transferencia fijan parámetros distintos entre sí (`--base-model` pone `ent_coef` y no `vf_coef`; la automática, al revés). |
-| 7.2.6 | P3 | `main.py`, `pretrain.py`, `environment.py` | El espacio de observación de 19 dim (`_low`), `net_arch=[256, 256, 128]` y el entorno ficticio se copian en tres sitios. |
+| 7.2.6 ✅ | P3 | `main.py`, `pretrain.py`, `environment.py` | El espacio de observación de 19 dim (`_low`), `net_arch=[256, 256, 128]` y el entorno ficticio se copian en tres sitios. (Corregido 2026-10-25: `obs_spaces.py` con `observation_space_for` y `DummyEnv`, y `ppo_defaults.py` con `PPO_NET_ARCH` y los valores del ancla; los usan `environment`, `pretrain`, `ppo_bootstrap`, `ppo_anchor` y `main`. La arquitectura del BC universal en `universal_policy.py` sigue siendo su propia constante.) |
 | 7.2.7 | P3 | `eval_driver.py` y `eval_universal.py` | Dos `evaluate` con el mismo cálculo de MAE; además, `eval_driver` llama a `predict` fila a fila en vez de por lotes. |
 
 ### 7.3 Antes de usar PPO

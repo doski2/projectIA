@@ -15,33 +15,20 @@ from __future__ import annotations
 import argparse
 import os
 
-import gymnasium as gym
 import numpy as np
 import torch
-from gymnasium import spaces
 from stable_baselines3 import PPO
 
 from curate_dataset import load_curated
 from dataset_recorder import load_universal_dataset
-from environment import observation_space_for
+from obs_spaces import DummyEnv
 from obs_universal import OBS_SCHEMA
-from ppo_anchor import DEFAULT_BC_STD, anchor_log_std
+from ppo_anchor import anchor_log_std
+from ppo_defaults import DEFAULT_BC_STD, PPO_NET_ARCH
 from teacher_intents import NUM_REASONS
 from universal_policy import UniversalPolicy, load_universal_policy
 
-NET_ARCH = [256, 256, 128]
-
-
-class _DummyEnv(gym.Env):
-    def __init__(self):
-        self.observation_space = observation_space_for(OBS_SCHEMA)
-        self.action_space = spaces.Box(-1.0, 1.0, shape=(3,), dtype=np.float32)
-
-    def reset(self, **kwargs):
-        return np.zeros(self.observation_space.shape, dtype=np.float32), {}
-
-    def step(self, action):
-        return np.zeros(self.observation_space.shape, dtype=np.float32), 0.0, False, False, {}
+NET_ARCH = PPO_NET_ARCH
 
 
 def bc_targets(bc: UniversalPolicy, obs: np.ndarray, reason_ids: np.ndarray) -> np.ndarray:
@@ -84,7 +71,7 @@ def distill(
     val, tr = perm[:n_val], perm[n_val:]
 
     model = PPO(
-        "MlpPolicy", _DummyEnv(), policy_kwargs=dict(net_arch=NET_ARCH),
+        "MlpPolicy", DummyEnv(OBS_SCHEMA), policy_kwargs=dict(net_arch=NET_ARCH),
         device="cpu", seed=seed, verbose=0,
     )
     policy = model.policy
