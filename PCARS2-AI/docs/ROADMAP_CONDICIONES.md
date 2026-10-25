@@ -102,6 +102,28 @@ constantemente y, con daños activos, acaba en averías.
 6. Anclar la política al BC (penalización KL o tasa de aprendizaje muy baja al principio) para no
    perder lo aprendido.
 
+**Primera prueba de PPO (2026-10-25, a petición, saltando Hybrid 60 y las bandas 70/80):** es una
+prueba de humo para ver si el PPO arranca y mantiene la conducción, **no** el PPO final: los
+prerrequisitos 2, 3 y 4 siguen sin hacerse. Lo que se cerró para poder probarla:
+
+- Entorno con la observación `universal_v1` (CTE con signo), `--steer-comp` y velocidad objetivo.
+- `ppo_bootstrap.py` destila el BC a un modelo PPO (`models/ppo_universal_base.zip`): error medio
+  0,018 frente al BC y 0,071 frente al profesor (el BC: 0,068). Se entrena con la base más el buffer
+  curado, que incluye la banda 60.
+- Ancla al BC: desviación inicial 0,1 y actor congelado 8192 pasos mientras el crítico aprende.
+- Frenado durante la actualización de la red: el juego no se pausa, y sin esto el coche seguía varios
+  segundos con el último mando y el episodio continuaba con datos corruptos.
+- GUI: pestaña *RL (PPO)* -> modo **Anclado al BC (universal)** (mismos flags que el `.bat`; los demás modos usan la observación antigua, `frame_skip` 4 y, según los ajustes guardados, `--fresh`).
+- Logs en `logs/formula_rookie__sugo/`: `metricas.csv` (medias por rollout; botón *Monitor*) y `episodios.csv`, una fila por episodio con el motivo de fin, los metros recorridos al terminar, el CTE, la velocidad, el tiempo de vuelta (solo si acaba en `lap_done`) y la recompensa. Esa es la tabla para comparar con el BC y con la referencia de 213,9 s. TensorBoard con su botón y checkpoints en `models/formula_rookie__sugo/`. No hay informe HTML por vuelta.
+- Actualizaciones suaves al partir del BC (`--anchor-lr` 3e-5, `--anchor-epochs` 4, `--anchor-target-kl` 0,02): en la primera prueba (50 000 pasos) `clip_fraction` rondaba 0,3 y `approx_kl` 0,03-0,05 con desviación 0,1, y el CTE medio subió de ~0,85 a ~1,05 m. Esa prueba también mostró 2 de ~5 episodios en `stuck` con CTE ~5 m: es la línea base del modelo destilado sin profesor ni amortiguación de volante.
+- Lanzador: `ppo_probar.bat` (50 000 pasos, objetivo 60 km/h; el entorno sube la velocidad objetivo
+  +5 km/h cada 10 000 pasos si la media está en banda).
+
+Qué mirar: `pct_lap_done` y `avg_cte` en `metricas.csv` (no deben empeorar respecto al BC),
+`pct_stuck` / `pct_wrong_way`, y la `std` de la política, que debe subir despacio. Una vuelta son
+~12 600 pasos a 60 Hz, así que 50 000 pasos son unas 4 vueltas de experiencia (~15 min de juego,
+más las pausas de actualización): sirve para detectar problemas, no para batir al reloj.
+
 **Estado del código:** existe `main.train` + `environment.py` (observación `obs_builder` y pedales
 independientes, **no** la observación universal). **Nunca se ha probado con el modelo actual**
 (confirmado 2026-10-25): el primer paso de la fase PPO es comprobar que arranca, qué observación

@@ -106,6 +106,28 @@ TEACHING_MODES: List[TrainingMode] = [
 
 TRAINING_MODES: List[TrainingMode] = [
     TrainingMode(
+        id="bc_anclado",
+        label="Anclado al BC (universal) - recomendado",
+        description=(
+            "PPO parte del BC destilado (models/ppo_universal_base.zip; genéralo con "
+            "src/ppo_bootstrap.py), observación universal_v1, compensación del volante y "
+            "frame_skip 1 (el BC actúa a 60 Hz). Reward completa; el objetivo sube +5 km/h "
+            "cada 10 000 pasos si la media está en banda."
+        ),
+        cli_flags=[
+            "--obs-schema", "universal_v1", "--steer-comp",
+            "--base-model", "models/ppo_universal_base.zip",
+        ],
+        default_overrides={
+            "speed_target_kmh": 60.0,
+            "warmup_steps": 30,
+            "frame_skip": 1,
+            "timesteps": 50_000,
+            "fresh_start": False,
+            "model_path": "",
+        },
+    ),
+    TrainingMode(
         id="basico",
         label="Básicos — línea, velocidad, girar",
         description=(

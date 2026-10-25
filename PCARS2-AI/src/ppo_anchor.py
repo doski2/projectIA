@@ -10,6 +10,7 @@ Ancla de PPO al modelo de imitación (BC) para no perder lo aprendido al empezar
 from __future__ import annotations
 
 import math
+from typing import Callable
 
 import torch
 from stable_baselines3.common.callbacks import BaseCallback
@@ -61,6 +62,20 @@ class FreezeActorCallback(BaseCallback):
         if self._frozen and self.num_timesteps >= self.warmup_steps:
             self._set_frozen(False)
             print("[main] Actor descongelado.")
+
+    def _on_step(self) -> bool:
+        return True
+
+
+class HoldBrakeDuringUpdateCallback(BaseCallback):
+    """El juego sigue en marcha mientras PPO actualiza la red: frena el coche durante la pausa."""
+
+    def __init__(self, hold: Callable[[], None]):
+        super().__init__()
+        self._hold = hold
+
+    def _on_rollout_end(self) -> None:
+        self._hold()
 
     def _on_step(self) -> bool:
         return True

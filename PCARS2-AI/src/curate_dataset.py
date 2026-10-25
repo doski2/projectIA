@@ -5,6 +5,8 @@ en un .npz pequeño que el fine-tune carga en segundos.
 
     python src/curate_dataset.py --archive-raw
 
+Si `--out` ya existe, las filas nuevas se **añaden** a las que tenía.
+
 - Se queda con `universal_v1` de calidad >= --min-quality.
 - Dentro de cada (pista, etapa, banda) descarta la fila que apenas cambia respecto a la
   última conservada (obs y acción).
@@ -97,18 +99,26 @@ def curate(
     def pick(values: list, dtype) -> np.ndarray:
         return np.array(values, dtype=dtype)[keep]
 
+    new = {
+        "obs": pick(obs_l, np.float32).reshape(-1, OBS_UNIVERSAL_DIM),
+        "act": pick(act_l, np.float32).reshape(-1, 3),
+        "rid": pick(rid_l, np.int64),
+        "quality": pick(quality_l, np.float32),
+        "stage": pick(stage_l, "U16"),
+        "band": pick(band_l, np.float32),
+        "track": pick(track_l, "U24"),
+    }
+    previous = 0
+    if os.path.isfile(dst):
+        with np.load(dst) as old:
+            previous = len(old["rid"])
+            new = {k: np.concatenate([old[k], v]) for k, v in new.items()}
     os.makedirs(os.path.dirname(dst) or ".", exist_ok=True)
-    np.savez_compressed(
-        dst,
-        obs=pick(obs_l, np.float32).reshape(-1, OBS_UNIVERSAL_DIM),
-        act=pick(act_l, np.float32).reshape(-1, 3),
-        rid=pick(rid_l, np.int64),
-        quality=pick(quality_l, np.float32),
-        stage=pick(stage_l, "U16"),
-        band=pick(band_l, np.float32),
-        track=pick(track_l, "U24"),
-    )
-    return {"read": read, "after_dedupe": len(maintain), "kept": int(keep.sum()), "rare": n_rare}
+    np.savez_compressed(dst, **new)
+    return {
+        "read": read, "after_dedupe": len(maintain), "kept": int(keep.sum()),
+        "rare": n_rare, "previous": previous, "total": len(new["rid"]),
+    }
 
 
 def load_curated(
@@ -138,13 +148,10 @@ def main() -> int:
     p.add_argument("--archive-raw", action="store_true",
                    help="Mueve el JSONL original a data/archive/ tras curarlo")
     args = p.parse_args()
-    if os.path.isfile(args.out):
-        print(f"[Curate] {args.out} ya existe: bórralo o elige otro --out (no se sobrescribe).")
-        return 1
     t0 = time.monotonic()
     stats = curate(args.src, args.out, args.min_quality, args.maintain_cap)
     print(f"[Curate] {stats['read']:,} filas leídas -> {stats['kept']:,} conservadas "
-          f"({stats['rare']:,} no-maintain) en {time.monotonic() - t0:.0f} s -> {args.out} "
+          f"({stats['rare']:,} no-maintain; total en el fichero {stats['total']:,}) en {time.monotonic() - t0:.0f} s -> {args.out} "
           f"({os.path.getsize(args.out) / 1e6:.1f} MB)")
     if args.archive_raw:
         arch = os.path.join(os.path.dirname(args.src) or ".", "archive")

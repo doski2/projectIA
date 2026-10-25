@@ -66,6 +66,7 @@ def test_step_resets_sync_failure_counter_on_good_frame():
     env._sync_physics_frame.return_value = True
     env._step_count = 0
     env._ep_reward = 0.0
+    env._last_timings = None
     env._compute_reward = MagicMock(return_value=0.0)
     env._check_done = MagicMock(return_value=(False, False))
     env.step(np.zeros(3, dtype=np.float32))

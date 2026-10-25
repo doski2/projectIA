@@ -161,3 +161,14 @@ def test_speed_bands_reach_80_and_chain_to_the_end():
     assert next_speed_band(60.0) == 70.0
     assert next_speed_band(70.0) == 80.0
     assert next_speed_band(80.0) is None
+
+
+def test_bc_anclado_mode_builds_the_anchored_ppo_command():
+    s = TrainingSettings(mode_id="bc_anclado", fresh_start=True, model_path="x", frame_skip=4)
+    apply_mode_defaults(s)
+    argv = build_argv(s)
+    assert argv[argv.index("--obs-schema") + 1] == "universal_v1"
+    assert "--steer-comp" in argv
+    assert argv[argv.index("--base-model") + 1] == "models/ppo_universal_base.zip"
+    assert argv[argv.index("--frame-skip") + 1] == "1"
+    assert "--fresh" not in argv and "--model" not in argv and "--basics" not in argv

@@ -1,15 +1,15 @@
 {
   "reference": "src/refs/sugo_ai.json",
-  "timesteps": 150000,
-  "speed_target_kmh": 20.0,
-  "frame_skip": 4,
+  "timesteps": 50000,
+  "speed_target_kmh": 60.0,
+  "frame_skip": 1,
   "warmup_steps": 30,
   "gamepad": "xbox",
   "car": "formula_rookie",
   "track": "sugo",
   "model_path": "",
-  "fresh_start": true,
+  "fresh_start": false,
   "save_freq": 10000,
   "seed": 42,
-  "mode_id": "basico"
+  "mode_id": "bc_anclado"
 }

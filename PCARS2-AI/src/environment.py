@@ -219,6 +219,7 @@ class PCARS2Env(gym.Env):
         speed_target_kmh:  float = 0.0,
         render_mode:       Optional[str] = None,
         obs_schema:        str   = LEGACY_OBS_SCHEMA,
+        steer_comp:        bool  = False,
     ):
         super().__init__()
         self._obs_schema = obs_schema
@@ -267,7 +268,7 @@ class PCARS2Env(gym.Env):
 
         # --- Componentes de hardware ---
         self._listener   = UDPListener()
-        self._controller = DS4Controller(mode=gamepad_mode)
+        self._controller = DS4Controller(mode=gamepad_mode, steer_comp=steer_comp)
         self._shifter = AutoShifter()
         self._udp_timeout = udp_timeout
         self._frame_skip  = max(1, frame_skip)
@@ -293,6 +294,9 @@ class PCARS2Env(gym.Env):
         self._wrongway_steps:    int   = 0       # contador de steps en sentido contrario
         self._physics_anchor:     Optional[tuple] = None  # clave del último frame aceptado
         self._sync_fail_steps:    int = 0                 # pasos seguidos sin frame nuevo
+        self._cur_time:           float = 0.0             # tiempo de vuelta del juego, último paso
+        self._prev_current_time:  float = 0.0             # ... y el del paso anterior
+        self._lap_time_s:         Optional[float] = None  # tiempo de la vuelta completada
         self._udp_stats = self._fresh_udp_stats()
 
         # Umbrales en frames de juego (_step_count solo avanza con CAR_PHYSICS nuevo).
@@ -388,6 +392,9 @@ class PCARS2Env(gym.Env):
         self._episode           += 1
         self._physics_anchor     = None
         self._sync_fail_steps    = 0
+        self._cur_time           = 0.0
+        self._prev_current_time  = 0.0
+        self._lap_time_s         = None
 
         # Sincronizar hasta tener un frame de telemetría y timings válidos
         self._last_telem   = None
@@ -451,6 +458,9 @@ class PCARS2Env(gym.Env):
             self._sync_fail_steps = 0
 
             self._step_count += 1
+            if self._last_timings is not None:
+                self._prev_current_time = self._cur_time
+                self._cur_time = self._last_timings.current_time
 
             # 3. Calcular recompensa
             reward = self._compute_reward(throttle, brake, steering)
@@ -471,6 +481,10 @@ class PCARS2Env(gym.Env):
 
         self._prev_steering = steering
         return obs, total_reward, terminated, truncated, info
+
+    def hold_brake(self) -> None:
+        """Frena a fondo y recto: el juego no se pausa mientras PPO actualiza la red."""
+        self._controller.apply_action(0.0, 1.0, 0.0)
 
     def close(self):
         self._controller.release()
@@ -684,6 +698,8 @@ class PCARS2Env(gym.Env):
         laps_done = i.current_lap - self._start_lap
         if laps_done >= MAX_LAPS_PER_EPISODE:
             self._term_reason = "lap_done"
+            # el juego pone a cero el tiempo al cruzar meta: vale el del paso anterior
+            self._lap_time_s = self._prev_current_time
             return False, True
 
         return False, False
@@ -915,4 +931,5 @@ class PCARS2Env(gym.Env):
             "step":           self._step_count,
             "lap":            i.current_lap,
             "sector":         i.sector,
+            "lap_time_s":     self._lap_time_s if self._term_reason == "lap_done" else None,
         }

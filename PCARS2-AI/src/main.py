@@ -55,12 +55,25 @@ def _reset_log_std(model, target_std: float = 0.8) -> None:
         pass  # Algunos tipos de política no tienen log_std separado
 
 
+def _apply_update_settings(model, args) -> None:
+    """Actualizaciones suaves: con std 0,1 un cambio pequeño de la media ya es un salto grande."""
+    from stable_baselines3.common.utils import ConstantSchedule
+
+    model.learning_rate = args.anchor_lr
+    model.lr_schedule = ConstantSchedule(args.anchor_lr)
+    model.n_epochs = args.anchor_epochs
+    model.target_kl = args.anchor_target_kl
+    print(f"[main] Actualizaciones suaves: lr={args.anchor_lr:g}, épocas={args.anchor_epochs}, "
+          f"target_kl={args.anchor_target_kl:g}")
+
+
 def _anchor_from_bc(model, args) -> None:
-    """Modelo que nace del BC: std pequeña y actor congelado mientras el crítico aprende."""
+    """Modelo que nace del BC: std pequeña, actualizaciones suaves y actor congelado al inicio."""
     from ppo_anchor import anchor_log_std
 
     if anchor_log_std(model, args.bc_std):
         print(f"[main] log_std anclado al BC: std={args.bc_std:.2f}")
+    _apply_update_settings(model, args)
     args.anchored_to_bc = True
 
 
@@ -252,12 +265,29 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--steer-comp", action="store_true",
+        help="Compensa la curva de respuesta del volante del juego (steering_curve.py); "
+             "igual que en learn_driver. Mantenerla igual que al grabar el BC.",
+    )
+    parser.add_argument(
         "--bc-std",
         type=float,
         default=0.1,
         metavar="STD",
         help="Desviación inicial de la política cuando se parte de un modelo BC/base "
              "(PPO nace con 1,0 y destruiría lo imitado).",
+    )
+    parser.add_argument(
+        "--anchor-lr", type=float, default=3e-5, metavar="LR",
+        help="Tasa de aprendizaje al partir de un modelo BC/base (más baja que la normal).",
+    )
+    parser.add_argument(
+        "--anchor-epochs", type=int, default=4, metavar="N",
+        help="Épocas por actualización al partir de un modelo BC/base.",
+    )
+    parser.add_argument(
+        "--anchor-target-kl", type=float, default=0.02, metavar="KL",
+        help="Corta las épocas de una actualización si la KL aproximada supera este valor.",
     )
     parser.add_argument(
         "--critic-warmup-steps",
@@ -334,9 +364,13 @@ class MetricsAccumulator:
                     self.term_counts[tr] += 1
                 else:
                     self.n_timelimit += 1
-        if new_obs is not None:
-            # obs[18] = progreso 0-1 en la vuelta
-            prog = float(new_obs[0][18])
+        prog = None
+        lap_distance = infos[0].get('lap_distance') if infos else None
+        if lap_distance is not None and self.track_length > 0:
+            prog = lap_distance / self.track_length   # válido con cualquier observación
+        elif new_obs is not None and len(new_obs[0]) > 18:
+            prog = float(new_obs[0][18])              # legacy_19: obs[18] = progreso 0-1
+        if prog is not None:
             delta = prog - self.dist_prev_prog
             if delta < -0.5:   # wrap-around: fin de vuelta
                 delta += 1.0
@@ -475,6 +509,7 @@ def train(args: argparse.Namespace) -> None:
         basics=args.basics,
         speed_target_kmh=args.speed_target_kmh,
         obs_schema=args.obs_schema,
+        steer_comp=args.steer_comp,
     )
     _mon_env  = Monitor(raw_env)
     _vec_env  = DummyVecEnv([lambda: _mon_env])   # SB3 requiere VecEnv para VecNormalize
@@ -660,10 +695,17 @@ def train(args: argparse.Namespace) -> None:
         f"       TensorBoard: {tb_info}\n"
     )
 
-    callbacks = [checkpoint_cb, csv_cb]
+    from episode_log import EpisodeLogCallback
+    from ppo_anchor import HoldBrakeDuringUpdateCallback
+    episodes_path = os.path.join(log_dir, 'episodios.csv')
+    print(f"[main] Episodios CSV -> {episodes_path}")
+    callbacks = [
+        HoldBrakeDuringUpdateCallback(raw_env.hold_brake),
+        checkpoint_cb, csv_cb, EpisodeLogCallback(episodes_path),
+    ]
     if getattr(args, "anchored_to_bc", False) and args.critic_warmup_steps > 0:
         from ppo_anchor import FreezeActorCallback
-        callbacks.insert(0, FreezeActorCallback(args.critic_warmup_steps))
+        callbacks.insert(1, FreezeActorCallback(args.critic_warmup_steps))
 
     try:
         model.learn(

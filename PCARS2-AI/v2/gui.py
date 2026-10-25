@@ -585,6 +585,9 @@ class TrainingGui(tk.Tk):
             self.steps_var.set(s.timesteps)
             self.frame_skip_var.set(s.frame_skip)
             self.warmup_var.set(s.warmup_steps)
+            if "fresh_start" in mode.default_overrides:
+                self.fresh_var.set(s.fresh_start)
+                self.model_var.set(s.model_path)
 
         self._update_command_preview()
         self._update_learn_command()

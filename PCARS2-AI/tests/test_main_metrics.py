@@ -37,6 +37,15 @@ def test_accumulator_terminations_and_percentages():
     assert v[8:] == [25.0, 0.0, 0.0, 0.0, 50.0, 25.0]  # stuck, pit, wrong, noprog, lap, timelimit
 
 
+def test_accumulator_works_with_the_17_dim_universal_obs():
+    """universal_v1 no trae el progreso en obs[18]: la distancia sale de info['lap_distance']."""
+    acc = m.MetricsAccumulator(track_length=1000.0)
+    for d in (900.0, 100.0):  # 0 -> 900 m ; 900 -> 100 = wrap +200 m
+        acc.add_step(np.zeros((1, 17)), [[0.0, 0.0, 0.0]], [{"lap_distance": d, "cte": 1.0}], [False])
+    v = acc.csv_values()
+    assert v[6] == 1.1 and v[2] == 1.0
+
+
 def test_accumulator_distance_wraparound_and_reset():
     acc = m.MetricsAccumulator(track_length=1000.0)
     for p in (0.9, 0.1):  # 0.9 desde 0 = +900 m ; 0.9→0.1 = wrap +200 m
@@ -56,7 +65,8 @@ class _FakePPO:
 
 
 def _args(**kw):
-    base = dict(model=None, base_model=None, fresh=False, model_dir="models", bc_std=0.1)
+    base = dict(model=None, base_model=None, fresh=False, model_dir="models", bc_std=0.1,
+                anchor_lr=3e-5, anchor_epochs=4, anchor_target_kl=0.02)
     base.update(kw)
     return SimpleNamespace(**base)
 

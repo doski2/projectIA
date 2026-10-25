@@ -71,3 +71,14 @@ def test_load_curated_filters_like_the_buffer(tmp_path):
     obs_all, _, _, _ = load_curated(str(dst))
     assert len(obs_all) == 9
     assert len(load_curated(str(dst), track_name="OTRA")[0]) == 0
+
+
+def test_curate_appends_to_an_existing_output(tmp_path):
+    src, dst = tmp_path / "b.jsonl", tmp_path / "c.npz"
+    _write(src, [_row(i, speed=0.1 * (i + 1), band=20.0) for i in range(5)])
+    curate(str(src), str(dst), maintain_cap=1.0)
+    _write(src, [_row(i, speed=0.1 * (i + 1), band=60.0) for i in range(3)])
+    stats = curate(str(src), str(dst), maintain_cap=1.0)
+    assert stats["previous"] == 5 and stats["total"] == 8
+    assert len(load_curated(str(dst), speed_band_kmh=60.0)[0]) == 3
+    assert len(load_curated(str(dst), speed_band_kmh=20.0)[0]) == 5
