@@ -47,6 +47,8 @@ def _env_sin_udp():
     env._prev_steering = 0.0
     env._term_reason = "?"
     env._sync_fail_steps = 0
+    env._ep_info_steps = 0
+    env._ep_cte_sum = env._ep_speed_sum = 0.0
     return env
 
 

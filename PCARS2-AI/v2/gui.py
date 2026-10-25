@@ -24,6 +24,7 @@ from .config import (
     LEARN_STAGE_IDS,
     SPEED_BANDS_KMH,
     TRAINING_MODES,
+    steps_to_time_text,
     LearnSettings,
     TeachingSettings,
     TrainingSettings,
@@ -180,6 +181,8 @@ class TrainingGui(tk.Tk):
             grid, from_=50_000, to=2_000_000, increment=50_000, width=12,
             textvariable=self.steps_var,
         ).grid(row=1, column=1, sticky="w", padx=px, pady=py)
+        self.steps_time_label = ttk.Label(grid, text="", foreground="#444")
+        self.steps_time_label.grid(row=1, column=2, sticky="w", padx=px, pady=py)
 
         ttk.Label(grid, text="Frame skip:").grid(row=2, column=0, sticky="w", padx=px, pady=py)
         self.frame_skip_var = tk.IntVar(value=self.settings.frame_skip)
@@ -189,6 +192,9 @@ class TrainingGui(tk.Tk):
 
         ttk.Label(grid, text="Warm-up (frames):").grid(row=3, column=0, sticky="w", padx=px, pady=py)
         self.warmup_var = tk.IntVar(value=self.settings.warmup_steps)
+        self.steps_var.trace_add("write", lambda *_: self._update_steps_time())
+        self.frame_skip_var.trace_add("write", lambda *_: self._update_steps_time())
+        self._update_steps_time()
         ttk.Spinbox(
             grid, from_=0, to=120, width=6, textvariable=self.warmup_var,
         ).grid(row=3, column=1, sticky="w", padx=px, pady=py)
@@ -573,6 +579,14 @@ class TrainingGui(tk.Tk):
         cmd = format_learn_command(self._collect_learn_settings())
         self.learn_cmd_text.delete("1.0", "end")
         self.learn_cmd_text.insert("1.0", cmd)
+
+    def _update_steps_time(self) -> None:
+        """Equivalencia aproximada de los pasos en horas (ritmo medido en el juego)."""
+        try:
+            text = steps_to_time_text(int(self.steps_var.get()), int(self.frame_skip_var.get()))
+        except (tk.TclError, ValueError):
+            text = ""
+        self.steps_time_label.config(text=text)
 
     def _on_mode_change(self) -> None:
         mode = get_mode(self.mode_var.get())

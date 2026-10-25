@@ -121,6 +121,9 @@ STOP_BEFORE_BACK_TIMEOUT_S = 15.0
 GRID_LINE_M = 30.0   # lap_distance menor: parrilla de salida; el CTE es distancia a la línea
 START_REPOSITION_RETRIES = 1   # Back deja el coche junto al box: más intentos no lo mueven
 
+# Si el juego se cierra entre episodios, esperar telemetría para siempre dejaría colgada la noche entera.
+TELEMETRY_WAIT_TIMEOUT_S = 600.0
+
 # Pasos seguidos sin frame de física nuevo tras los que se trunca el episodio
 # (UDP caído o juego en pausa), en vez de colgarse sin avanzar los contadores.
 MAX_SYNC_FAILURES = 30   # ~3 s a udp_timeout 0,1 s: tolera tirones del juego (p. ej. tras Back)
@@ -288,6 +291,9 @@ class PCARS2Env(gym.Env):
         self._lap_time_s:         Optional[float] = None  # tiempo de la vuelta completada
         self._ep_start_time:      float = 0.0             # cronómetro del juego en el primer paso
         self._ep_start_dist:      float = 0.0             # lap_distance en el primer paso
+        self._ep_cte_sum:         float = 0.0             # acumulados del episodio (medias para ppo_guard)
+        self._ep_speed_sum:       float = 0.0
+        self._ep_info_steps:      int = 0
         self._udp_stats = self._fresh_udp_stats()
 
         # Umbrales en frames de juego (_step_count solo avanza con CAR_PHYSICS nuevo).
@@ -352,19 +358,8 @@ class PCARS2Env(gym.Env):
         # Reposicionar el coche en pista (botón Back = reposición en PCARS2)
         self._reposition_car()
 
-        # Bajar a 1ª MIENTRAS el motor está girando (throttle activo).
-        # PCARS2 bloquea el downshift con el coche parado y motor frío;
-        # con gas aplicado el juego sí acepta los cambios secuenciales.
-        # La telemetría aún es válida aquí (no se ha reseteado).
-        self._controller.apply_action(0.5, 0.0, 0.0)   # gas suave para rascar el motor
-        time.sleep(0.1)
-        if self._last_telem is not None:
-            needed = max(0, self._last_telem.gear - 1)   # cuántos LB hacen falta
-            for _ in range(needed):
-                self._controller.apply_action(0.3, 0.0, 0.0)
-                self._controller.press_button('lb')       # 80 ms interno
-                time.sleep(0.15)
-        time.sleep(0.2)
+        # La 1ª se mete más abajo (_engage_first) con la marcha real tras Back. Antes se bajaban
+        # `gear-1` marchas con la telemetría del episodio anterior, que tras Back ya no valía.
         self._controller.neutral()
         time.sleep(0.2)
 
@@ -385,6 +380,9 @@ class PCARS2Env(gym.Env):
         self._lap_time_s         = None
         self._ep_start_time      = 0.0
         self._ep_start_dist      = 0.0
+        self._ep_cte_sum         = 0.0
+        self._ep_speed_sum       = 0.0
+        self._ep_info_steps      = 0
 
         # Sincronizar hasta tener un frame de telemetría y timings válidos
         self._last_telem   = None
@@ -460,7 +458,11 @@ class PCARS2Env(gym.Env):
             self._ingest_pending_packets()
             if self._last_telem is None or self._last_timings is None:
                 self._recv_blocking_packet()
-            if not _warned and time.monotonic() - _t0 > 10:
+            waited = time.monotonic() - _t0
+            if waited >= TELEMETRY_WAIT_TIMEOUT_S:
+                raise TimeoutError(
+                    f"Sin telemetría de PCARS2 tras {waited:.0f} s: ¿el juego se cerró o se pausó?")
+            if not _warned and waited > 10:
                 print("[Env] Sin datos UDP tras 10s. Comprueba la config del juego.")
                 _warned = True
 
@@ -531,6 +533,13 @@ class PCARS2Env(gym.Env):
         # 6. Info de diagnóstico (para TensorBoard/logging)
         info = self._build_info(throttle, brake, steering, total_reward)
         info['term_reason'] = self._term_reason
+        if "cte" in info:
+            self._ep_cte_sum += info["cte"]
+            self._ep_speed_sum += info.get("speed_kmh", 0.0)
+            self._ep_info_steps += 1
+        if (terminated or truncated) and self._ep_info_steps:
+            info["ep_cte_mean"] = round(self._ep_cte_sum / self._ep_info_steps, 3)
+            info["ep_speed_kmh"] = round(self._ep_speed_sum / self._ep_info_steps, 1)
 
         self._prev_steering = steering
         return obs, total_reward, terminated, truncated, info
@@ -538,6 +547,14 @@ class PCARS2Env(gym.Env):
     def hold_brake(self) -> None:
         """Frena a fondo y recto: el juego no se pausa mientras PPO actualiza la red."""
         self._controller.apply_action(0.0, 1.0, 0.0)
+
+    @property
+    def speed_target_kmh(self) -> float:
+        return self._speed_target_ms * 3.6
+
+    def set_speed_target_kmh(self, kmh: float) -> None:
+        """Cambia el objetivo de velocidad (lo usa ppo_guard al validar o retroceder)."""
+        self._speed_target_ms = max(0.0, kmh) / 3.6
 
     def resume_after_update(self) -> None:
         """Tras la pausa de PPO el coche está parado en mitad de la pista: refresca y mete la 1ª."""

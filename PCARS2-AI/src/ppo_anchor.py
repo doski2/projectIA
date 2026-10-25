@@ -5,6 +5,10 @@ Ancla de PPO al modelo de imitación (BC) para no perder lo aprendido al empezar
 - `anchor_log_std`: desviación inicial pequeña (PPO nace con std = 1,0 sobre acciones en [-1, 1]).
 - `FreezeActorCallback`: congela el actor unas iteraciones para que el crítico (que el BC deja
   aleatorio) aprenda primero a valorar, y las ventajas no sean basura.
+- `HoldBrakeDuringUpdateCallback`: el juego no se pausa mientras PPO actualiza la red; frena el
+  coche y lo reanuda (mete la 1ª si hace falta) al empezar el siguiente rollout.
+- `PullToBCCallback`: tras cada actualización devuelve una fracción del desvío del actor a su
+  punto de partida.
 """
 
 from __future__ import annotations
@@ -16,7 +20,6 @@ import torch
 from stable_baselines3.common.callbacks import BaseCallback
 
 from ppo_defaults import DEFAULT_BC_STD
-
 
 
 def anchor_log_std(model, std: float = DEFAULT_BC_STD) -> bool:

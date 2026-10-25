@@ -106,3 +106,62 @@ def test_auto_without_checkpoints_falls_back_to_scratch(monkeypatch, tmp_path):
     monkeypatch.setattr(m, "_create_ppo_from_scratch", lambda env, tb: "new")
     out = m._load_or_create_model(_args(model_dir=str(tmp_path)), _FakePPO, None, None, "d", "p", "s")
     assert out == ("new", True)
+
+
+def test_resume_ppo_continues_the_previous_final_without_re_anchoring(monkeypatch, tmp_path):
+    import ppo_anchor
+
+    monkeypatch.setattr(ppo_anchor, "anchor_log_std", lambda *a: (_ for _ in ()).throw(AssertionError))
+    final = tmp_path / "pcars2_s_final.zip"
+    final.write_bytes(b"x")
+    _FakePPO.loaded.clear()
+    args = _args(base_model="b.zip", resume_ppo=True)
+    model, reset = m._load_or_create_model(args, _FakePPO, None, None, str(tmp_path), "pcars2_s", "s")
+    assert _FakePPO.loaded[0][0] == str(final) and reset is False
+    assert args.resumed_ppo is True and not getattr(args, "anchored_to_bc", False)
+    assert model.n_epochs == 4 and model.target_kl == 0.02
+
+
+def test_resume_ppo_falls_back_to_the_base_model_when_there_is_no_final(monkeypatch, tmp_path):
+    import ppo_anchor
+
+    monkeypatch.setattr(ppo_anchor, "anchor_log_std", lambda mod, std: True)
+    args = _args(base_model="b.zip", resume_ppo=True)
+    model, reset = m._load_or_create_model(args, _FakePPO, None, None, str(tmp_path), "pcars2_s", "s")
+    assert reset is True and args.anchored_to_bc is True
+    assert not getattr(args, "resumed_ppo", False)
+
+
+def test_gate_resume_prefers_the_validated_safe_model(tmp_path):
+    """Con puerta de velocidad, se retoma el modelo que validó la velocidad guardada, no un _final sin validar."""
+    (tmp_path / "pcars2_s_final.zip").write_bytes(b"f")
+    (tmp_path / "pcars2_s_safe.zip").write_bytes(b"s")
+    (tmp_path / "estado_gate.json").write_text('{"safe_target_kmh": 65.0}')
+    _FakePPO.loaded.clear()
+    args = _args(base_model="b.zip", resume_ppo=True, speed_gate=True)
+    m._load_or_create_model(args, _FakePPO, None, None, str(tmp_path), "pcars2_s", "s")
+    assert _FakePPO.loaded[0][0] == str(tmp_path / "pcars2_s_safe.zip")
+
+
+def test_gate_resume_uses_final_when_there_is_no_validated_state(tmp_path):
+    (tmp_path / "pcars2_s_final.zip").write_bytes(b"f")
+    (tmp_path / "pcars2_s_safe.zip").write_bytes(b"s")        # sin estado: el seguro no está validado
+    _FakePPO.loaded.clear()
+    args = _args(base_model="b.zip", resume_ppo=True, speed_gate=True)
+    m._load_or_create_model(args, _FakePPO, None, None, str(tmp_path), "pcars2_s", "s")
+    assert _FakePPO.loaded[0][0] == str(tmp_path / "pcars2_s_final.zip")
+
+
+def test_stop_car_safely_brakes_and_waits_for_it_to_stop(monkeypatch):
+    waits = []
+    monkeypatch.setattr(m._time, "sleep", lambda s: waits.append(s))
+    env = SimpleNamespace(braked=0)
+    env.hold_brake = lambda: setattr(env, "braked", env.braked + 1)
+    m._stop_car_safely(env)
+    assert env.braked == 1 and waits == [m.STOP_CAR_WAIT_S]
+
+
+def test_stop_car_safely_never_raises(monkeypatch):
+    monkeypatch.setattr(m._time, "sleep", lambda s: None)
+    env = SimpleNamespace(hold_brake=lambda: (_ for _ in ()).throw(OSError("mando desconectado")))
+    m._stop_car_safely(env)       # no debe impedir guardar el modelo

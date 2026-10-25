@@ -17,6 +17,7 @@ if str(_CURR_SRC) not in sys.path:
     sys.path.insert(0, str(_CURR_SRC))
 
 from learning_curriculum import LEARN_STAGES, SPEED_BANDS_KMH  # noqa: E402,F401  (re-export)
+from ppo_defaults import RESUME_BC_PULL, SPEED_MAX_KMH, SPEED_STEP_KMH  # noqa: E402
 
 
 @dataclass
@@ -106,6 +107,31 @@ TEACHING_MODES: List[TrainingMode] = [
 
 TRAINING_MODES: List[TrainingMode] = [
     TrainingMode(
+        id="continuar_ppo",
+        label="Continuar PPO - protegido, sin vigilancia - recomendado",
+        description=(
+            "Continúa desde el último modelo PPO del combo (si no hay, parte del BC destilado), "
+            "con la observación universal, compensación del volante, episodios de 2 vueltas y la "
+            "velocidad objetivo subiendo +2,5 km/h solo tras 3 episodios limpios (techo 80, el máximo del currículo). "
+            "Se protege sola: vuelve al último modelo seguro tras 2 fallos y se detiene si no hay forma de avanzar. "
+            "Pensado para dejarlo sin vigilancia; revisa el avance con ppo_progreso.bat."
+        ),
+        cli_flags=[
+            "--obs-schema", "universal_v1", "--steer-comp", "--laps-per-episode", "2",
+            "--resume-ppo", "--bc-pull", str(RESUME_BC_PULL), "--no-speed-ramp",
+            "--speed-gate", "--speed-step-kmh", str(SPEED_STEP_KMH), "--speed-max-kmh", str(int(SPEED_MAX_KMH)),
+            "--base-model", "models/ppo_universal_base.zip",
+        ],
+        default_overrides={
+            "speed_target_kmh": 60.0,
+            "warmup_steps": 30,
+            "frame_skip": 1,
+            "timesteps": 200_000,
+            "fresh_start": False,
+            "model_path": "",
+        },
+    ),
+    TrainingMode(
         id="bc_anclado",
         label="Anclado al BC (universal) - recomendado",
         description=(
@@ -186,6 +212,18 @@ TRAINING_MODES: List[TrainingMode] = [
         default_overrides={},
     ),
 ]
+
+
+# Ritmo medido de PPO en el juego: 2048 pasos cada ~35 s (fps 54-59 en metricas.csv, pausas de actualización incluidas)
+STEPS_PER_SECOND = 58.0
+
+
+def steps_to_time_text(steps: int, frame_skip: int = 1) -> str:
+    """Duración aproximada de un entrenamiento. Cada paso cubre `frame_skip` frames de juego a ~60 Hz."""
+    seconds = max(0, steps) * max(1, frame_skip) / STEPS_PER_SECOND
+    minutes = round(seconds / 60)
+    hours, minutes = divmod(minutes, 60)
+    return f"≈ {hours} h {minutes} min" if hours else f"≈ {minutes} min"
 
 
 def get_mode(mode_id: str) -> TrainingMode:

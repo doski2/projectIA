@@ -14,3 +14,12 @@ ANCHOR_EPOCHS = 4
 ANCHOR_TARGET_KL = 0.02
 BC_PULL = 0.05          # fracción del desvío del actor que se recupera tras cada actualización
 CRITIC_WARMUP_STEPS = 8192
+
+# Al continuar una tirada anterior (--resume-ppo) el ancla se afloja para que la política pueda aprender.
+RESUME_BC_PULL = 0.01
+
+# Puerta de velocidad (ppo_guard.py): una sola fuente para main, ppo_guard, ppo_progress y la GUI.
+SPEED_STEP_KMH = 2.5      # subida de la velocidad objetivo tras validar la actual
+SPEED_MAX_KMH = 80.0      # techo: el máximo del currículo de velocidad
+GATE_CLEAN_CTE_M = 1.2    # CTE medio de un episodio limpio
+GATE_FAIL_CTE_M = 1.6     # CTE medio a partir del cual una vuelta cuenta como fallo

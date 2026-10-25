@@ -182,3 +182,60 @@ def test_resume_after_update_leaves_a_moving_or_in_gear_car_alone(monkeypatch):
     monkeypatch.setattr(environment, "engage_first_gear", lambda *a: (_ for _ in ()).throw(AssertionError))
     _env_tras_actualizacion(speed=15.0, gear=3).resume_after_update()
     _env_tras_actualizacion(speed=0.0, gear=1).resume_after_update()      # parado pero en 1ª: arranca solo
+
+
+def test_set_speed_target_changes_the_reward_target():
+    env = object.__new__(PCARS2Env)
+    env._speed_target_ms = 60.0 / 3.6
+    env.set_speed_target_kmh(62.5)
+    assert abs(env._speed_target_ms * 3.6 - 62.5) < 1e-9
+    assert round(env.speed_target_kmh, 1) == 62.5
+
+
+def test_step_reports_the_episode_means_when_it_ends():
+    import numpy as np
+
+    env = object.__new__(PCARS2Env)
+    env._frame_skip = 1
+    env._controller = MagicMock()
+    env._last_telem = None
+    env._sync_physics_frame = MagicMock(return_value=True)
+    env._compute_reward = MagicMock(return_value=0.0)
+    env._build_obs = MagicMock(return_value=np.zeros(19, dtype=np.float32))
+    env._prev_steering = 0.0
+    env._term_reason = "?"
+    env._sync_fail_steps = 0
+    env._step_count = 0
+    env._ep_reward = 0.0
+    env._last_timings = None
+    env._ep_cte_sum = env._ep_speed_sum = 0.0
+    env._ep_info_steps = 0
+    infos = iter([{"cte": 1.0, "speed_kmh": 60.0}, {"cte": 3.0, "speed_kmh": 70.0}])
+    env._build_info = MagicMock(side_effect=lambda *a: dict(next(infos)))
+    env._check_done = MagicMock(side_effect=[(False, False), (False, True)])
+    _, _, _, _, first = env.step(np.zeros(3, dtype=np.float32))
+    assert "ep_cte_mean" not in first
+    _, _, _, trunc, last = env.step(np.zeros(3, dtype=np.float32))
+    assert trunc and last["ep_cte_mean"] == 2.0 and last["ep_speed_kmh"] == 65.0
+
+
+def test_reset_has_no_stale_downshift_block():
+    """Bajaba `gear-1` marchas con la telemetría del episodio anterior: tras Back eso podía pasar de 1ª a punto muerto."""
+    import inspect
+
+    src = inspect.getsource(PCARS2Env.reset)
+    assert "press_button('lb')" not in src and "needed" not in src
+    assert "_engage_first" in src
+
+
+def test_waiting_for_telemetry_gives_up_instead_of_hanging_all_night(monkeypatch):
+    import pytest
+
+    env = object.__new__(PCARS2Env)
+    env._last_telem = None
+    env._last_timings = None
+    env._ingest_pending_packets = MagicMock()
+    env._recv_blocking_packet = MagicMock()
+    monkeypatch.setattr(environment, "TELEMETRY_WAIT_TIMEOUT_S", 0.0)
+    with pytest.raises(TimeoutError):
+        env._wait_for_telemetry()

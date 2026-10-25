@@ -163,6 +163,19 @@ def test_speed_bands_reach_80_and_chain_to_the_end():
     assert next_speed_band(80.0) is None
 
 
+def test_continuar_ppo_mode_resumes_and_lets_the_speed_ramp_run():
+    s = TrainingSettings(mode_id="continuar_ppo", fresh_start=True, model_path="x", frame_skip=4)
+    apply_mode_defaults(s)
+    argv = build_argv(s)
+    assert "--resume-ppo" in argv and argv[argv.index("--bc-pull") + 1] == "0.01"
+    assert "--speed-gate" in argv and "--no-speed-ramp" in argv   # la puerta sustituye a la rampa por tiempo
+    assert argv[argv.index("--speed-step-kmh") + 1] == "2.5"
+    assert "--fresh" not in argv and "--model" not in argv
+    assert argv[argv.index("--laps-per-episode") + 1] == "2"
+    assert argv[argv.index("--speed-target-kmh") + 1] == "60.0"
+    assert argv[argv.index("--timesteps") + 1] == "200000"
+
+
 def test_bc_anclado_mode_builds_the_anchored_ppo_command():
     s = TrainingSettings(mode_id="bc_anclado", fresh_start=True, model_path="x", frame_skip=4)
     apply_mode_defaults(s)
@@ -173,3 +186,13 @@ def test_bc_anclado_mode_builds_the_anchored_ppo_command():
     assert argv[argv.index("--base-model") + 1] == "models/ppo_universal_base.zip"
     assert argv[argv.index("--frame-skip") + 1] == "1"
     assert "--fresh" not in argv and "--model" not in argv and "--basics" not in argv
+
+
+def test_steps_to_time_text_uses_the_measured_pace():
+    from v2.config import STEPS_PER_SECOND, steps_to_time_text
+
+    assert STEPS_PER_SECOND == 58.0                       # medido en metricas.csv (fps 54-59, con las pausas de actualización)
+    assert steps_to_time_text(200_000) == "≈ 57 min"     # 200 000 / 58 s
+    assert steps_to_time_text(800_000) == "≈ 3 h 50 min"
+    assert steps_to_time_text(0) == "≈ 0 min"
+    assert steps_to_time_text(100_000, frame_skip=4) == "≈ 1 h 55 min"   # cada paso cubre 4 frames

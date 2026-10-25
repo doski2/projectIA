@@ -30,6 +30,8 @@ from ppo_defaults import (
     ANCHOR_LR,
     ANCHOR_TARGET_KL,
     BC_PULL,
+    SPEED_MAX_KMH,
+    SPEED_STEP_KMH,
     CRITIC_WARMUP_STEPS,
     DEFAULT_BC_STD,
     PPO_NET_ARCH,
@@ -84,6 +86,18 @@ def _anchor_from_bc(model, args) -> None:
         print(f"[main] log_std anclado al BC: std={args.bc_std:.2f}")
     _apply_update_settings(model, args)
     args.anchored_to_bc = True
+
+
+STOP_CAR_WAIT_S = 6.0   # a 60-80 km/h el freno a fondo tarda unos 3-4 s en parar el coche
+
+
+def _stop_car_safely(raw_env) -> None:
+    """Frena el coche antes de soltar el mando: si el entrenamiento acaba solo de noche, no queda rodando."""
+    try:
+        raw_env.hold_brake()
+        _time.sleep(STOP_CAR_WAIT_S)
+    except Exception as exc:   # noqa: BLE001 - nada debe impedir guardar el modelo
+        print(f"[main] No pude frenar el coche al terminar: {exc}")
 
 
 def _create_ppo_from_scratch(env, tb_log):
@@ -309,6 +323,21 @@ def parse_args() -> argparse.Namespace:
         help="Corta las épocas de una actualización si la KL aproximada supera este valor.",
     )
     parser.add_argument(
+        "--speed-gate", action="store_true",
+        help="Modo sin vigilancia: la velocidad objetivo sube +--speed-step-kmh tras 3 episodios limpios, "
+             "se vuelve al último modelo seguro tras 2 fallos seguidos y el entrenamiento se detiene solo "
+             "si no hay forma de avanzar (ver ppo_guard.py). Sustituye a la rampa por tiempo.",
+    )
+    parser.add_argument("--speed-step-kmh", type=float, default=SPEED_STEP_KMH, metavar="KMH",
+                        help="Con --speed-gate: paso de subida de la velocidad objetivo.")
+    parser.add_argument("--speed-max-kmh", type=float, default=SPEED_MAX_KMH, metavar="KMH",
+                        help="Con --speed-gate: techo de la velocidad objetivo.")
+    parser.add_argument(
+        "--resume-ppo", action="store_true",
+        help="Continúa desde el último _final.zip del combo en vez de reiniciar desde el BC "
+             "(si no existe, usa --base-model). Así las tiradas acumulan aprendizaje.",
+    )
+    parser.add_argument(
         "--bc-pull", type=float, default=BC_PULL, metavar="A",
         help="Tras cada actualización devuelve esta fracción (0-1) del desvío del actor hacia el BC "
              "inicial: evita que la conducción se degrade poco a poco. 0 = desactivado.",
@@ -428,11 +457,26 @@ class MetricsAccumulator:
 def _load_or_create_model(args, PPO, env, tb_log, model_dir, name_prefix, subdir):
     """Devuelve (model, reset_num_timesteps) según --model / --base-model / --fresh / auto."""
     # Prioridad:
+    #   0. --resume-ppo → el último _final (o _safe si hay estado de la puerta de velocidad) del combo
     #   1. --model → continuar ese checkpoint
     #   2. --base-model → transfer learning
     #   3. --fresh → política nueva (sin auto-carga)
     #   4. Auto: max steps del combo → _final → base → pretrained → cero
-    if args.model:
+    resume_path = os.path.join(model_dir, f"{name_prefix}_final.zip")
+    safe_path = os.path.join(model_dir, f"{name_prefix}_safe.zip")
+    gate_state = os.path.join(model_dir, "estado_gate.json")
+    if getattr(args, "speed_gate", False) and os.path.isfile(safe_path) and os.path.isfile(gate_state):
+        resume_path = safe_path   # es el que validó la velocidad guardada en estado_gate.json
+    if getattr(args, "resume_ppo", False) and not args.model and os.path.isfile(resume_path):
+        # Continuar la tirada anterior: conserva política, std y crítico; solo se suavizan las actualizaciones
+        print(f"[main] Continuando PPO desde la tirada anterior: {resume_path}")
+        model = PPO.load(resume_path, env=env, tensorboard_log=tb_log,
+                         custom_objects={'learning_rate': args.anchor_lr, 'clip_range': 0.2})
+        _apply_update_settings(model, args)
+        args.resumed_ppo = True
+        reset_num_timesteps = False
+
+    elif args.model:
         print(f"[main] Cargando modelo indicado: {args.model}")
         model = PPO.load(args.model, env=env, tensorboard_log=tb_log,
                          custom_objects={'learning_rate': 1e-4, 'clip_range': 0.15})
@@ -563,7 +607,7 @@ def train(args: argparse.Namespace) -> None:
 
     # La consola también se guarda: las líneas [Env] / [Ep n] explican cómo termina cada episodio
     from console_log import start_console_log
-    start_console_log(os.path.join(log_dir, 'consola.log'))   # se cierra al salir; cada línea se vuelca al instante
+    stop_console_log = start_console_log(os.path.join(log_dir, 'consola.log'))   # cada línea se vuelca al instante
 
     tb_log = log_dir if tb_log else None
 
@@ -607,19 +651,22 @@ def train(args: argparse.Namespace) -> None:
             self._prev_steps = self.num_timesteps
             self._prev_time  = _time.monotonic()
             os.makedirs(os.path.dirname(self._csv_path), exist_ok=True)
-            self._file = open(self._csv_path, 'w', newline='', encoding='utf-8')
+            # añade, para que las tiradas encadenadas formen una sola serie (ppo_progress.py)
+            new_file = not os.path.isfile(self._csv_path) or os.path.getsize(self._csv_path) == 0
+            self._file = open(self._csv_path, 'a', newline='', encoding='utf-8')
             self._writer = csv.writer(self._file)
-            self._writer.writerow([
-                'timestamp', 'total_timesteps', 'iterations',
-                'ep_rew_mean', 'ep_len_mean', 'fps',
-                'explained_variance', 'value_loss', 'policy_gradient_loss',
-                'entropy_loss', 'std', 'approx_kl', 'clip_fraction',
-                'learning_rate', 'n_updates',
-                'avg_speed_kmh', 'max_speed_kmh', 'avg_cte',
-                'avg_steering', 'avg_throttle', 'avg_brake', 'dist_km',
-                'ep_count', 'pct_stuck', 'pct_pit_box', 'pct_wrong_way', 'pct_no_progress', 'pct_lap_done', 'pct_timelimit',
-                'udp_physics', 'pct_udp_timeout', 'pct_udp_backlog',
-            ])
+            if new_file:
+                self._writer.writerow([
+                    'timestamp', 'total_timesteps', 'iterations',
+                    'ep_rew_mean', 'ep_len_mean', 'fps',
+                    'explained_variance', 'value_loss', 'policy_gradient_loss',
+                    'entropy_loss', 'std', 'approx_kl', 'clip_fraction',
+                    'learning_rate', 'n_updates',
+                    'avg_speed_kmh', 'max_speed_kmh', 'avg_cte',
+                    'avg_steering', 'avg_throttle', 'avg_brake', 'dist_km',
+                    'ep_count', 'pct_stuck', 'pct_pit_box', 'pct_wrong_way', 'pct_no_progress', 'pct_lap_done', 'pct_timelimit',
+                    'udp_physics', 'pct_udp_timeout', 'pct_udp_backlog',
+                ])
             if self._file:
                 self._file.flush()
 
@@ -729,14 +776,24 @@ def train(args: argparse.Namespace) -> None:
     from ppo_anchor import HoldBrakeDuringUpdateCallback
     episodes_path = os.path.join(log_dir, 'episodios.csv')
     print(f"[main] Episodios CSV -> {episodes_path}")
-    callbacks = [
+    gate_cbs = []
+    if args.speed_gate:
+        from ppo_guard import SpeedGate, SpeedGateCallback
+        gate_cbs.append(SpeedGateCallback(
+            raw_env,
+            os.path.join(model_dir, f"{name_prefix}_safe"),
+            os.path.join(model_dir, "estado_gate.json"),
+            SpeedGate(args.speed_target_kmh, step_kmh=args.speed_step_kmh, max_kmh=args.speed_max_kmh),
+            restore_state=getattr(args, "resumed_ppo", False),
+        ))
+    callbacks = gate_cbs + [
         HoldBrakeDuringUpdateCallback(raw_env.hold_brake, raw_env.resume_after_update),
         checkpoint_cb, csv_cb, EpisodeLogCallback(episodes_path),
     ]
     if getattr(args, "anchored_to_bc", False) and args.critic_warmup_steps > 0:
         from ppo_anchor import FreezeActorCallback
-        callbacks.insert(1, FreezeActorCallback(args.critic_warmup_steps))
-    if getattr(args, "anchored_to_bc", False) and args.bc_pull > 0:
+        callbacks.append(FreezeActorCallback(args.critic_warmup_steps))
+    if (getattr(args, "anchored_to_bc", False) or getattr(args, "resumed_ppo", False)) and args.bc_pull > 0:
         from ppo_anchor import PullToBCCallback
         callbacks.append(PullToBCCallback(args.bc_pull))
 
@@ -750,6 +807,7 @@ def train(args: argparse.Namespace) -> None:
     except KeyboardInterrupt:
         print("\n[main] Entrenamiento interrumpido por el usuario.")
     finally:
+        _stop_car_safely(raw_env)
         # Guardar modelo final aunque se interrumpa
         final_path = os.path.join(model_dir, f"pcars2_{subdir}_final")
         model.save(final_path)
@@ -759,6 +817,7 @@ def train(args: argparse.Namespace) -> None:
             env.save(vec_norm_path)
             print(f"[main] VecNormalize stats guardadas en: {vec_norm_path}")
         env.close()
+        stop_console_log()
 
 
 # ---------------------------------------------------------------------------
