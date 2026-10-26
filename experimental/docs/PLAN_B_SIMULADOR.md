@@ -19,3 +19,10 @@ observación calculadas de forma exacta, permite entrenar a cientos de pasos por
 | B4 | Ciclo simulador → juego → datos | Mejora por iteración con pocas horas de juego | Pendiente |
 
 **Puerta de entrada:** no empezar hasta que A2 salga bien (ver riesgos de la sección 3.5 del estudio).
+
+## La lluvia como variable (D13)
+
+La densidad de lluvia (y la lluvia acumulada reciente) pasa a ser una variable de estado del simulador, junto con la
+temperatura de pista, el desgaste y el combustible. Si no hay datos mojados suficientes, el simulador se declara
+válido solo para seco y se usa la política en el juego real para el resto. Un modelo entrenado solo con seco inventa
+el comportamiento en mojado (riesgo de cobertura de la sección 3.5 del estudio).

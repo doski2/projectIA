@@ -60,7 +60,7 @@ from obs_builder import encoded_action_tuple
 from obs_universal import OBS_SCHEMA, OBS_UNIVERSAL_DIM, build_obs_universal
 from reference_recorder import ReferenceLine
 from safety_monitor import SafetyMonitor
-from session_log import TeachingSessionRecorder, default_log_path, timing_diag, vehicle_diag
+from session_log import TeachingSessionRecorder, conditions_diag, default_log_path, timing_diag, vehicle_diag
 from teacher_controller import TeacherConfig, TeachingController, resolve_teacher_decision
 from track_deviation import maybe_build_track_diag
 from teacher_intents import rule_for_reason
@@ -410,6 +410,7 @@ def run(args: argparse.Namespace) -> int:
     lap_guard.reset(start_lap, _init_dist)
     print_session_lap_board(lap_summary_rows)
     lap_completion.reset(start_lap, _init_dist)
+    last_conditions: Optional[dict] = None
 
     try:
         while True:
@@ -559,6 +560,10 @@ def run(args: argparse.Namespace) -> int:
                 vehicle=vehicle_diag(telem),
                 timing=timing_diag(timings),
             )
+            conditions = conditions_diag(session.game_state)
+            if conditions is not None and conditions != last_conditions:
+                session_rec.record_event({"type": "conditions", **conditions})  # llega cada ~10 s; solo si cambia
+                last_conditions = conditions
 
             if frame % args.log_every == 0:
                 print(

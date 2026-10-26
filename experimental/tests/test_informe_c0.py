@@ -110,3 +110,42 @@ def test_data_gap_with_car_moving_is_not_a_pause():
         r["t_s"] += 1.5
         r["lap_distance"] += 16.5
     assert informe_c0.pauses(rows)[0]["pausa_del_juego"] is False
+
+
+def _x4b_ticks(n=300):
+    return [{"type": "tick", "tick": i, "t_s": i / 60, "speed_kmh": 40.0,
+             "vehicle": {"tyre_flags": [7, 7, 7, 7], "tyre_height": [0.0] * 4, "brake_temp": [200] * 3 + [220 + i % 5],
+                         "susp_vel": [0.01 * (i % 3)] * 4, "air_pressure": [150] * 4, "engine_torque": 90.0 + i % 7,
+                         "brake_damage": [0] * 4, "susp_damage": [0] * 4, "crash_state": 0, "tick_count": i % 256,
+                         "car_flags": 0b10010 if i % 50 == 0 else 0b10}}
+            for i in range(n)]
+
+
+def _run_x4b(ticks, events):
+    out = {}
+    informe_c0.check_x4b(ticks, events, lambda n, s, d="": out.__setitem__(n, (s, d)))
+    return out
+
+
+def test_x4b_checks_ok_with_plausible_data():
+    cond = {"type": "conditions", "ambient_c": 14, "track_c": 18, "rain": 0, "snow": 0, "wind_speed": 3,
+            "wind_dir": [0, 0], "raw_hex": "00" * 12}
+    st = _run_x4b(_x4b_ticks(), [cond])
+    assert all(s == "ok" for s, _ in st.values()), st
+    assert "Lluvia durante la prueba" not in st
+
+
+def test_x4b_flags_rain_and_implausible_values():
+    ticks = _x4b_ticks()
+    for t in ticks:
+        t["vehicle"]["tyre_flags"] = [1, 1, 1, 1]  # ninguna rueda en el suelo
+    cond = {"type": "conditions", "ambient_c": 14, "track_c": 18, "rain": 90, "snow": 0, "wind_speed": 3,
+            "wind_dir": [0, 0], "raw_hex": "00" * 12}
+    st = _run_x4b(ticks, [cond])
+    assert st["tyre_flags (bit 2 = rueda en el suelo)"][0] == "aviso"
+    assert st["Lluvia durante la prueba"][0] == "aviso"
+
+
+def test_x4b_skipped_for_logs_without_tanda_2():
+    st = _run_x4b([{"type": "tick", "tick": i, "t_s": i / 60, "vehicle": {}} for i in range(50)], [])
+    assert st["Paquete 4 (condiciones)"][0] == "omitido"

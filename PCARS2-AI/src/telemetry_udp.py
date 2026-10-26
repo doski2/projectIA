@@ -90,6 +90,18 @@ class TelemetryFrame:
     viewed_participant_index: int   # sViewedParticipantIndex (offset 12)
     viewed_is_ai: bool              # True si el participante visto es IA del juego
 
+    # --- Tanda 2 (X4b), con valor por defecto para no romper quien construya el frame a mano ---
+    tyre_flags:               Tuple[int, int, int, int] = (0, 0, 0, 0)          # bit0 attached, bit1 inflated, bit2 on ground
+    tyre_height_above_ground: Tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0)
+    brake_damage:             Tuple[int, int, int, int] = (0, 0, 0, 0)
+    suspension_damage:        Tuple[int, int, int, int] = (0, 0, 0, 0)
+    brake_temp:               Tuple[int, int, int, int] = (0, 0, 0, 0)          # °C
+    suspension_velocity:      Tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0)
+    air_pressure:             Tuple[int, int, int, int] = (0, 0, 0, 0)
+    engine_torque:            float = 0.0
+    crash_state:              int = 0
+    tick_count:               int = 0                                            # sTickCount (offset 555), uchar cíclico
+
 
 @dataclass
 class TimingsFrame:
@@ -107,6 +119,23 @@ class TimingsFrame:
     # Flag de tipo de piloto para el participante observado:
     # bit 15 de sCarIndex = 1 → humano, 0 → IA del juego
     viewed_is_ai: bool = False
+
+
+@dataclass
+class GameStateFrame:
+    """
+    Paquete eGameState (tipo 4): tiempo atmosférico. Se envía cada ~10 s en carrera.
+    Offsets 15-21 iguales con las dos ordenaciones documentadas de la cabecera (el estado del juego y el número de
+    versión van antes y no se interpretan); `raw` guarda los bytes 12-23 para poder revisarlos.
+    """
+    ambient_temp: int    # °C
+    track_temp:   int    # °C
+    rain_density: int    # 0-255
+    snow_density: int    # 0-255
+    wind_speed:   int
+    wind_dir_x:   int
+    wind_dir_y:   int
+    raw:          bytes = b""
 
 
 @dataclass
@@ -202,6 +231,19 @@ def parse_telemetry(data: bytes) -> Optional[TelemetryFrame]:
 
     brake_bias = u('B', data, 554)[0]
 
+    # Tanda 2 (X4b). Offsets deducidos de SMS_UDP_Definitions.hpp y contrastados con los ya conocidos
+    # (136, 140, 160, 176, 180, 196, 216, 296, 312, 371, 372, 542, 554); se verifican con datos reales en el informe de C0.
+    tyre_flags               = u('4B', data, 136)
+    tyre_height_above_ground = u('4f', data, 180)
+    brake_damage             = u('4B', data, 200)
+    suspension_damage        = u('4B', data, 204)
+    brake_temp               = u('4h', data, 208)
+    suspension_velocity      = u('4f', data, 328)
+    air_pressure             = u('4H', data, 352)
+    engine_torque            = u('f', data, 364)[0]
+    crash_state              = u('B', data, 47)[0]
+    tick_count               = u('B', data, 555)[0]
+
     # IA humana vs juego: se resuelve en el recorder con sCarIndex del paquete Timings.
     viewed_is_ai = False
 
@@ -238,6 +280,33 @@ def parse_telemetry(data: bytes) -> Optional[TelemetryFrame]:
         brake_bias=brake_bias,
         viewed_participant_index=viewed_participant_index,
         viewed_is_ai=viewed_is_ai,
+        tyre_flags=tyre_flags,
+        tyre_height_above_ground=tyre_height_above_ground,
+        brake_damage=brake_damage,
+        suspension_damage=suspension_damage,
+        brake_temp=brake_temp,
+        suspension_velocity=suspension_velocity,
+        air_pressure=air_pressure,
+        engine_torque=engine_torque,
+        crash_state=crash_state,
+        tick_count=tick_count,
+    )
+
+
+def parse_game_state(data: bytes) -> Optional[GameStateFrame]:
+    """Parsea el paquete eGameState (tipo 4): temperaturas, lluvia, nieve y viento."""
+    if len(data) < 22:
+        return None
+    u = struct.unpack_from
+    return GameStateFrame(
+        ambient_temp=u('b', data, 15)[0],
+        track_temp=u('b', data, 16)[0],
+        rain_density=u('B', data, 17)[0],
+        snow_density=u('B', data, 18)[0],
+        wind_speed=u('b', data, 19)[0],
+        wind_dir_x=u('b', data, 20)[0],
+        wind_dir_y=u('b', data, 21)[0],
+        raw=bytes(data[12:24]),
     )
 
 
@@ -410,6 +479,8 @@ class UDPListener:
             return ptype, parse_telemetry(data)
         elif ptype == PACKET_TIMINGS:
             return ptype, parse_timings(data, participant_index=viewed_index)
+        elif ptype == PACKET_GAME_STATE:
+            return ptype, parse_game_state(data)
         elif ptype == PACKET_RACE_DEF:
             return ptype, parse_race_data(data)
         elif ptype == PACKET_VEHICLE_NAMES:
@@ -448,6 +519,7 @@ _PACKET_SLOTS = {
     PACKET_TIMINGS:       "last_timings",
     PACKET_RACE_DEF:      "race_data",
     PACKET_VEHICLE_NAMES: "vehicle_info",
+    PACKET_GAME_STATE:    "game_state",
 }
 
 

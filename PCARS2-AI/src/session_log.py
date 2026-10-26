@@ -65,8 +65,21 @@ _VEHICLE_EXTRA = (
     ("raw_throttle", "raw_throttle", None),
     ("raw_brake", "raw_brake", None),
     ("clutch", "clutch", None),
+    # tanda 2 (X4b): mantener al final y con "tyre_flags" el primero (VEHICLE_EXTRA_X4B_KEYS corta por ahí)
+    ("tyre_flags", "tyre_flags", None),
+    ("tyre_height", "tyre_height_above_ground", 3),
+    ("brake_damage", "brake_damage", None),
+    ("susp_damage", "suspension_damage", None),
+    ("brake_temp", "brake_temp", None),
+    ("susp_vel", "suspension_velocity", 3),
+    ("air_pressure", "air_pressure", None),
+    ("engine_torque", "engine_torque", 2),
+    ("crash_state", "crash_state", None),
+    ("tick_count", "tick_count", None),
+    ("car_flags", "car_flags", None),  # bit 4 = ABS activo: señal directa de poco agarre al frenar
 )
 VEHICLE_EXTRA_KEYS = tuple(key for key, _, _ in _VEHICLE_EXTRA)
+VEHICLE_EXTRA_X4B_KEYS = VEHICLE_EXTRA_KEYS[VEHICLE_EXTRA_KEYS.index("tyre_flags"):]  # logs anteriores a X4b no los traen
 
 
 def _fmt(v, nd: Optional[int]):
@@ -82,6 +95,21 @@ def vehicle_extra(telem) -> dict:
         if v is not None:
             out[key] = _fmt(v, nd)
     return out
+
+
+def conditions_diag(game_state) -> Optional[dict]:
+    """Tiempo atmosférico (paquete 4) para un evento `conditions`; None si aún no ha llegado."""
+    if game_state is None:
+        return None
+    return {
+        "ambient_c": int(game_state.ambient_temp),
+        "track_c": int(game_state.track_temp),
+        "rain": int(game_state.rain_density),
+        "snow": int(game_state.snow_density),
+        "wind_speed": int(game_state.wind_speed),
+        "wind_dir": [int(game_state.wind_dir_x), int(game_state.wind_dir_y)],
+        "raw_hex": bytes(game_state.raw).hex(),
+    }
 
 
 def timing_diag(timings) -> dict:

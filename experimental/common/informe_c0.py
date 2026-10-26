@@ -24,6 +24,7 @@ OUT = REPO / "experimental" / "logs"
 sys.path.insert(0, str(APP / "src"))
 
 from session_log import VEHICLE_EXTRA_KEYS as NEW_FIELDS  # noqa: E402  (una sola lista de campos)
+from session_log import VEHICLE_EXTRA_X4B_KEYS as X4B_FIELDS  # noqa: E402
 
 OK, WARN, FAIL, SKIP = "ok", "aviso", "fallo", "omitido"
 Check = Tuple[str, str, str]  # (nombre, estado, detalle)
@@ -173,7 +174,74 @@ def sector_table(ticks: List[dict]) -> List[dict]:
              "lap_distance": f"{r['d0']}–{r['d1']}", "ticks_con_incidencia": r["incid"]} for r in rows if r["ticks"] > 30]
 
 
-def run_checks(path: Path, header: dict, ticks: List[dict], ref) -> Tuple[List[Check], Dict[str, Any]]:
+def _veh(ticks: List[dict], key: str) -> Optional[np.ndarray]:
+    """Matriz (ticks con el campo × componentes) de un campo del bloque `vehicle`; None si no aparece."""
+    rows = [t["vehicle"][key] for t in ticks if key in (t.get("vehicle") or {})]
+    if not rows:
+        return None
+    return np.array([r if isinstance(r, list) else [r] for r in rows], dtype=float)
+
+
+def check_x4b(ticks: List[dict], events: List[dict], add) -> None:
+    """Plausibilidad de la tanda 2 y del paquete 4: valida con datos reales los offsets deducidos en el parser."""
+    flags = _veh(ticks, "tyre_flags")
+    if flags is not None:
+        on_ground = ((flags.astype(int) >> 2) & 1).mean()
+        ok = flags.max() <= 7 and on_ground > 0.9
+        add("tyre_flags (bit 2 = rueda en el suelo)", OK if ok else WARN,
+            f"valores {sorted({int(v) for v in np.unique(flags)})}, en el suelo {100 * on_ground:.1f} % de las lecturas")
+    h = _veh(ticks, "tyre_height")
+    if h is not None:
+        add("tyre_height (altura de la rueda al suelo)", OK if -0.1 <= h.min() and h.max() < 0.5 else WARN,
+            f"{h.min():.3f} a {h.max():.3f} m")
+    bt = _veh(ticks, "brake_temp")
+    if bt is not None:
+        add("brake_temp (°C)", OK if -50 <= bt.min() and bt.max() <= 1500 else WARN, f"{bt.min():.0f} a {bt.max():.0f} °C")
+    sv = _veh(ticks, "susp_vel")
+    if sv is not None:
+        add("susp_vel (m/s)", OK if np.isfinite(sv).all() and abs(sv).max() < 10 else WARN,
+            f"{sv.min():.3f} a {sv.max():.3f}")
+    ap = _veh(ticks, "air_pressure")
+    if ap is not None:
+        add("air_pressure (unidad sin confirmar)", OK if ap.min() > 0 else WARN,
+            f"{ap.min():.0f} a {ap.max():.0f} (el reglaje decía 1,25 bar delante y 1,15 detrás)")
+    tq = _veh(ticks, "engine_torque")
+    if tq is not None:
+        add("engine_torque", OK if tq.max() > 0 else WARN, f"{tq.min():.1f} a {tq.max():.1f}")
+    for key in ("brake_damage", "susp_damage", "crash_state"):
+        v = _veh(ticks, key)
+        if v is not None:
+            add(f"{key} (sin daño = 0)", OK, f"máximo {v.max():.0f}" + (" — hay daño" if v.max() > 0 else ""))
+    tc = _veh(ticks, "tick_count")
+    if tc is not None and len(tc) > 100:
+        step = np.diff(tc[:, 0].astype(int)) % 256
+        share1 = float((step == 1).mean())
+        top = ", ".join(f"+{int(v)}: {100 * float((step == v).mean()):.0f} %" for v in np.unique(step)[:4])
+        add("tick_count (contador cíclico de paquetes)", OK if share1 > 0.9 else WARN,
+            f"avanza de uno en uno el {100 * share1:.1f} % de los ticks ({top})")
+
+    cf = _veh(ticks, "car_flags")
+    if cf is not None:
+        abs_share = float(((cf.astype(int) >> 4) & 1).mean())
+        add("car_flags (bit 4 = ABS activo)", OK,
+            f"ABS activo en {100 * abs_share:.2f} % de los ticks (indicador directo de poco agarre al frenar)")
+
+    cond = [e for e in events if e.get("type") == "conditions"]
+    if not cond:
+        add("Paquete 4 (condiciones)", SKIP if flags is None else WARN, "no llegó ningún evento `conditions` (se envía cada ~10 s)")
+        return
+    c0 = cond[0]
+    ok = -30 <= c0["ambient_c"] <= 50 and -30 <= c0["track_c"] <= 90
+    rain = max(c["rain"] for c in cond)
+    detail = (f"{len(cond)} eventos · ambiente {c0['ambient_c']} °C, pista {c0['track_c']} °C, lluvia {c0['rain']}, "
+              f"nieve {c0['snow']}, viento {c0['wind_speed']} · bytes 12-23: {c0['raw_hex']}")
+    add("Paquete 4 (temperaturas y clima)", (OK if ok else WARN), detail)
+    if rain > 0:
+        add("Lluvia durante la prueba", WARN, f"densidad máxima {rain}: los datos se conservan y etiquetan (D13); no entran en el dataset seco del BC")
+
+
+def run_checks(path: Path, header: dict, ticks: List[dict], ref,
+               events: Optional[List[dict]] = None) -> Tuple[List[Check], Dict[str, Any]]:
     checks: List[Check] = []
 
     def add(name: str, status: str, detail: str = "") -> None:
@@ -191,12 +259,14 @@ def run_checks(path: Path, header: dict, ticks: List[dict], ref) -> Tuple[List[C
 
     # 2. Campos nuevos: presencia y variación
     for f in NEW_FIELDS:
-        rows = [t["vehicle"][f] for t in ticks if f in (t.get("vehicle") or {})]
-        pct = 100.0 * len(rows) / len(ticks)
-        if not rows:
-            add(f"Campo {f}", FAIL, "no aparece en ningún tick")
+        arr = _veh(ticks, f)
+        if arr is None:
+            if f in X4B_FIELDS:
+                add(f"Campo {f}", SKIP, "el log no trae la tanda 2 (X4b)")
+            else:
+                add(f"Campo {f}", FAIL, "no aparece en ningún tick")
             continue
-        arr = np.array([r if isinstance(r, list) else [r] for r in rows], dtype=float)
+        pct = 100.0 * len(arr) / len(ticks)
         if not np.isfinite(arr).all():
             add(f"Campo {f}", FAIL, "contiene NaN/inf")
         elif pct < 99.0:
@@ -307,6 +377,9 @@ def run_checks(path: Path, header: dict, ticks: List[dict], ref) -> Tuple[List[C
     else:
         add("Bloque timing (sector y reloj del juego)", SKIP, "el log no lo trae (X4a)")
 
+    # 8c. Tanda 2 y condiciones (X4b)
+    check_x4b(ticks, events or [], add)
+
     # 9. Tamaño
     bpt = _bytes_per_tick(path, len(ticks))
     stats["bytes_per_tick"] = bpt
@@ -409,7 +482,7 @@ def build_report(log_path: Path, open_browser: bool = False) -> Dict[str, Any]:
     log_path = Path(log_path)
     header, ticks, events = load_log(log_path)
     ref = _load_reference(header)
-    checks, stats = run_checks(log_path, header, ticks, ref)
+    checks, stats = run_checks(log_path, header, ticks, ref, events)
     inc = incidents(ticks)
     secs = sector_table(ticks)
     pz = pauses(ticks)

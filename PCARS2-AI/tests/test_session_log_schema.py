@@ -81,3 +81,21 @@ def test_timing_diag_and_tick_row(tmp_path):
     rec._file.close()
     rows = [json.loads(line) for line in (tmp_path / "t.jsonl").read_text(encoding="utf-8").splitlines()]
     assert rows[1]["timing"] == d and "timing" not in rows[2]
+
+
+def test_vehicle_extra_incluye_tanda_2_y_conditions_diag():
+    from telemetry_udp import GameStateFrame
+
+    from session_log import VEHICLE_EXTRA_X4B_KEYS, conditions_diag
+
+    t = _frame(tyre_flags=(7, 7, 7, 7), tyre_height_above_ground=(0.01234,) * 4, brake_temp=(150,) * 4,
+               engine_torque=88.888, crash_state=0, tick_count=12, car_flags=0b10010)
+    d = vehicle_diag(t)
+    assert d["tyre_flags"] == [7, 7, 7, 7] and d["tyre_height"] == [0.012] * 4
+    assert d["engine_torque"] == 88.89 and d["tick_count"] == 12 and d["car_flags"] == 0b10010
+    assert VEHICLE_EXTRA_X4B_KEYS[0] == "tyre_flags" and "local_velocity" not in VEHICLE_EXTRA_X4B_KEYS
+
+    assert conditions_diag(None) is None
+    c = conditions_diag(GameStateFrame(14, 18, 0, 0, 3, 1, -1, raw=b"\x01\x02"))
+    assert c == {"ambient_c": 14, "track_c": 18, "rain": 0, "snow": 0, "wind_speed": 3,
+                 "wind_dir": [1, -1], "raw_hex": "0102"}

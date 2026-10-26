@@ -22,3 +22,13 @@ máxima de cualquier pista y predecir tiempos de vuelta con error < 3 %.
 
 Agarre variable (neumáticos, combustible, clima), reglaje, dificultad de llegar al límite con mando virtual.
 Ver sección 2.4 del estudio.
+
+## La lluvia como variable (D13)
+
+Con «Clima real» habrá sesiones con lluvia. Para A no son datos a descartar: el agarre máximo depende de la humedad
+y la pérdida con neumáticos de seco es parte de lo que se quiere medir. Condiciones:
+
+- Ajustar los parámetros (`μ`, `k`, `a_freno(v)`, `a_acel(v, marcha)`) **por nivel de lluvia**, no con una mezcla.
+- El UDP da la densidad de lluvia, no la humedad de la pista: usar una lluvia acumulada reciente y comprobarla
+  contra el agarre medido en las curvas.
+- Las sesiones de identificación (A1) se hacen **primero en seco** para tener una referencia limpia.

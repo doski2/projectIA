@@ -18,6 +18,12 @@ limpios) llega más arriba de 60 km/h y deja datos útiles para A y B.
 | C3 | Analizar aceleraciones y error del BC por velocidad | Curvas útiles para A1 y B0 | Pendiente |
 | C4 | Re-destilar a PPO y repetir la noche protegida | El PPO parte de un conductor de 65-100 km/h | Pendiente |
 
+## Perfil de juego
+
+C1 se ejecuta ya en el perfil auténtico RA (`DECISIONES.md`, D11 y sección 6): daños completos, fallos mecánicos,
+desgaste de neumáticos, combustible real y tiempo real. Antes de C1 hacen falta la guardia de daños (P15) y
+`--pedal-exclusive` (P16), y un C0 corto en RA (paso 7 de la línea de trabajo).
+
 ## Por resolver antes de C1
 
 Las preguntas de la sección 4.6 del estudio (vueltas por escalón, paso, techo, umbrales de vuelta limpia,

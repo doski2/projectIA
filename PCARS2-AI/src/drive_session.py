@@ -13,6 +13,7 @@ from telemetry_udp import (
     UDPListener,
     TelemetryFrame,
     TimingsFrame,
+    GameStateFrame,
     RaceData,
     VehicleInfo,
     apply_packet,
@@ -29,6 +30,7 @@ class DriveSession:
     last_telem: Optional[TelemetryFrame] = None
     last_timings: Optional[TimingsFrame] = None
     race_data: Optional[RaceData] = None
+    game_state: Optional[GameStateFrame] = None
     vehicle_info: Optional[VehicleInfo] = None
     physics_anchor: Optional[Tuple[float, float, float, float, float, float]] = None
 
