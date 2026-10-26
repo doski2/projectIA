@@ -22,6 +22,10 @@ from typing import List, Optional
 MIN_HTML_TICKS = 15
 MIN_HTML_DURATION_S = 5.0
 
+# Versión del formato del log. 1 = sin campo (logs antiguos); 2 = bloque `vehicle` ampliado
+# (ver `vehicle_extra`) y cabecera con `origin` / `experiment`.
+LOG_SCHEMA = 2
+
 
 def _git_hash() -> str:
     try:
@@ -41,9 +45,57 @@ def default_log_path(track: str, phase_id: str, category: str = "teaching") -> P
     return Path("logs") / category / f"{ts}_{safe_track}_{phase_id}.jsonl"
 
 
+# (clave del log, atributo de TelemetryFrame, decimales; None = entero). Solo se escribe si el frame lo trae.
+# Valores escalares o secuencias (se distinguen al escribir).
+_VEHICLE_EXTRA = (
+    ("local_velocity", "local_velocity", 3),
+    ("local_accel", "local_acceleration", 3),
+    ("ang_vel", "angular_velocity", 4),
+    ("position", "position", 2),
+    ("orientation", "orientation", 4),
+    ("ride_height", "ride_height", 4),
+    ("susp_travel", "suspension_travel", 4),
+    ("tyre_temp", "tyre_temp", None),
+    ("tyre_tread_temp", "tyre_tread_temp", None),
+    ("tyre_wear", "tyre_wear", None),
+    ("fuel_level", "fuel_level", 4),
+    ("brake_bias", "brake_bias", None),
+    ("aero_damage", "aero_damage", None),
+    ("engine_damage", "engine_damage", None),
+    ("raw_throttle", "raw_throttle", None),
+    ("raw_brake", "raw_brake", None),
+    ("clutch", "clutch", None),
+)
+VEHICLE_EXTRA_KEYS = tuple(key for key, _, _ in _VEHICLE_EXTRA)
+
+
+def _fmt(v, nd: Optional[int]):
+    conv = int if nd is None else (lambda x: round(float(x), nd))
+    return [conv(x) for x in v] if hasattr(v, "__iter__") else conv(v)
+
+
+def vehicle_extra(telem) -> dict:
+    """Campos para identificación del coche y simulador (planes A y B). Se añaden al final de `vehicle`."""
+    out: dict = {}
+    for key, attr, nd in _VEHICLE_EXTRA:
+        v = getattr(telem, attr, None)
+        if v is not None:
+            out[key] = _fmt(v, nd)
+    return out
+
+
+def timing_diag(timings) -> dict:
+    """Reloj y sector del juego: permite medir el Δt real, detectar pausas y analizar por sector."""
+    return {
+        "sector": int(timings.sector),
+        "sector_time_s": round(float(timings.current_sector_time), 3),
+        "game_time_s": round(float(timings.current_time), 3),
+    }
+
+
 def vehicle_diag(telem) -> dict:
     """Respuesta real del coche (UDP) para comparar con el volante enviado."""
-    return {
+    diag = {
         "game_steer": round(telem.steering / 127.0, 3),
         "raw_steer": round(telem.raw_steering / 127.0, 3),
         "game_throttle": round(telem.throttle / 255.0, 3),
@@ -53,6 +105,8 @@ def vehicle_diag(telem) -> dict:
         "terrain": list(telem.terrain),
         "tyre_rps": [round(v, 1) for v in telem.tyre_rps],
     }
+    diag.update(vehicle_extra(telem))
+    return diag
 
 
 class TeachingSessionRecorder:
@@ -75,6 +129,8 @@ class TeachingSessionRecorder:
             "type": "session",
             "ts": datetime.now(timezone.utc).isoformat(),
             "git": _git_hash(),
+            "log_schema": LOG_SCHEMA,
+            "origin": "main",
             **session_meta,
         }
         rec._file.write(json.dumps(rec._session, ensure_ascii=False) + "\n")
@@ -121,6 +177,7 @@ class TeachingSessionRecorder:
         stuck_steps: Optional[int] = None,
         track_diag: Optional[dict] = None,
         vehicle: Optional[dict] = None,
+        timing: Optional[dict] = None,
     ) -> None:
         if self._file is None:
             return
@@ -170,6 +227,8 @@ class TeachingSessionRecorder:
             row["track_diag"] = track_diag
         if vehicle:
             row["vehicle"] = vehicle
+        if timing:
+            row["timing"] = timing
         self._file.write(json.dumps(row, ensure_ascii=False) + "\n")
 
     def finish(self, laps_completed: int = 0, open_browser: bool = False) -> dict:

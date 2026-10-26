@@ -60,7 +60,7 @@ from obs_builder import encoded_action_tuple
 from obs_universal import OBS_SCHEMA, OBS_UNIVERSAL_DIM, build_obs_universal
 from reference_recorder import ReferenceLine
 from safety_monitor import SafetyMonitor
-from session_log import TeachingSessionRecorder, default_log_path, vehicle_diag
+from session_log import TeachingSessionRecorder, default_log_path, timing_diag, vehicle_diag
 from teacher_controller import TeacherConfig, TeachingController, resolve_teacher_decision
 from track_deviation import maybe_build_track_diag
 from teacher_intents import rule_for_reason
@@ -105,6 +105,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gamepad", choices=["xbox", "ds4"], default="xbox")
     parser.add_argument("--log-every", type=int, default=50)
     parser.add_argument("--session-log", default="")
+    parser.add_argument(
+        "--experiment",
+        default="",
+        help="Nombre del experimento (carpeta experimental/). Marca la cabecera del log: origin=experimental.",
+    )
     parser.add_argument("--open-report", action="store_true")
     parser.add_argument("--auto-shift", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--min-buffer-samples", type=int, default=200)
@@ -315,6 +320,7 @@ def run(args: argparse.Namespace) -> int:
     buffer_rec = DatasetRecorder(output_path=args.buffer, origin=ORIGIN_TEACHER)
     buffer_rec.open()
 
+    experiment = ns_str(args, "experiment") if hasattr(args, "experiment") else ""
     log_path = args.session_log or str(
         default_log_path(ref.track_name or "sugo", stage.id, category="learning"),
     )
@@ -331,6 +337,8 @@ def run(args: argparse.Namespace) -> int:
         "model": args.model,
         "learn_every": args.learn_every,
         "reference_lap_s": round(ref.lap_time, 3) if ref.lap_time else None,
+        "origin": "experimental" if experiment else "main",
+        "experiment": experiment or None,
     })
 
     if args.speed_target > 0:
@@ -549,6 +557,7 @@ def run(args: argparse.Namespace) -> int:
                 shift_event=shift_event,
                 track_diag=track_diag,
                 vehicle=vehicle_diag(telem),
+                timing=timing_diag(timings),
             )
 
             if frame % args.log_every == 0:

@@ -11,20 +11,3 @@ pendiente prueba PPO (primera noche, sin probar en el juego):
 
 
 que decir: 
-PCARS2-AI/
-└── experimental/
-    ├── README.md              # reglas de la carpeta + índice
-    ├── docs/
-    │   ├── ESTUDIO_SIMULADOR_Y_LIMITES.md   (movido aquí)
-    │   ├── PLAN_C_RAMPA_BC.md
-    │   ├── PLAN_A_LIMITES_COCHE.md
-    │   ├── PLAN_B_SIMULADOR.md
-    │   └── DIARIO.md          # resultados de cada experimento (éxito/descarte)
-    ├── common/                # log ampliado, utilidades compartidas
-    ├── rampa_bc/              # Idea C
-    ├── identificacion/        # sesiones de la sección 5 + Idea A
-    ├── simulador/             # Idea B
-    ├── gui_tab.py             # solo la pestaña "Experimental"
-    ├── tests/                 # tests propios
-    ├── data/ y logs/          # salidas separadas de logs/learning
-    └── *.bat                  # lanzadores propios

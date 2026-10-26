@@ -101,6 +101,19 @@ class TrainingGui(tk.Tk):
 
         self._build_rl_tab()
         self._build_learn_tab()
+        self._add_experimental_tab(notebook)
+
+    def _add_experimental_tab(self, notebook: ttk.Notebook) -> None:
+        """Pestaña opcional: si experimental/ no existe o falla, la GUI arranca sin ella."""
+        repo_root = project_root().parent
+        if str(repo_root) not in sys.path:
+            sys.path.append(str(repo_root))
+        try:
+            from experimental.gui_tab import build_tab
+
+            notebook.add(build_tab(notebook), text="Experimental")
+        except Exception as exc:  # noqa: BLE001 - nada de experimental/ debe romper la GUI
+            print(f"[gui] pestaña Experimental no disponible: {exc!r}")
 
     def _build_rl_tab(self) -> None:
         px, py = 10, 4

@@ -33,7 +33,7 @@ Junto con el PPO protegido que ya existe, son las tres vías abiertas del proyec
   `heading_err`, `signed_cte`, `teacher_reason`.
 - Telemetría UDP: aceleración local `(long, vert, lat)` en m/s² (índices 0, 1, 2), velocidad angular,
   velocidad local, giro de las ruedas. El código usa el eje 2 como lateral y el 0 como longitudinal
-  (`obs_universal.py`); **verificarlo contra una curva conocida antes de fiarse**.
+  (`obs_universal.py`); **verificarlo contra una curva conocida antes de fiarse** (verificado en C0: es al revés, ver la corrección de 1.2).
 - `data/archive/online_buffer_raw_*.jsonl` (unos 2,4 millones de filas, solo observación de 17 dim + acción)
   y `data/curated_buffer.npz`. Sirven para imitación, pero **no para simulador**: no traen el estado
   completo del coche.
@@ -43,6 +43,8 @@ Junto con el PPO protegido que ya existe, son las tres vías abiertas del proyec
   perfil de velocidad (59,9 km/h constantes, 1ª marcha).
 
 ### 1.2 Lo que cubren esos datos: poco ritmo
+
+> **Corrección (2026-10-26, ver DECISIONES.md, H1):** el campo `lat_accel` de los logs es el eje 2 de `local_acceleration`, que resulta ser la aceleración **longitudinal**; la lateral es el eje 0. La tabla siguiente es, por tanto, de aceleración longitudinal. Para la lateral hay que usar `v · yaw_rate` (disponible en los logs con bloque `vehicle`). La conclusión general (poco ritmo, velocidad por debajo de ~61 km/h) se apoya en la velocidad y no cambia, pero hay que rehacer el rango de agarre lateral.
 
 Muestreo de 1 de cada 6 ticks (1,5 millones):
 

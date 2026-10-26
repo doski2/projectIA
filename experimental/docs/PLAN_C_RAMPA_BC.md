@@ -12,7 +12,7 @@ limpios) llega más arriba de 60 km/h y deja datos útiles para A y B.
 
 | # | Paso | Éxito si… | Estado |
 | --- | --- | --- | --- |
-| C0 | Log con campos nuevos al final (D4/X1), verificar ejes en una curva conocida | Valores coherentes en un par de vueltas | Pendiente |
+| C0 | Log con campos nuevos al final (D4/X1), verificar ejes en una curva conocida | Informe de C0 (D8) sin fallos y con ejes coherentes en un par de vueltas | Listo para ejecutar desde la pestaña Experimental (botón «Lanzar C0») |
 | C1 | Rampa 60 → 80 km/h con puerta | Llega a 80 limpio o se registra el escalón de rotura | Pendiente |
 | C2 | Subir el techo a ~100-110 km/h | Datos hasta ~1 g de aceleración lateral implícita | Pendiente |
 | C3 | Analizar aceleraciones y error del BC por velocidad | Curvas útiles para A1 y B0 | Pendiente |
