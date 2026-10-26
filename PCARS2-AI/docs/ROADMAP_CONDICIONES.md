@@ -275,7 +275,7 @@ vueltas limpias) antes de abrir condiciones.
 
 ---
 
-*Ver también:* [ESTUDIO_SIMULADOR_Y_LIMITES.md](ESTUDIO_SIMULADOR_Y_LIMITES.md) (límites del coche y simulador aprendido, en estudio),
+*Ver también:* [ESTUDIO_SIMULADOR_Y_LIMITES.md](../../experimental/docs/ESTUDIO_SIMULADOR_Y_LIMITES.md) (límites del coche y simulador aprendido, en estudio),
 [CURRICULO_VELOCIDAD.md](CURRICULO_VELOCIDAD.md),
 [VALIDACION_TEACHING_SUGO.md](VALIDACION_TEACHING_SUGO.md), [ENTRENAMIENTO.md](../ENTRENAMIENTO.md),
 [pcars2_udp_data_reference.md](../../pcars2_udp_data_reference.md)

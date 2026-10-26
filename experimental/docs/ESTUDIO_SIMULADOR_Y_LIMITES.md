@@ -208,10 +208,20 @@ referencia no se activa hoy, porque esa referencia es plana.)
 
 ### 4.3 Diseño propuesto (a debatir)
 
-- **Puerta por vueltas limpias:** N vueltas limpias seguidas → +paso; vueltas con fallos → mantener o
-  retroceder; sin forma de avanzar → parada de seguridad. Estado de la velocidad alcanzada guardado en
-  disco para retomar (como `estado_gate.json`).
-- **Parámetros:** N (5 o 10), paso (5 km/h; 2,5 es más fino), techo (80 del currículo frente a ~100-110).
+- **Ciclo tipo F1 (acordado el 2026-10-26):** vuelta de salida desde parado (no puntúa) → **2 vueltas
+  lanzadas** con el modelo congelado (las que juzga la puerta) → parada en meta y ajuste fino → nuevo ciclo.
+  Así la puerta solo evalúa vueltas lanzadas de un mismo modelo y la recta de meta se recorre lanzado, que
+  es donde se alcanza la velocidad máxima. La vuelta de salida no se tira: sus datos (aceleración desde
+  parado) van al log y sirven para la Idea A. Hoy `learn_driver` para en meta en **cada** vuelta
+  (`--learn-every 1` por defecto, freno de `LapTransitionGuard` durante el ajuste).
+- **Puerta por ciclos:** **2 ciclos limpios seguidos** (4 vueltas lanzadas y dos ajustes) → +paso; un ciclo
+  con fallos → se repite el ciclo a la misma velocidad (el ajuste ya se ha hecho); **3 ciclos seguidos sin
+  limpiar** → bajar un paso o parada de seguridad. Estado de la velocidad alcanzada guardado en disco para
+  retomar (como `estado_gate.json`).
+- **Qué falta en el código:** `--learn-every 3` ya da la parada cada 3 vueltas; falta que la vuelta de
+  salida no cuente en la racha de `learn_progress` (hoy cuenta todas) y la lógica de la puerta por ciclos.
+- **Parámetros:** vueltas lanzadas por ciclo (2), ciclos para subir (2), paso (5 km/h; 2,5 es más fino),
+  techo (80 del currículo frente a ~100-110).
 - **Log ampliado por tick, antes de lanzarla:** velocidad lateral, aceleración longitudinal y velocidad
   local. Hoy ni los logs recientes lo guardan, y es lo que necesita B. Sin esto, la tanda de datos se
   desaprovecha para el simulador.
@@ -220,8 +230,9 @@ referencia no se activa hoy, porque esa referencia es plana.)
   las velocidades vistas, equilibradas** (puntos 3 y 4 de `AUDITORIA_CODIGO.md`, 8.3, todavía pendientes).
 - **Perturbaciones controladas** (opcional, más adelante): ruido suave en tramos seguros para que el
   simulador vea algo más que conducción limpia.
-- **Tiempo (estimaciones):** una vuelta ~3,5 min más la pausa del ajuste. A 5 vueltas por escalón, ~20 min por
-  +5 km/h: de 60 a 100, 8 escalones ≈ 2,7 h; a 10 vueltas por escalón ≈ 5,5 h.
+- **Tiempo (estimaciones):** una vuelta ~3,5 min más la pausa del ajuste. Con el ciclo tipo F1 (3 vueltas,
+  ~10,5 min más el ajuste) y 2 ciclos por escalón, ~21 min por +5 km/h: de 60 a 100, 8 escalones ≈ 3 h
+  como mínimo, más los ciclos repetidos.
 
 ### 4.4 Experimentos
 
@@ -275,6 +286,41 @@ Cada una es una sesión corta y automatizable con el controlador actual, sin nec
 
 Registrar siempre: estado completo del coche por tick, el comando enviado y el volante aplicado por el
 juego, reglaje y condiciones (clima, temperatura) en la cabecera de la sesión.
+
+### 5.1 Qué campos de la API registrar (revisado el 2026-10-26)
+
+El log por tick de hoy (`record_tick` + `vehicle_diag` en `session_log.py`) guarda velocidad escalar,
+`lap_distance`, CTE, comandos, marcha, rpm, volante/gas/freno aplicados, `yaw_rate`, `lat_accel`,
+`terrain` y `tyre_rps`. Del paquete 0 se **parsean pero no se registran**, y hacen falta para A y B:
+
+| Campo (`TelemetryFrame`) | Para qué | Idea |
+| --- | --- | --- |
+| `local_velocity` (3) | `v_long`, `v_lat` y ángulo de deriva: estado básico del simulador | B |
+| `local_acceleration` long y vert | `a_freno(v)`, `a_acel(v, marcha)`, carga vertical | A, B |
+| `angular_velocity` roll y pitch | Transferencia de carga, saltos y bordillos | B |
+| `position`, `orientation` | Integrar y validar la cinemática; pendiente de la pista | B, A2 |
+| `ride_height`, `suspension_travel` (4) | Efecto de la carga aerodinámica (`k·v²`) | A |
+| `tyre_temp`, `tyre_tread_temp` (4) | Agarre según temperatura (riesgo 2.4) | A |
+| `fuel_level`, `brake_bias`, `aero_damage` | Condiciones que cambian los parámetros | A, B |
+| `raw_throttle`, `raw_brake` | Separar la planta del mando de la del coche | B |
+
+Del paquete 0 **sin parsear** (offsets en `pcars2_udp_data_reference.md`): `sTyreFlags` (rueda en el
+suelo), `sTyreHeightAboveGround`, `sSuspensionVelocity`, `sAirPressure`, `sBrakeTempCelsius`,
+`sEngineTorque`, `sCrashState`. Los más útiles: contacto de ruedas y par motor (A3 de aceleración).
+El paquete 4 (`sGameStateData`: temperatura de pista y ambiente, lluvia, viento) tampoco se parsea; basta
+con guardarlo en la cabecera de la sesión.
+
+Otros dos detalles: `t_s` es el reloj del PC, no un contador de la física, y `lap_distance` del UDP es un
+entero en metros. Para el simulador conviene registrar el número de tick de física (o el tiempo del juego)
+para medir bien `Δt`.
+
+**Shared memory de PCARS2 (y AMS2):** además del UDP, PCARS2 publica una memoria compartida en Windows
+(misma máquina, que es nuestro caso) con los mismos datos en `float` y por fotograma del juego, con
+número de secuencia; por ejemplo, la distancia en vuelta en `float` y no en metros enteros.
+Automobilista 2 usa el mismo motor (Madness) y expone el mismo formato de UDP y de shared memory, pero
+**solo da datos cuando el juego que corre es AMS2**: no saca nada extra de PCARS2. Sería una vía si algún
+día se portara el proyecto a AMS2 (el parser serviría casi tal cual). Qué campos añade AMS2 sobre PCARS2:
+sin comprobar.
 
 ---
 
