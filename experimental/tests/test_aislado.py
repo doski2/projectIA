@@ -11,6 +11,7 @@ def test_argv_isolates_model_and_buffer():
     assert argv[argv.index("--buffer") + 1].endswith("c0_log_buffer.jsonl")
     assert argv[argv.index("--experiment") + 1] == "c0_log"
     assert argv[argv.index("--learn-every") + 1] == "99" and "--speed-band" in argv
+    assert "--stop-on-damage" in argv
 
 
 def test_progress_restored_even_if_run_fails(tmp_path, monkeypatch):

@@ -60,7 +60,7 @@ from obs_builder import encoded_action_tuple
 from obs_universal import OBS_SCHEMA, OBS_UNIVERSAL_DIM, build_obs_universal
 from reference_recorder import ReferenceLine
 from safety_monitor import SafetyMonitor
-from session_log import TeachingSessionRecorder, conditions_diag, default_log_path, timing_diag, vehicle_diag
+from session_log import DamageWatch, TeachingSessionRecorder, conditions_diag, default_log_path, timing_diag, vehicle_diag
 from teacher_controller import TeacherConfig, TeachingController, resolve_teacher_decision
 from track_deviation import maybe_build_track_diag
 from teacher_intents import rule_for_reason
@@ -109,6 +109,11 @@ def parse_args() -> argparse.Namespace:
         "--experiment",
         default="",
         help="Nombre del experimento (carpeta experimental/). Marca la cabecera del log: origin=experimental.",
+    )
+    parser.add_argument(
+        "--stop-on-damage", action="store_true",
+        help="Cierra la sesión cuando empeora cualquier daño (aero, motor, frenos, suspensión, neumático arrancado). "
+             "El evento `damage` se registra siempre, con o sin esta opción.",
     )
     parser.add_argument("--open-report", action="store_true")
     parser.add_argument("--auto-shift", action=argparse.BooleanOptionalAction, default=True)
@@ -411,6 +416,7 @@ def run(args: argparse.Namespace) -> int:
     print_session_lap_board(lap_summary_rows)
     lap_completion.reset(start_lap, _init_dist)
     last_conditions: Optional[dict] = None
+    damage_watch = DamageWatch()
 
     try:
         while True:
@@ -564,6 +570,13 @@ def run(args: argparse.Namespace) -> int:
             if conditions is not None and conditions != last_conditions:
                 session_rec.record_event({"type": "conditions", **conditions})  # llega cada ~10 s; solo si cambia
                 last_conditions = conditions
+            damage = damage_watch.update(telem, timings.lap_distance)
+            if damage is not None:
+                session_rec.record_event(damage)
+                print(f"[Learn] Daño: {sorted(damage['changed'])} a {damage['context']['speed_kmh']} km/h")
+                if args.stop_on_damage:
+                    print("[Learn] --stop-on-damage: cierro la sesión; repara o reinicia el coche antes de repetir.")
+                    break
 
             if frame % args.log_every == 0:
                 print(

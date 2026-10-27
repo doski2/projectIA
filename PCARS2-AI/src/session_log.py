@@ -26,6 +26,10 @@ MIN_HTML_DURATION_S = 5.0
 # (ver `vehicle_extra`) y cabecera con `origin` / `experiment`.
 LOG_SCHEMA = 2
 
+# Perfil de ajustes del juego con el que se graba. Se cambia a mano si se tocan los ajustes
+# (ver experimental/docs/DECISIONES.md, sección 6). Los logs sin este campo son del perfil R0.
+GAME_PROFILE = "real_2026-10-26"
+
 
 def _git_hash() -> str:
     try:
@@ -112,6 +116,64 @@ def conditions_diag(game_state) -> Optional[dict]:
     }
 
 
+def _damage_levels(telem) -> dict:
+    """Daño por componente (0 = sano). Un neumático que pierde el bit 0 de `tyre_flags` cuenta como arrancado."""
+    return {
+        "aero": int(telem.aero_damage),
+        "engine": int(telem.engine_damage),
+        "brake": [int(x) for x in telem.brake_damage],
+        "susp": [int(x) for x in telem.suspension_damage],
+        "tyre_attached": [int(x) & 1 for x in telem.tyre_flags],
+    }
+
+
+class DamageWatch:
+    """Detecta cuándo empeora algún daño respecto al estado anterior y qué hacía el coche en ese instante.
+
+    El primer tick fija la línea base: un coche que ya empieza dañado no dispara el evento. Cada empeoramiento
+    posterior devuelve un evento `damage` con lo que cambió y el contexto (velocidad, pedales, temperaturas de
+    frenos y neumáticos, estado de choque) para estudiar cómo se produce el daño.
+    """
+
+    def __init__(self) -> None:
+        self._last: Optional[dict] = None
+
+    def update(self, telem, lap_distance: float = 0.0) -> Optional[dict]:
+        now = _damage_levels(telem)
+        last, self._last = self._last, now
+        if last is None:
+            return None
+        changed: dict = {}
+        for key in ("aero", "engine"):
+            if now[key] > last[key]:
+                changed[key] = {"before": last[key], "now": now[key]}
+        for key in ("brake", "susp"):
+            wheels = [i for i, (a, b) in enumerate(zip(last[key], now[key])) if b > a]
+            if wheels:
+                changed[key] = {"wheels": wheels, "before": last[key], "now": now[key]}
+        lost = [i for i, (a, b) in enumerate(zip(last["tyre_attached"], now["tyre_attached"])) if a and not b]
+        if lost:
+            changed["tyre_detached"] = {"wheels": lost}
+        if not changed:
+            return None
+        return {
+            "type": "damage",
+            "changed": changed,
+            "levels": now,
+            "lap_distance": round(float(lap_distance), 1),
+            "context": {
+                "speed_kmh": round(telem.speed * 3.6, 1),
+                "throttle": round(telem.throttle / 255.0, 3),
+                "brake": round(telem.brake / 255.0, 3),
+                "rpm": int(telem.rpm),
+                "brake_temp": [int(x) for x in telem.brake_temp],
+                "tyre_temp": [int(x) for x in telem.tyre_temp],
+                "crash_state": int(telem.crash_state),
+                "car_flags": int(telem.car_flags),
+            },
+        }
+
+
 def timing_diag(timings) -> dict:
     """Reloj y sector del juego: permite medir el Δt real, detectar pausas y analizar por sector."""
     return {
@@ -129,6 +191,8 @@ def vehicle_diag(telem) -> dict:
         "game_throttle": round(telem.throttle / 255.0, 3),
         "game_brake": round(telem.brake / 255.0, 3),
         "yaw_rate": round(telem.angular_velocity[1], 4),
+        # Nombre heredado: el eje 2 es en realidad la aceleración LONGITUDINAL (signo invertido), no la lateral (H1).
+        # La lateral está en `local_accel[0]` (ver `vehicle_extra`). No se renombra para no romper los lectores de logs.
         "lat_accel": round(telem.local_acceleration[2], 3),
         "terrain": list(telem.terrain),
         "tyre_rps": [round(v, 1) for v in telem.tyre_rps],
@@ -159,6 +223,7 @@ class TeachingSessionRecorder:
             "git": _git_hash(),
             "log_schema": LOG_SCHEMA,
             "origin": "main",
+            "game_profile": GAME_PROFILE,
             **session_meta,
         }
         rec._file.write(json.dumps(rec._session, ensure_ascii=False) + "\n")

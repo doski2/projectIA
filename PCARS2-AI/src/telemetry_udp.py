@@ -44,7 +44,7 @@ class TelemetryFrame:
     local_velocity:      Tuple[float, float, float]   # velocidad en ejes del coche
     world_velocity:      Tuple[float, float, float]   # velocidad en ejes del mundo
     angular_velocity:    Tuple[float, float, float]   # velocidad angular
-    local_acceleration:  Tuple[float, float, float]   # aceleración local (long, vert, lat) m/s²
+    local_acceleration:  Tuple[float, float, float]   # aceleración local m/s²: medido (H1) [0]=lateral, [1]=vert, [2]=long (negativo al avanzar)
     speed:               float                        # m/s (escalar)
 
     # --- Inputs filtrados (señal real que recibe el coche) ---
@@ -208,7 +208,7 @@ def parse_telemetry(data: bytes) -> Optional[TelemetryFrame]:
     local_velocity   = u('3f', data, 64)
     world_velocity   = u('3f', data, 76)
     angular_velocity = u('3f', data, 88)
-    local_acceleration = u('3f', data, 100)  # long(X), vert(Y), lat(Z) en m/s²
+    local_acceleration = u('3f', data, 100)  # m/s². La referencia de SMS decía long(X), vert(Y), lat(Z), pero se midió al revés: lat(0), vert(1), long(2). Ver H1
 
     # Neumáticos
     tyre_temp       = u('4B', data, 176)

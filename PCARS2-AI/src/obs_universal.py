@@ -110,6 +110,8 @@ def build_obs_universal(
     slip_norm = np.clip(slip / math.pi, -1.0, 1.0)
 
     yaw_norm = np.clip(telem.angular_velocity[1] / MAX_ANGULAR_VEL, -1.0, 1.0)
+    # Ejes intercambiados (H1): [2] es la longitudinal y [0] la lateral. Se mantiene porque el BC se entrenó así;
+    # la corrección va en universal_v2 (P8).
     lat_norm = np.clip(telem.local_acceleration[2] / (MAX_LAT_ACCEL * 9.81), -1.0, 1.0)
     long_norm = np.clip(telem.local_acceleration[0] / MAX_LONG_ACCEL, -1.0, 1.0)
 

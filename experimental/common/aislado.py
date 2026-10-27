@@ -32,7 +32,7 @@ def build_argv(python: Path, experiment: str, speed_band: float, laps: int, stag
         "--buffer", str(DATA / f"{experiment}_buffer.jsonl"),
         "--stage", stage, "--speed-band", f"{speed_band:g}",
         "--max-laps", str(laps), "--learn-every", "99",  # sin fine-tune dentro de la prueba
-        "--steer-comp", "--experiment", experiment,
+        "--steer-comp", "--experiment", experiment, "--stop-on-damage",
     ]
 
 

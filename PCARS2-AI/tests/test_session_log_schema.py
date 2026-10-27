@@ -1,7 +1,7 @@
 import json
 from types import SimpleNamespace
 
-from session_log import LOG_SCHEMA, TeachingSessionRecorder, default_log_path, vehicle_diag, vehicle_extra
+from session_log import GAME_PROFILE, LOG_SCHEMA, TeachingSessionRecorder, default_log_path, vehicle_diag, vehicle_extra
 
 
 def _frame(**extra):
@@ -46,6 +46,7 @@ def test_header_defaults_and_experiment(tmp_path):
     rec._file.close()
     head = json.loads(p.read_text(encoding="utf-8").splitlines()[0])
     assert head["log_schema"] == LOG_SCHEMA and head["origin"] == "main"
+    assert head["game_profile"] == GAME_PROFILE
 
     p2 = tmp_path / "b.jsonl"
     rec = TeachingSessionRecorder.open(p2, {"origin": "experimental", "experiment": "rampa_bc"})
@@ -99,3 +100,46 @@ def test_vehicle_extra_incluye_tanda_2_y_conditions_diag():
     c = conditions_diag(GameStateFrame(14, 18, 0, 0, 3, 1, -1, raw=b"\x01\x02"))
     assert c == {"ambient_c": 14, "track_c": 18, "rain": 0, "snow": 0, "wind_speed": 3,
                  "wind_dir": [1, -1], "raw_hex": "0102"}
+
+
+def _car(**kw):
+    base = dict(
+        aero_damage=0, engine_damage=0, brake_damage=(0, 0, 0, 0), suspension_damage=(0, 0, 0, 0),
+        tyre_flags=(7, 7, 7, 7), speed=20.0, throttle=255, brake=0, rpm=5000,
+        brake_temp=(300, 300, 280, 280), tyre_temp=(80, 80, 80, 80), crash_state=0, car_flags=0,
+    )
+    base.update(kw)
+    return SimpleNamespace(**base)
+
+
+def test_damage_watch_baseline_and_each_channel():
+    from session_log import DamageWatch
+
+    w = DamageWatch()
+    assert w.update(_car(engine_damage=5)) is None  # el coche ya empieza dañado: línea base
+    assert w.update(_car(engine_damage=5)) is None
+
+    ev = w.update(_car(engine_damage=9, brake_damage=(0, 40, 0, 0), aero_damage=3), 812.34)
+    assert ev is not None
+    assert ev["type"] == "damage" and ev["lap_distance"] == 812.3
+    assert ev["changed"]["engine"] == {"before": 5, "now": 9}
+    assert ev["changed"]["brake"]["wheels"] == [1] and ev["changed"]["aero"]["now"] == 3
+    assert ev["context"]["speed_kmh"] == 72.0 and ev["context"]["brake_temp"] == [300, 300, 280, 280]
+    assert w.update(_car(engine_damage=9, brake_damage=(0, 40, 0, 0), aero_damage=3)) is None  # sin cambio
+
+    ev = w.update(_car(engine_damage=9, brake_damage=(0, 40, 0, 0), aero_damage=3,
+                       suspension_damage=(0, 0, 12, 0), tyre_flags=(7, 7, 7, 6)))
+    assert ev is not None
+    assert set(ev["changed"]) == {"susp", "tyre_detached"}
+    assert ev["changed"]["tyre_detached"]["wheels"] == [3]
+
+
+def test_damage_watch_ignores_repair():
+    from session_log import DamageWatch
+
+    w = DamageWatch()
+    w.update(_car(engine_damage=9))
+    assert w.update(_car(engine_damage=0)) is None
+    ev = w.update(_car(engine_damage=2))
+    assert ev is not None
+    assert ev["changed"]["engine"] == {"before": 0, "now": 2}
