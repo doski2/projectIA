@@ -478,6 +478,20 @@ _CSS = ("body{font:14px system-ui,sans-serif;margin:24px;max-width:1100px}table{
         "img{max-width:100%}")
 
 
+def damage_events(events: List[dict]) -> List[dict]:
+    """Eventos `damage` del log (DamageWatch): cuándo, qué canales empeoraron y con qué niveles."""
+    out = []
+    for e in events:
+        if e.get("type") != "damage":
+            continue
+        out.append({
+            "t_s": e.get("t_s"), "lap_distance": e.get("lap_distance"), "canales": sorted(e.get("changed", {})),
+            "niveles": e.get("levels"), "km_h": e.get("context", {}).get("speed_kmh"),
+            "crash_state": e.get("context", {}).get("crash_state"), "para": e.get("stop_reasons") or "no",
+        })
+    return out
+
+
 def build_report(log_path: Path, open_browser: bool = False) -> Dict[str, Any]:
     log_path = Path(log_path)
     header, ticks, events = load_log(log_path)
@@ -486,12 +500,14 @@ def build_report(log_path: Path, open_browser: bool = False) -> Dict[str, Any]:
     inc = incidents(ticks)
     secs = sector_table(ticks)
     pz = pauses(ticks)
+    dmg = damage_events(events)
     plots = make_plots(ticks, ref, stats.get("lateral_axis", 0)) if len(ticks) >= 200 else []
 
     OUT.mkdir(parents=True, exist_ok=True)
     stem = f"informe_{log_path.stem}"
     result: Dict[str, Any] = {
         "log": str(log_path), "stats": stats, "incidents": inc, "events": len(events), "sectors": secs, "pauses": pz,
+        "damage_events": dmg,
         "checks": [dict(zip(("nombre", "estado", "detalle"), c)) for c in checks],
     }
     (OUT / f"{stem}.json").write_text(
@@ -502,6 +518,10 @@ def build_report(log_path: Path, open_browser: bool = False) -> Dict[str, Any]:
                    for nm, s, d in checks)
     irows = "".join("<tr>" + "".join(f"<td>{escape(str(v))}</td>" for v in r.values()) + "</tr>" for r in inc)
     srows = "".join("<tr>" + "".join(f"<td>{escape(str(v))}</td>" for v in r.values()) + "</tr>" for r in secs)
+    drows = "".join("<tr>" + "".join(f"<td>{escape(str(v))}</td>" for v in r.values()) + "</tr>" for r in dmg)
+    dmg_html = (f"<h2>Eventos de daño ({len(dmg)})</h2><table><tr><th>t (s)</th><th>lap_distance</th>"
+                f"<th>Canales</th><th>Niveles</th><th>Km/h</th><th>crash_state</th><th>Para la sesión</th>"
+                f"</tr>{drows}</table>") if dmg else ""
     sec_html = (f"<h2>Sectores ({len(secs)} tramos)</h2><table><tr><th>Vuelta</th><th>Sector</th><th>Ticks</th>"
                 f"<th>Conducción (s)</th><th>Sector juego (s)</th><th>Vel. media</th><th>lap_distance</th>"
                 f"<th>Ticks con incidencia</th></tr>{srows}</table>") if secs else ""
@@ -510,6 +530,7 @@ def build_report(log_path: Path, open_browser: bool = False) -> Dict[str, Any]:
         f"<h1>Informe C0</h1><p>{escape(log_path.name)} · {len(ticks)} ticks · "
         f"{n[OK]} ok · {n[WARN]} avisos · {n[FAIL]} fallos · {n[SKIP]} omitidos</p>"
         f"<h2>Comprobaciones</h2><table><tr><th>Comprobación</th><th>Estado</th><th>Detalle</th></tr>{rows}</table>"
+        + dmg_html
         + sec_html
         + "".join(f"<h2>{escape(t)}</h2><img src='data:image/png;base64,{b}'>" for t, b in plots)
         + f"<h2>Incidencias ({len(inc)})</h2><table><tr><th>Tipo</th><th>Vuelta</th><th>Tick</th>"

@@ -19,7 +19,7 @@ from telemetry_udp import TelemetryFrame
 
 PedalTuple = Tuple[float, float, float]
 
-# sSpeed es magnitud; el signo real va en local_velocity[0] (longitudinal).
+# sSpeed es magnitud; el signo real va en local_velocity[2], que es negativa al avanzar (H1). El eje 0 es el lateral.
 BACKWARD_VEL_MS = 0.35
 MIN_SPEED_FOR_BACKWARD = 0.12
 
@@ -33,7 +33,8 @@ ENGAGE_FIRST_STUCK_MAX_FRAMES = 90
 
 
 def longitudinal_velocity_ms(telem: TelemetryFrame) -> float:
-    return float(telem.local_velocity[0])
+    """Velocidad longitudinal en m/s, positiva al avanzar (el eje 2 de `local_velocity` sale negativo; ver H1)."""
+    return -float(telem.local_velocity[2])
 
 
 def is_driving_backward(telem: TelemetryFrame) -> bool:
@@ -155,15 +156,22 @@ def cap_bc_to_speed_target(
     proposed: PedalTuple,
     speed_ms: float,
     target_ms: float,
+    soft: bool = False,
 ) -> tuple[PedalTuple, bool]:
     """
     El BC no puede pasar el objetivo de la banda: gas a 0 y freno según el exceso.
     El volante del propuesto se mantiene (en L1 la línea sigue siendo del BC).
+
+    Por defecto el freno arranca con un escalón de 0,25 nada más pasar la gracia. Con `soft` crece desde 0 con el
+    exceso (la gracia se descuenta), de modo que un exceso pequeño solo suelta el gas y no frena (P16).
     """
     if target_ms <= 0 or speed_ms <= target_ms + SPEED_CAP_GRACE_MS:
         return proposed, False
     over_ms = speed_ms - target_ms
-    brake = min(1.0, 0.25 + over_ms / 6.0)
+    if soft:
+        brake = min(1.0, (over_ms - SPEED_CAP_GRACE_MS) / 6.0)
+    else:
+        brake = min(1.0, 0.25 + over_ms / 6.0)
     return (0.0, max(proposed[1], brake), proposed[2]), True
 
 

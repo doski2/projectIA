@@ -21,7 +21,7 @@ def _telem(gear=2, rpm=4000, max_rpm=8000, speed=5.0, num_gears=6, local_vx=None
     return TelemetryFrame(
         position=(0.0, 0.0, 0.0),
         orientation=(0.0, 0.0, 0.0),
-        local_velocity=(vx, 0.0, 0.0),
+        local_velocity=(0.0, 0.0, -vx),  # eje 2 = longitudinal, negativo al avanzar (H1)
         world_velocity=(speed, 0.0, 0.0),
         angular_velocity=(0.0, 0.0, 0.0),
         local_acceleration=(0.0, 0.0, 0.0),

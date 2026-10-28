@@ -1,13 +1,2 @@
-pendiente: l2 55
-pendiente prueba PPO (primera noche, sin probar en el juego):
-  GUI > RL (PPO) > modo 'Continuar PPO - protegido, sin vigilancia'
-  60 km/h, pasos 800000 (~3 h 50 min; 1600000 ~ 7 h 40 min), semaforo en verde
-  vigilar los primeros 20-30 min
-  al terminar: final de logs/formula_rookie__sugo/consola.log (lineas [Gate])
-  y ppo_progreso.bat (o pasar metricas.csv, episodios.csv y consola.log)
-  si llega a 80 km/h o se para solo: revisar la linea [Gate]
-  ppo_progress.py --desde HH:MM separa la serie de las tiradas viejas
-
-
-
-que decir: 
+pendiente: experimental 20 2 vueltas sin bc y pasar informe cada banda hasta 80
+revisiones:

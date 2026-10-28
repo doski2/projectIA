@@ -134,6 +134,69 @@ def test_damage_watch_baseline_and_each_channel():
     assert ev["changed"]["tyre_detached"]["wheels"] == [3]
 
 
+def test_damage_watch_tolerates_slow_wear_until_limit():
+    from session_log import DamageWatch
+
+    w = DamageWatch(limit_pct=25, jump_pct=10, window_ticks=5)  # límite 63,75 y salto 25,5 sobre 255
+    w.update(_car())
+    level = 0
+    for _ in range(12):  # +5 por evento, con 10 ticks quietos entre medias: nunca es un golpe
+        for _ in range(10):
+            assert w.update(_car(engine_damage=level)) is None
+        level += 5
+        ev = w.update(_car(engine_damage=level))
+        assert ev is not None and ev["stop"] is False and ev["stop_reasons"] == {}
+    for _ in range(10):
+        w.update(_car(engine_damage=level))
+    ev = w.update(_car(engine_damage=70))  # 70 >= 63,75 acumulado
+    assert ev is not None
+    assert ev["stop"] is True and ev["stop_reasons"]["limit"] == ["engine"]
+
+
+def test_damage_watch_stops_on_impact_tyre_and_crash():
+    from session_log import DamageWatch
+
+    w = DamageWatch(window_ticks=5)
+    w.update(_car())
+    ev = w.update(_car(suspension_damage=(0, 30, 0, 0)))  # 30 > 25,5 de golpe, aunque bajo el techo de 63,75
+    assert ev is not None
+    assert ev["stop"] is True and ev["stop_reasons"] == {"jump": ["susp1"]}
+
+    w = DamageWatch()
+    w.update(_car())
+    ev = w.update(_car(tyre_flags=(7, 7, 6, 7)))
+    assert ev is not None
+    assert ev["stop"] is True and ev["stop_reasons"]["tyre_detached"] == [2]
+
+    w = DamageWatch()
+    w.update(_car())
+    assert w.update(_car(crash_state=1)) is None  # fuera de pista no es choque grave
+    ev = w.update(_car(crash_state=3))
+    assert ev is not None
+    assert ev["changed"]["crash"] == {"before": 1, "now": 3} and ev["stop_reasons"]["crash"] == 3
+    assert w.update(_car(crash_state=3)) is None  # solo cuando empieza
+
+
+def test_damage_watch_limit_zero_stops_on_any_and_repair_lowers_baseline():
+    from session_log import DamageWatch
+
+    w = DamageWatch(limit_pct=0)
+    w.update(_car())
+    ev = w.update(_car(aero_damage=1))
+    assert ev is not None
+    assert ev["stop_reasons"] == {"any": ["aero"]}
+
+    w = DamageWatch(limit_pct=25, jump_pct=100, window_ticks=3)
+    w.update(_car(engine_damage=50))  # empieza dañado: línea base 50
+    ev = w.update(_car(engine_damage=100))
+    assert ev is not None
+    assert ev["stop"] is False  # +50 < 63,75 sobre la base
+    w.update(_car(engine_damage=0))  # reparado: la base baja a 0
+    ev = w.update(_car(engine_damage=70))
+    assert ev is not None
+    assert ev["stop"] is True
+
+
 def test_damage_watch_ignores_repair():
     from session_log import DamageWatch
 
@@ -143,3 +206,13 @@ def test_damage_watch_ignores_repair():
     ev = w.update(_car(engine_damage=2))
     assert ev is not None
     assert ev["changed"]["engine"] == {"before": 0, "now": 2}
+
+
+def test_rain_over_limit():
+    from session_log import rain_over_limit
+
+    gs = SimpleNamespace(rain_density=40)
+    assert rain_over_limit(gs, 0) is False  # sin límite
+    assert rain_over_limit(gs, 41) is False
+    assert rain_over_limit(gs, 40) is True
+    assert rain_over_limit(None, 40) is False  # el paquete 4 aún no ha llegado

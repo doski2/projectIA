@@ -8,8 +8,9 @@ Cada decisión es explicable vía TeacherDecision.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from obs_builder import wheelspin_norm
 from pcars2_gear import (
@@ -35,6 +36,11 @@ EDGE_K_CTE_MULT = 1.75
 # Crucero y borde: gas para no caer a 0 km/h a ~20 km/h.
 MAINTAIN_THROTTLE = 0.2
 WHEELSPIN_THRESHOLD = 0.15
+# Modelo físico de curva: curvatura mínima (recta ≈ sin límite), techo de v_lim, paso de muestreo y suelo de la consigna.
+MIN_CURVATURE = 1e-4
+MAX_CURVE_SPEED_MS = 100.0
+CURVE_SAMPLE_M = 5.0
+MIN_CURVE_TARGET_MS = 3.0
 STALL_RECOVERY_SPEED_MS = 1.0
 STALL_RECOVERY_REASONS = frozenset({"stuck", "no_progress"})
 STALL_BRAKE_REASONS = frozenset({"stuck", "wrong_way"}) | (
@@ -87,6 +93,19 @@ class TeacherConfig:
     brake_rate: float = 0.12
     speed_margin_ms: float = 1.5
     curve_speed_factor: float = 0.65
+    # Modelo físico de la velocidad de curva (P16): v_lim = sqrt(a_lat / |κ|) con anticipación de frenada.
+    # None = regla heurística de siempre (producción). a_lat en m/s²; a_brake es la deceleración que se supone
+    # para empezar a bajar a tiempo (valores provisionales hasta medirlos en el plan A).
+    lat_accel_limit: Optional[float] = None
+    brake_decel: float = 4.0
+    curve_lookahead_m: float = 150.0
+    # Con el modo físico (`lat_accel_limit` fijado) el gas sigue la consigna con un PI en lugar del gas fijo de la
+    # franja: gas = integral + kp·error; el freno solo entra pasado `speed_margin_ms`. Valores sin ajustar en el juego.
+    pi_kp: float = 0.25  # gas por m/s de error
+    pi_ki: float = 0.0004  # por tick y m/s de error (≈ 0,024 por segundo a 60 Hz)
+    pi_ff: float = 0.3  # gas de partida de la integral (en C0 mantener 41 km/h pedía ≈ 0,31)
+    pi_i_max: float = 0.6
+    pi_i_window_ms: float = 3.0  # solo integra con |error| menor, para no acumular al arrancar
 
 
 class TeachingController:
@@ -99,6 +118,35 @@ class TeachingController:
         self._prev_throttle = 0.0
         self._prev_brake = 0.0
         self._gear_engagement_frames = 0
+        self._vlim: Optional[List[float]] = None  # límite lateral por metro de vuelta, se calcula la primera vez
+        self._speed_i = self.config.pi_ff  # integral del PI de velocidad (solo modo físico)
+
+    def _lateral_speed_limits(self) -> List[float]:
+        """`v_lim(d) = sqrt(a_lat / |κ(d)|)` en m/s, un valor por metro, con la curvatura suavizada (±7 m)."""
+        a_lat = self.config.lat_accel_limit
+        assert a_lat is not None, "el modelo físico de curva necesita lat_accel_limit"
+        n = max(1, int(self.ref.track_length))
+        kappa = [abs(self.ref.curvature(float(d))) for d in range(n)]
+        half = 7
+        limits = []
+        for d in range(n):
+            window = [kappa[(d + i) % n] for i in range(-half, half + 1)]
+            k = max(sum(window) / len(window), MIN_CURVATURE)
+            limits.append(min(MAX_CURVE_SPEED_MS, math.sqrt(a_lat / k)))
+        return limits
+
+    def physical_curve_target(self, lap_distance: float) -> float:
+        """Velocidad máxima ahora para poder bajar, con `brake_decel`, a la `v_lim` de cada punto que viene."""
+        if self._vlim is None:
+            self._vlim = self._lateral_speed_limits()
+        n = len(self._vlim)
+        best = MAX_CURVE_SPEED_MS
+        s = 0.0
+        while s <= self.config.curve_lookahead_m:
+            v_lim = self._vlim[int(lap_distance + s) % n]
+            best = min(best, math.sqrt(v_lim * v_lim + 2.0 * self.config.brake_decel * s))
+            s += CURVE_SAMPLE_M
+        return best
 
     @property
     def speed_target_ms(self) -> float:
@@ -109,6 +157,7 @@ class TeachingController:
         self._prev_throttle = 0.0
         self._prev_brake = 0.0
         self._gear_engagement_frames = 0
+        self._speed_i = self.config.pi_ff
 
     def signed_lateral_error(
         self,
@@ -120,6 +169,19 @@ class TeachingController:
 
     def _smooth(self, prev: float, new: float, alpha: float) -> float:
         return prev + alpha * (new - prev)
+
+    def _pedals_from_axis(self, target: float, gas_rate: Optional[float] = None) -> Tuple[float, float]:
+        """Un solo eje de pedal (gas − freno, en [-1, 1]): la transición pasa por cero y nunca hay solape (P16).
+
+        `target` > 0 es gas y < 0 es freno. El freno se suelta y se aplica a `brake_rate`; el gas, a `gas_rate`.
+        """
+        gas_rate = self.config.throttle_rate if gas_rate is None else gas_rate
+        axis = self._prev_throttle - self._prev_brake
+        braking_side = axis < 0 if target >= axis else target < 0
+        axis = self._smooth(axis, target, self.config.brake_rate if braking_side else gas_rate)
+        throttle, brake = max(0.0, axis), max(0.0, -axis)
+        self._prev_throttle, self._prev_brake = throttle, brake
+        return throttle, brake
 
     def _effective_k_cte(self, signed_cte: float, safety: bool, edge_surface: bool = False) -> float:
         """Ganancia lateral única: safety ×1.5, boost si |CTE|>2.5 m, extra si 1 rueda en hierba."""
@@ -194,6 +256,23 @@ class TeachingController:
         self._prev_steering = steering
         return steering, curv_ahead
 
+    def _pi_speed_pedals(self, speed: float, curve_target: float, curv_ahead: float) -> Tuple[float, float, str]:
+        """Gas por PI sobre el error de velocidad; entre la consigna y el margen de exceso se suelta el gas sin frenar."""
+        cfg = self.config
+        err = curve_target - speed
+        if abs(err) < cfg.pi_i_window_ms:
+            self._speed_i = max(0.0, min(cfg.pi_i_max, self._speed_i + cfg.pi_ki * err))
+        target = max(0.0, min(0.85, self._speed_i + cfg.pi_kp * err))
+        reason = "maintain_speed"
+        if err > 0.5:
+            if abs(curv_ahead) > 0.02:
+                target = min(target, 0.45)
+                reason = "accel_curve_limited"
+            else:
+                reason = "accel_straight"
+        throttle, brake = self._pedals_from_axis(target)
+        return throttle, brake, reason
+
     def compute_pedals(
         self,
         telem: TelemetryFrame,
@@ -206,6 +285,7 @@ class TeachingController:
         need_first_gear: bool = False,
     ) -> Tuple[float, float, str]:
         if reversing:
+            self._speed_i = self.config.pi_ff
             throttle = 0.0
             brake = self._smooth(
                 self._prev_brake,
@@ -217,6 +297,7 @@ class TeachingController:
             return throttle, brake, SAFETY_REVERSE_REASON
 
         if need_first_gear:
+            self._speed_i = self.config.pi_ff
             throttle = self._smooth(
                 self._prev_throttle,
                 ENGAGE_FIRST_THROTTLE,
@@ -233,26 +314,28 @@ class TeachingController:
         spd_ahead_100 = self.ref.speed_lookahead(lap_distance, 100.0)
         ref_brake = self.ref.reference_brake(lap_distance)
 
-        curve_factor = 1.0 - min(abs(curv_ahead) * 12.0, 0.45)
-        curve_target = target * max(0.4, curve_factor)
+        if self.config.lat_accel_limit is not None:
+            curve_target = min(target, max(MIN_CURVE_TARGET_MS, self.physical_curve_target(lap_distance)))
+        else:
+            curve_factor = 1.0 - min(abs(curv_ahead) * 12.0, 0.45)
+            curve_target = target * max(0.4, curve_factor)
 
-        if spd_ahead_100 < spd_ahead_50 * 0.92 or ref_brake > 0.2:
-            curve_target = min(curve_target, spd_ahead_50 * self.config.curve_speed_factor)
+            if spd_ahead_100 < spd_ahead_50 * 0.92 or ref_brake > 0.2:
+                curve_target = min(curve_target, spd_ahead_50 * self.config.curve_speed_factor)
 
         reason = "cruise"
         throttle = 0.0
         brake = 0.0
 
         if safety:
+            self._speed_i = self.config.pi_ff
             reason = f"safety_{safety_reason}"
             if safety_reason in STALL_RECOVERY_REASONS and speed < STALL_RECOVERY_SPEED_MS:
                 # Parado: gas para arrancar (auto_shift pone 1ª); freno empeora el atasco.
-                throttle = 0.55 if is_forward_gear(telem) else 0.45
-                brake = 0.0
-                throttle = self._smooth(self._prev_throttle, throttle, self.config.throttle_rate * 1.5)
-                self._prev_throttle = throttle
-                self._prev_brake = self._smooth(self._prev_brake, 0.0, self.config.brake_rate)
-                return throttle, self._prev_brake, reason
+                throttle, brake = self._pedals_from_axis(
+                    0.55 if is_forward_gear(telem) else 0.45, self.config.throttle_rate * 1.5,
+                )
+                return throttle, brake, reason
             throttle = 0.0
             brake = 0.6 if safety_reason in STALL_BRAKE_REASONS else 0.35
             brake = self._smooth(self._prev_brake, brake, self.config.brake_rate)
@@ -264,6 +347,7 @@ class TeachingController:
             throttle = 0.0
             brake = 0.25
             reason = "recover_line"
+            self._speed_i = self.config.pi_ff
             brake = self._smooth(self._prev_brake, brake, self.config.brake_rate)
             self._prev_throttle = 0.0
             self._prev_brake = brake
@@ -271,12 +355,9 @@ class TeachingController:
 
         wheelspin = wheelspin_norm(telem)
         if wheelspin > WHEELSPIN_THRESHOLD:
-            throttle = max(0.0, self._prev_throttle - 0.15)
             reason = "wheelspin_reduce"
-            throttle = self._smooth(self._prev_throttle, throttle, self.config.throttle_rate)
-            self._prev_throttle = throttle
-            self._prev_brake = self._smooth(self._prev_brake, 0.0, self.config.brake_rate)
-            return throttle, self._prev_brake, reason
+            throttle, brake = self._pedals_from_axis(max(0.0, self._prev_throttle - 0.15))
+            return throttle, brake, reason
 
         if speed > curve_target + self.config.speed_margin_ms:
             overspeed = speed - curve_target
@@ -284,11 +365,11 @@ class TeachingController:
             if ref_brake > 0.1:
                 brake = max(brake, ref_brake * 0.5)
             reason = "brake_overspeed"
-            brake = self._smooth(self._prev_brake, brake, self.config.brake_rate)
-            throttle = self._smooth(self._prev_throttle, 0.0, self.config.throttle_rate)
-            self._prev_throttle = throttle
-            self._prev_brake = brake
+            throttle, brake = self._pedals_from_axis(-brake)
             return throttle, brake, reason
+
+        if self.config.lat_accel_limit is not None:
+            return self._pi_speed_pedals(speed, curve_target, curv_ahead)
 
         if speed < curve_target - 0.5:
             gap = curve_target - speed
@@ -298,18 +379,11 @@ class TeachingController:
                 reason = "accel_curve_limited"
             else:
                 reason = "accel_straight"
-            throttle = self._smooth(self._prev_throttle, throttle, self.config.throttle_rate)
-            brake = self._smooth(self._prev_brake, 0.0, self.config.brake_rate)
-            self._prev_throttle = throttle
-            self._prev_brake = brake
+            throttle, brake = self._pedals_from_axis(throttle)
             return throttle, brake, reason
 
-        throttle = self._smooth(self._prev_throttle, MAINTAIN_THROTTLE, self.config.throttle_rate)
-        brake = self._smooth(self._prev_brake, 0.0, self.config.brake_rate)
-        reason = "maintain_speed"
-        self._prev_throttle = throttle
-        self._prev_brake = brake
-        return throttle, brake, reason
+        throttle, brake = self._pedals_from_axis(MAINTAIN_THROTTLE)
+        return throttle, brake, "maintain_speed"
 
     def decide(
         self,

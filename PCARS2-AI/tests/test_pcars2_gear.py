@@ -105,10 +105,10 @@ def test_auto_shifter_ignores_glitch_neutral_at_speed():
         def __init__(self):
             self.pressed = []
 
-        def press_button(self, b):
-            self.pressed.append(b)
+        def press_button(self, button):
+            self.pressed.append(button)
 
-        def apply_action(self, *_):
+        def apply_action(self, throttle, brake, steering):
             pass
 
     shifter = AutoShifter(last_forward_gear=2, neutral_frames=50)
@@ -130,3 +130,31 @@ def test_damp_bc_steering_disabled_with_zero_ref():
     from pcars2_gear import damp_bc_steering
 
     assert damp_bc_steering((0.3, 0.0, 0.8), 30.0, 0.0) == (0.3, 0.0, 0.8)
+
+
+def test_speed_cap_soft_has_no_brake_step_for_small_excess():
+    proposed = (0.4, 0.0, 0.1)
+    over = 20 / 3.6 + 0.6  # algo más de la gracia (0,4 m/s)
+    hard, capped = cap_bc_to_speed_target(proposed, speed_ms=over, target_ms=20 / 3.6)
+    soft, capped_soft = cap_bc_to_speed_target(proposed, speed_ms=over, target_ms=20 / 3.6, soft=True)
+    assert capped and capped_soft
+    assert hard[0] == 0.0 and hard[1] >= 0.25  # escalón de freno
+    assert soft[0] == 0.0 and 0.0 < soft[1] < 0.1  # suelta el gas y frena apenas
+    assert soft[2] == proposed[2]
+    far, _ = cap_bc_to_speed_target(proposed, speed_ms=30 / 3.6, target_ms=20 / 3.6, soft=True)
+    assert 0.3 < far[1] < 0.5  # 10 km/h de exceso: freno firme pero sin el escalón
+
+
+def test_backward_uses_longitudinal_axis_not_lateral():
+    """H13: el eje 0 de local_velocity es el lateral; marcha atrás real = eje 2 positivo."""
+    from pcars2_gear import backward_speed_ms, is_driving_backward
+
+    sliding = _telem(gear=1, speed=11.5)
+    sliding.local_velocity = (-0.4, 0.0, -11.5)  # avanza a 41 km/h y se desliza hacia un lado
+    assert not is_driving_backward(sliding)
+    assert backward_speed_ms(sliding) == 0.0
+
+    reversing = _telem(gear=0, speed=2.0)
+    reversing.local_velocity = (0.0, 0.0, 2.0)
+    assert is_driving_backward(reversing)
+    assert backward_speed_ms(reversing) == 2.0

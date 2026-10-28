@@ -60,7 +60,7 @@ from obs_builder import encoded_action_tuple
 from obs_universal import OBS_SCHEMA, OBS_UNIVERSAL_DIM, build_obs_universal
 from reference_recorder import ReferenceLine
 from safety_monitor import SafetyMonitor
-from session_log import DamageWatch, TeachingSessionRecorder, conditions_diag, default_log_path, timing_diag, vehicle_diag
+from session_log import DamageWatch, TeachingSessionRecorder, conditions_diag, default_log_path, rain_over_limit, timing_diag, vehicle_diag
 from teacher_controller import TeacherConfig, TeachingController, resolve_teacher_decision
 from track_deviation import maybe_build_track_diag
 from teacher_intents import rule_for_reason
@@ -112,8 +112,34 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--stop-on-damage", action="store_true",
-        help="Cierra la sesión cuando empeora cualquier daño (aero, motor, frenos, suspensión, neumático arrancado). "
+        help="Cierra la sesión ante un daño que contamina los datos: neumático arrancado, choque grave, salto brusco "
+             "de un canal (--damage-jump) o un canal que acumula --damage-limit. El desgaste lento no para. "
              "El evento `damage` se registra siempre, con o sin esta opción.",
+    )
+    parser.add_argument(
+        "--damage-limit", type=float, default=25.0,
+        help="%% de la escala del byte de daño que, sumado a lo largo de la sesión en cualquier canal, cierra la sesión "
+             "con --stop-on-damage. 0 = cualquier empeoramiento. Valor inicial sin validar (P15).",
+    )
+    parser.add_argument(
+        "--damage-jump", type=float, default=10.0,
+        help="%% de la escala que un canal puede empeorar en ~1 s antes de contarse como golpe. Valor inicial sin validar.",
+    )
+    parser.add_argument(
+        "--lat-accel-limit", type=float, default=0.0,
+        help="Aceleración lateral máxima (m/s²) que el profesor supone para fijar la velocidad en curva: "
+             "v = sqrt(a/|curvatura|), con anticipación de frenada. 0 = regla heurística de siempre. "
+             "Valor provisional hasta medir el límite del coche (plan A).",
+    )
+    parser.add_argument(
+        "--rain-limit", type=int, default=0,
+        help="Cierra la sesión cuando la densidad de lluvia del juego (0-255) llega a este valor. 0 = sin límite. "
+             "El evento `conditions` registra la lluvia siempre. Sin valor calibrado: hace falta lluvia real (P21).",
+    )
+    parser.add_argument(
+        "--teacher-only", action="store_true",
+        help="Conduce el profesor en toda la vuelta (sin consultar al BC): sirve para medir sus pedales, el PI de "
+             "velocidad y el modelo físico de curva (P16). Los ticks salen con drive_source=teacher:only.",
     )
     parser.add_argument("--open-report", action="store_true")
     parser.add_argument("--auto-shift", action=argparse.BooleanOptionalAction, default=True)
@@ -312,7 +338,9 @@ def run(args: argparse.Namespace) -> int:
     ref = ReferenceLine.load(args.reference)
     stage = get_learn_stage(stage_id)
     effective_speed = resolve_learn_speed(stage_id, speed_band, args.speed_target)
-    teacher = TeachingController(ref, TeacherConfig(speed_target_kmh=effective_speed))
+    teacher = TeachingController(ref, TeacherConfig(
+        speed_target_kmh=effective_speed, lat_accel_limit=args.lat_accel_limit or None,
+    ))
     safety = SafetyMonitor(ref=ref, surface_profile=ns_str(args, "safety_profile"))
     session = DriveSession()
 
@@ -416,7 +444,7 @@ def run(args: argparse.Namespace) -> int:
     print_session_lap_board(lap_summary_rows)
     lap_completion.reset(start_lap, _init_dist)
     last_conditions: Optional[dict] = None
-    damage_watch = DamageWatch()
+    damage_watch = DamageWatch(limit_pct=args.damage_limit, jump_pct=args.damage_jump)
 
     try:
         while True:
@@ -462,7 +490,7 @@ def run(args: argparse.Namespace) -> int:
             obs_record = build_obs_universal(telem, timings, ref, teacher.speed_target_ms)
             lap_guard.on_frame(timings.current_lap, timings.lap_distance)
 
-            if tuner.model is not None and not lap_guard.active:
+            if tuner.model is not None and not lap_guard.active and not args.teacher_only:
                 with tuner.lock:
                     bc_action, _ = tuner.model.predict(obs_record, reason=reason)
                 bc_tuple = decode_action(bc_action)
@@ -480,6 +508,8 @@ def run(args: argparse.Namespace) -> int:
             )
             if cte_takeover:
                 proposed, drive_source, ovr_inc = teacher_tuple, "teacher:cte", True
+            if args.teacher_only and drive_source == "bc":
+                proposed, drive_source = teacher_tuple, "teacher:only"
             if ovr_inc:
                 override_count += 1
             if drive_source == "bc" and not lap_guard.active:
@@ -487,6 +517,7 @@ def run(args: argparse.Namespace) -> int:
             if not lap_guard.active and not override and not cte_takeover:
                 proposed, capped = cap_bc_to_speed_target(
                     proposed, telem.speed, teacher.speed_target_ms,
+                    soft=teacher.config.lat_accel_limit is not None,
                 )
                 if capped:
                     drive_source = "teacher:speed"
@@ -570,12 +601,19 @@ def run(args: argparse.Namespace) -> int:
             if conditions is not None and conditions != last_conditions:
                 session_rec.record_event({"type": "conditions", **conditions})  # llega cada ~10 s; solo si cambia
                 last_conditions = conditions
+            game_state = session.game_state
+            if game_state is not None and rain_over_limit(game_state, args.rain_limit):
+                session_rec.record_event({"type": "rain_stop", "rain": int(game_state.rain_density),
+                                          "limit": args.rain_limit})
+                print(f"[Learn] --rain-limit: lluvia {game_state.rain_density} >= {args.rain_limit}; cierro la sesión.")
+                break
             damage = damage_watch.update(telem, timings.lap_distance)
             if damage is not None:
                 session_rec.record_event(damage)
                 print(f"[Learn] Daño: {sorted(damage['changed'])} a {damage['context']['speed_kmh']} km/h")
-                if args.stop_on_damage:
-                    print("[Learn] --stop-on-damage: cierro la sesión; repara o reinicia el coche antes de repetir.")
+                if args.stop_on_damage and damage["stop"]:
+                    print(f"[Learn] --stop-on-damage ({sorted(damage['stop_reasons'])}): cierro la sesión; "
+                          "repara o reinicia el coche antes de repetir.")
                     break
 
             if frame % args.log_every == 0:

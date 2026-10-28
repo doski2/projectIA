@@ -169,6 +169,9 @@ embragues y potencia de rampa no se veían en la captura, y el eje delantero que
   telemetría). Todas las sesiones hasta hoy fueron ≤ 61 km/h **sin pasar de 1.ª**, así que
   **la primera subida de marcha en vuelta llegará en las bandas 70 y 80** y es un
   comportamiento nuevo que conviene vigilar (`shift_event: up` en el log).
+  **Confirmado el 2026-10-28 (banda 80 del teacher, H24):** 1.ª → 2.ª a ≈ 71 km/h y 6600 rpm, con
+  `clutch` = 255 durante el cambio. Los ajustes «Zona muerta de embrague» (0) y «Sensibilidad de embrague»
+  (25) solo afectan a un embrague manual; con *Embrague automático* activado no hace falta tocarlos.
 - **Nada del resto del reglaje** (muelles, amortiguadores, barras, diferencial, presiones)
   señala una causa clara del zigzag; no hay forma de deducirlo de las capturas. Barra trasera de
   2 N/mm frente a 20 N/mm delante y reparto 45/55 son valores poco habituales, anotados por si

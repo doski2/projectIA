@@ -22,7 +22,7 @@ limpios) llega más arriba de 60 km/h y deja datos útiles para A y B.
 
 C1 se ejecuta ya en el perfil auténtico RA (`DECISIONES.md`, D11 y sección 6): daños completos, fallos mecánicos,
 desgaste de neumáticos, combustible real y tiempo real. Antes de C1 hacen falta la guardia de daños (P15) y
-`--pedal-exclusive` (P16), y un C0 corto en RA (paso 7 de la línea de trabajo).
+el teacher de un solo eje de pedal con el BC reentrenado (P16), y un C0 corto en RA (paso 7 de la línea de trabajo).
 
 ## Por resolver antes de C1
 

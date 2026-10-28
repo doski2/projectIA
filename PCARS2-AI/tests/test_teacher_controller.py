@@ -44,7 +44,7 @@ def _base_telem(speed: float = 5.0) -> TelemetryFrame:
     return TelemetryFrame(
         position=(0.0, 0.0, 3.0),
         orientation=(0.0, 0.0, 0.0),
-        local_velocity=(speed, 0.0, 0.0),
+        local_velocity=(0.0, 0.0, -speed),  # eje 2 = longitudinal, negativo al avanzar (H1)
         world_velocity=(speed, 0.0, 0.0),
         angular_velocity=(0.0, 0.0, 0.0),
         local_acceleration=(0.0, 0.0, 0.0),
@@ -265,7 +265,7 @@ def test_teacher_backward_cuts_throttle():
     ref = _curved_ref()
     teacher = TeachingController(ref)
     telem = _base_telem(speed=2.0)
-    telem = telem.__class__(**{**telem.__dict__, "local_velocity": (-2.0, 0.0, 0.0)})
+    telem = telem.__class__(**{**telem.__dict__, "local_velocity": (0.0, 0.0, 2.0)})
     decision = teacher.decide(telem, _timings())
     assert decision.throttle == 0.0
     assert decision.brake > 0.0
@@ -284,9 +284,9 @@ def test_teacher_backward_brakes_harder_when_fast():
     ref = _curved_ref()
     teacher = TeachingController(ref)
     slow = _base_telem(speed=1.0)
-    slow = slow.__class__(**{**slow.__dict__, "local_velocity": (-0.5, 0.0, 0.0)})
+    slow = slow.__class__(**{**slow.__dict__, "local_velocity": (0.0, 0.0, 0.5)})
     fast = _base_telem(speed=5.0)
-    fast = fast.__class__(**{**fast.__dict__, "local_velocity": (-4.0, 0.0, 0.0)})
+    fast = fast.__class__(**{**fast.__dict__, "local_velocity": (0.0, 0.0, 4.0)})
     d_slow = teacher.decide(slow, _timings())
     d_fast = teacher.decide(fast, _timings())
     assert d_fast.brake > d_slow.brake
@@ -319,7 +319,7 @@ def test_teacher_backward_steering_not_saturated_on_cte():
         **{
             **telem.__dict__,
             "position": (10.0, 0.0, 2.0),
-            "local_velocity": (-2.0, 0.0, 0.0),
+            "local_velocity": (0.0, 0.0, 2.0),
             "world_velocity": (-2.0, 0.0, 0.0),
             "orientation": (0.0, 0.0, 0.0),
         }
@@ -374,6 +374,120 @@ def test_teacher_engage_first_after_glitch_gear_not_wheelspin():
     assert decision.throttle >= 0.35
 
 
+def _straight_ref() -> ReferenceLine:
+    points = [
+        ReferencePoint(
+            lap_distance=float(d), position=(float(d), 0.0, 0.0), speed=10.0, throttle=100, brake=0,
+            steering=0, gear=2, orientation=(0.0, 0.0, 0.0), local_velocity=(10.0, 0.0, 0.0),
+        )
+        for d in range(50)
+    ]
+    return ReferenceLine(points=points, track_length=50.0, track_name="straight", lap_time=5.0)
+
+
+def _on_line(speed: float) -> TelemetryFrame:
+    telem = _base_telem(speed=speed)
+    telem.position = (10.0, 0.0, 0.0)
+    return telem
+
+
+def test_teacher_never_presses_throttle_and_brake_together():
+    """P16: un solo eje de pedal; al pasar de frenar a acelerar (y al revés) la transición pasa por cero."""
+    teacher = TeachingController(_straight_ref(), TeacherConfig(speed_target_kmh=40.0))
+    seen = set()
+    for speed in ([20.0] * 40 + [11.0] * 40 + [3.0] * 40) * 3:  # exceso, mantener y falta de velocidad, en bucle
+        decision = teacher.decide(_on_line(speed), _timings())
+        assert min(decision.throttle, decision.brake) == 0.0, (speed, decision)
+        seen.add(decision.reason)
+    assert {"brake_overspeed", "accel_straight", "maintain_speed"} <= seen
+
+
+def test_teacher_releases_brake_before_gas_returns():
+    teacher = TeachingController(_straight_ref(), TeacherConfig(speed_target_kmh=40.0))
+    braking = [teacher.decide(_on_line(20.0), _timings()) for _ in range(60)][-1]
+    assert braking.brake > 0.2 and braking.throttle == 0.0
+    steps = [teacher.decide(_on_line(11.0), _timings()) for _ in range(120)]
+    first_gas = next(i for i, d in enumerate(steps) if d.throttle > 0.0)
+    assert all(d.brake > 0.0 for d in steps[:first_gas])  # hasta soltar el freno no hay gas
+    assert all(d.brake == 0.0 for d in steps[first_gas:])
+    assert steps[-1].throttle > 0.0
+
+
+def _sugo():
+    from pathlib import Path
+
+    return ReferenceLine.load(str(Path(__file__).resolve().parents[1] / "src" / "refs" / "sugo_ai.json"))
+
+
+def test_physical_curve_target_needs_no_slowdown_at_40_kmh_but_anticipates_at_80():
+    """P16: v_lim = sqrt(a_lat/κ) con anticipación de frenada; a 40 km/h Sugo no exige bajar en ninguna curva."""
+    cfg = dict(lat_accel_limit=6.5)
+    slow = TeachingController(_sugo(), TeacherConfig(speed_target_kmh=40.0, **cfg))
+    fast = TeachingController(_sugo(), TeacherConfig(speed_target_kmh=80.0, **cfg))
+    ds = range(0, 3560, 10)
+    assert min(slow.physical_curve_target(float(d)) for d in ds) >= 40.0 / 3.6
+    targets = [min(80.0 / 3.6, fast.physical_curve_target(float(d))) for d in ds]
+    assert min(targets) < 80.0 / 3.6 - 2.0  # alguna curva obliga a bajar
+
+
+def test_physical_curve_target_removes_spurious_overspeed_brake_at_fixed_40_kmh():
+    ref = _sugo()
+    heuristic = TeachingController(ref, TeacherConfig(speed_target_kmh=40.0))
+    physical = TeachingController(ref, TeacherConfig(speed_target_kmh=40.0, lat_accel_limit=6.5))
+
+    def reasons(teacher):
+        out = set()
+        for d in range(0, 3560, 7):
+            pt = ref.lookup(float(d))
+            hv = ref.heading_vector(float(d))
+            assert pt is not None and hv is not None
+            telem = _base_telem(speed=11.4)  # 41 km/h, como en C0
+            telem.position = pt.position
+            telem.orientation = pt.orientation
+            telem.world_velocity = (hv[0] * 11.4, 0.0, hv[1] * 11.4)
+            timings = TimingsFrame(
+                lap_distance=float(d), current_lap=1, current_time=5.0, current_sector_time=5.0,
+                sector=1, race_position=1, event_time_remaining=-1.0,
+            )
+            out.add(teacher.decide(telem, timings).reason)
+        return out
+
+    assert "brake_overspeed" in reasons(heuristic)
+    assert "brake_overspeed" not in reasons(physical)
+
+
+def test_physical_mode_holds_speed_with_pi_throttle_and_no_brake():
+    """P16: en modo físico el gas lo fija un PI, no un valor fijo; un coche de juguete se queda en la consigna."""
+    results = {}
+    for name, cfg in (
+        ("heuristic", TeacherConfig(speed_target_kmh=40.0)),
+        ("pi", TeacherConfig(speed_target_kmh=40.0, lat_accel_limit=6.5)),
+    ):
+        teacher = TeachingController(_straight_ref(), cfg)
+        v, brake_ticks, tail = 11.4, 0, []
+        for i in range(60 * 60):
+            equilibrium = 0.31 if i < 60 * 30 else 0.45  # el gas que pide el coche cambia (pendiente, marcha...)
+            d = teacher.decide(_on_line(v), _timings())
+            assert min(d.throttle, d.brake) == 0.0
+            v = max(0.0, v + (6.0 * (d.throttle - equilibrium) - 9.0 * d.brake) / 60)
+            brake_ticks += d.brake > 0.05
+            if i >= 60 * 55:
+                tail.append(v * 3.6)
+        results[name] = (sum(tail) / len(tail), brake_ticks)
+    mean_pi, brakes_pi = results["pi"]
+    assert abs(mean_pi - 40.0) < 1.0 and brakes_pi == 0
+    assert abs(results["heuristic"][0] - 40.0) > abs(mean_pi - 40.0)  # el gas fijo se queda corto
+
+
+def test_physical_mode_pi_resets_on_safety():
+    teacher = TeachingController(_straight_ref(), TeacherConfig(speed_target_kmh=40.0, lat_accel_limit=6.5))
+    for _ in range(600):
+        teacher.decide(_on_line(10.0), _timings())  # 3 km/h/s por debajo: la integral sube
+    assert teacher._speed_i > teacher.config.pi_ff
+    teacher.decide(_on_line(10.0), _timings(), safety=True, safety_reason="stuck")
+    assert teacher._speed_i == teacher.config.pi_ff
+
+
 def test_teacher_backward_beats_stuck_throttle():
     from safety_monitor import SafetyMonitor, SafetyStatus
     from teacher_controller import resolve_teacher_decision
@@ -381,7 +495,7 @@ def test_teacher_backward_beats_stuck_throttle():
     ref = _curved_ref()
     teacher = TeachingController(ref)
     telem = _base_telem(speed=0.2)
-    telem = telem.__class__(**{**telem.__dict__, "local_velocity": (-0.5, 0.0, 0.0)})
+    telem = telem.__class__(**{**telem.__dict__, "local_velocity": (0.0, 0.0, 0.5)})
     safety = SafetyMonitor(ref=ref)
     status = SafetyStatus(active=True, reason="stuck")
     decision = resolve_teacher_decision(teacher, telem, _timings(), safety, status)

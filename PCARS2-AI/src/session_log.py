@@ -15,6 +15,7 @@ import os
 import subprocess
 import sys
 import time
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
@@ -116,6 +117,11 @@ def conditions_diag(game_state) -> Optional[dict]:
     }
 
 
+def rain_over_limit(game_state, limit: int) -> bool:
+    """True si la densidad de lluvia (0-255, lo que cae, no la humedad de la pista) llega al límite; 0 = sin límite (P21)."""
+    return limit > 0 and game_state is not None and int(game_state.rain_density) >= limit
+
+
 def _damage_levels(telem) -> dict:
     """Daño por componente (0 = sano). Un neumático que pierde el bit 0 de `tyre_flags` cuenta como arrancado."""
     return {
@@ -127,23 +133,75 @@ def _damage_levels(telem) -> dict:
     }
 
 
+DAMAGE_FULL_SCALE = 255  # bytes de daño del UDP (0-255); la escala real sin validar con el juego (P15, paso 7)
+CRASH_STATE_SEVERE = 2  # sCrashState de SMS: 0 nada, 1 fuera de pista, 2 prop grande, 3 trompo, 4 vuelco (sin validar)
+
+
+def _damage_vector(levels: dict) -> dict:
+    """Daño por canal con nombre plano, para comparar contra la línea base y la ventana reciente."""
+    out = {"aero": levels["aero"], "engine": levels["engine"]}
+    out.update({f"brake{i}": v for i, v in enumerate(levels["brake"])})
+    out.update({f"susp{i}": v for i, v in enumerate(levels["susp"])})
+    return out
+
+
 class DamageWatch:
     """Detecta cuándo empeora algún daño respecto al estado anterior y qué hacía el coche en ese instante.
 
     El primer tick fija la línea base: un coche que ya empieza dañado no dispara el evento. Cada empeoramiento
     posterior devuelve un evento `damage` con lo que cambió y el contexto (velocidad, pedales, temperaturas de
     frenos y neumáticos, estado de choque) para estudiar cómo se produce el daño.
+
+    El evento lleva además `stop` y `stop_reasons` (P15): no todo empeoramiento justifica cerrar la sesión.
+    Paran un neumático arrancado, un choque grave (`crash_state`), un salto brusco de un canal en una ventana corta
+    (`jump_pct` en `window_ticks` ticks, un golpe) y cualquier canal que acumule `limit_pct` o más sobre su mejor
+    nivel visto (el desgaste lento llega al techo tarde y se tolera hasta entonces). `limit_pct <= 0` para con
+    cualquier empeoramiento. Los porcentajes son de la escala completa del byte (`DAMAGE_FULL_SCALE`).
     """
 
-    def __init__(self) -> None:
+    def __init__(self, limit_pct: float = 25.0, jump_pct: float = 10.0, window_ticks: int = 60) -> None:
+        self._limit = limit_pct
+        self._limit_abs = limit_pct / 100.0 * DAMAGE_FULL_SCALE
+        self._jump_abs = jump_pct / 100.0 * DAMAGE_FULL_SCALE
+        self._window: deque = deque(maxlen=max(2, window_ticks))
+        self._best: dict = {}  # nivel mínimo visto por canal: una reparación baja la línea base
         self._last: Optional[dict] = None
+        self._last_crash = 0
+
+    def _stop_reasons(self, now: dict, changed: dict, crash: int) -> dict:
+        vec = _damage_vector(now)
+        window = list(self._window)
+        reasons: dict = {}
+        if self._limit <= 0:
+            reasons["any"] = sorted(changed)
+        else:
+            over = sorted(k for k, v in vec.items() if v - self._best[k] >= self._limit_abs)
+            if over:
+                reasons["limit"] = over
+        jumped = sorted(k for k, v in vec.items() if window and v - min(w[k] for w in window) >= self._jump_abs)
+        if jumped:
+            reasons["jump"] = jumped
+        if "tyre_detached" in changed:
+            reasons["tyre_detached"] = changed["tyre_detached"]["wheels"]
+        if "crash" in changed:
+            reasons["crash"] = crash
+        return reasons
 
     def update(self, telem, lap_distance: float = 0.0) -> Optional[dict]:
         now = _damage_levels(telem)
+        vec = _damage_vector(now)
+        crash = int(telem.crash_state)
         last, self._last = self._last, now
+        last_crash, self._last_crash = self._last_crash, crash
         if last is None:
+            self._best = dict(vec)
+            self._window.append(vec)
             return None
+        for key, value in vec.items():
+            self._best[key] = min(self._best[key], value)
         changed: dict = {}
+        if crash >= CRASH_STATE_SEVERE > last_crash:
+            changed["crash"] = {"before": last_crash, "now": crash}
         for key in ("aero", "engine"):
             if now[key] > last[key]:
                 changed[key] = {"before": last[key], "now": now[key]}
@@ -154,11 +212,15 @@ class DamageWatch:
         lost = [i for i, (a, b) in enumerate(zip(last["tyre_attached"], now["tyre_attached"])) if a and not b]
         if lost:
             changed["tyre_detached"] = {"wheels": lost}
+        reasons = self._stop_reasons(now, changed, crash) if changed else {}
+        self._window.append(vec)
         if not changed:
             return None
         return {
             "type": "damage",
             "changed": changed,
+            "stop": bool(reasons),
+            "stop_reasons": reasons,
             "levels": now,
             "lap_distance": round(float(lap_distance), 1),
             "context": {
