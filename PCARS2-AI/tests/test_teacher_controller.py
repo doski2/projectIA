@@ -501,3 +501,43 @@ def test_teacher_backward_beats_stuck_throttle():
     decision = resolve_teacher_decision(teacher, telem, _timings(), safety, status)
     assert decision.throttle == 0.0
     assert decision.brake > 0.0
+
+
+def _label_gas_while_bc_drives(track: bool, applied_gas: float = 0.04, seconds: int = 400) -> float:
+    """Gas que etiqueta el teacher mientras conduce otro a una velocidad algo por debajo de la consigna."""
+    teacher = TeachingController(_straight_ref(), TeacherConfig(speed_target_kmh=20.0, lat_accel_limit=6.5))
+    v = 19.6 / 3.6
+    label = 0.0
+    for _ in range(60 * seconds):
+        d = teacher.decide(_on_line(v), _timings())
+        label = d.throttle
+        if track:
+            teacher.track_applied_pedals(applied_gas, 0.0)
+    return label
+
+
+def test_pi_integral_winds_up_when_nobody_tracks_the_applied_pedals():
+    """Sin anti-windup la etiqueta de gas se satura (en el check del 29/10 llegó a 0,55 con 0,04 aplicado)."""
+    assert _label_gas_while_bc_drives(track=False) > 0.5
+
+
+def test_track_applied_pedals_keeps_the_gas_label_near_what_is_applied():
+    label = _label_gas_while_bc_drives(track=True)
+    assert label < 0.15
+    assert abs(label - 0.04) < 0.1
+
+
+def test_track_applied_pedals_follows_a_higher_applied_gas_too():
+    assert abs(_label_gas_while_bc_drives(track=True, applied_gas=0.2) - 0.2) < 0.05
+
+
+def test_track_applied_pedals_is_noop_outside_the_pi():
+    teacher = TeachingController(_straight_ref(), TeacherConfig(speed_target_kmh=40.0))  # sin modo físico: no hay PI
+    teacher.decide(_on_line(10.0), _timings())
+    before = teacher._speed_i
+    teacher.track_applied_pedals(0.9, 0.0)
+    assert teacher._speed_i == before
+    teacher.config.lat_accel_limit = 6.5
+    teacher.decide(_on_line(10.0), _timings(), safety=True, safety_reason="stuck")  # rama de seguridad: no pasa por el PI
+    teacher.track_applied_pedals(0.9, 0.0)
+    assert teacher._speed_i == teacher.config.pi_ff

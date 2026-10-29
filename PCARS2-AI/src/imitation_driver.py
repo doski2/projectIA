@@ -264,6 +264,9 @@ def run(args: argparse.Namespace) -> int:
                 final = (settle.throttle, settle.brake, settle.steering)
                 used_teacher = True
 
+            if not used_teacher:
+                teacher.track_applied_pedals(final[0], final[1])  # anti-windup: el PI no integra lo que el BC no sigue
+
             controller.apply_action(*final)
             shift_event = None
             if args.auto_shift:

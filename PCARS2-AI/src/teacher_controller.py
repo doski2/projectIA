@@ -106,6 +106,10 @@ class TeacherConfig:
     pi_ff: float = 0.3  # gas de partida de la integral (en C0 mantener 41 km/h pedía ≈ 0,31)
     pi_i_max: float = 0.6
     pi_i_window_ms: float = 3.0  # solo integra con |error| menor, para no acumular al arrancar
+    # Anti-windup: si conduce otro (el BC) la integral no puede seguir subiendo sola, porque su etiqueta de gas se
+    # corrompe (en el check del 29/10 pasó de 0,02 a 0,55 en una sesión). `track_applied_pedals` la acerca a lo aplicado:
+    # por tick, `pi_kt` × (aplicado − pedido). Con el teacher al volante no hace nada.
+    pi_kt: float = 0.05
 
 
 class TeachingController:
@@ -120,6 +124,7 @@ class TeachingController:
         self._gear_engagement_frames = 0
         self._vlim: Optional[List[float]] = None  # límite lateral por metro de vuelta, se calcula la primera vez
         self._speed_i = self.config.pi_ff  # integral del PI de velocidad (solo modo físico)
+        self._pi_axis: Optional[float] = None  # eje de pedal pedido por el PI en este tick (None = no pasó por el PI)
 
     def _lateral_speed_limits(self) -> List[float]:
         """`v_lim(d) = sqrt(a_lat / |κ(d)|)` en m/s, un valor por metro, con la curvatura suavizada (±7 m)."""
@@ -158,6 +163,7 @@ class TeachingController:
         self._prev_brake = 0.0
         self._gear_engagement_frames = 0
         self._speed_i = self.config.pi_ff
+        self._pi_axis = None
 
     def signed_lateral_error(
         self,
@@ -256,6 +262,18 @@ class TeachingController:
         self._prev_steering = steering
         return steering, curv_ahead
 
+    def track_applied_pedals(self, throttle: float, brake: float) -> None:
+        """Anti-windup por retrocálculo: llamar cuando los pedales aplicados no son los del teacher (conduce el BC).
+
+        Acerca la integral del PI a lo aplicado de verdad, de modo que la etiqueta de gas que graba el teacher sea la que
+        corregiría el estado actual y no una integral saturada que nadie aplica.
+        """
+        if self._pi_axis is None:
+            return
+        cfg = self.config
+        applied = throttle - brake
+        self._speed_i = max(0.0, min(cfg.pi_i_max, self._speed_i + cfg.pi_kt * (applied - self._pi_axis)))
+
     def _pi_speed_pedals(self, speed: float, curve_target: float, curv_ahead: float) -> Tuple[float, float, str]:
         """Gas por PI sobre el error de velocidad; entre la consigna y el margen de exceso se suelta el gas sin frenar."""
         cfg = self.config
@@ -263,6 +281,7 @@ class TeachingController:
         if abs(err) < cfg.pi_i_window_ms:
             self._speed_i = max(0.0, min(cfg.pi_i_max, self._speed_i + cfg.pi_ki * err))
         target = max(0.0, min(0.85, self._speed_i + cfg.pi_kp * err))
+        self._pi_axis = target
         reason = "maintain_speed"
         if err > 0.5:
             if abs(curv_ahead) > 0.02:
@@ -284,6 +303,7 @@ class TeachingController:
         reversing: bool = False,
         need_first_gear: bool = False,
     ) -> Tuple[float, float, str]:
+        self._pi_axis = None
         if reversing:
             self._speed_i = self.config.pi_ff
             throttle = 0.0
