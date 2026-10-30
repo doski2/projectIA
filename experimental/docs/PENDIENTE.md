@@ -37,8 +37,7 @@ identificación A1, (3) C1 con `--ramp`. C1 va con el usuario delante, en bloque
    `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --experiment bc55_ft_perturb --speed-band 55 --laps 2 --model-src C:\Users\doski\projectIA\experimental\data\bc55_ft_model.pt --perturb-every 250`
    Criterio de recuperación (H35): salir de `accel_straight` en ≤ 2 s, ninguna por debajo de 44 km/h, freno < 2 % de la recuperación,
    solape ≤ 0,05 % de los ticks de la vuelta, 0 incidencias. Mirar también el CTE por zona frente al teacher (curvas de 250-1250 y
-   2000-2250 m). Si pasa: 60 con el mismo método. Si el CTE no baja, mirar si queda corta la dirección (`diag_steer.py`, ahora en el
-   scratchpad) antes de otro fine-tune. **Controles de seco pendientes** (cuando deje de llover, con el modelo más reciente): check
+   2000-2250 m). Si pasa: 60 con el mismo método. Si el CTE no baja, mirar si queda corta la dirección (`experimental/common/diag_steer.py`) antes de otro fine-tune. **Controles de seco pendientes** (cuando deje de llover, con el modelo más reciente): check
    de 30, 40, 50 y 55 y perturbaciones de 20 y 30, para descartar regresiones. Los buffers de perturbaciones se conservan para el BC
    final reentrenado con todas las bandas.
 3. **A1, sesiones de identificación (`PLAN_A_LIMITES_COCHE.md`), antes de C1:** no hay código todavía; el siguiente trabajo mío.
