@@ -36,6 +36,10 @@ identificación A1, (3) C1 con `--ramp`. C1 va con el usuario delante, en bloque
      `bc40_check`, `bc40_perturb` y una perturbación de regresión a 20 y a 30 km/h.
    - **B. Fine-tune en el juego** a 40 km/h con perturbaciones (`--finetune-every 1 --perturb-every 250`, el mecanismo de H31). El BC
      visita estados nuevos, pero cada fine-tune de H31 destapó otra zona, y luego igualmente hay que repetir la comprobación.
+   **Matiz (lluvia):** `bc40_perturb` fue con lluvia 153 y `bc40_check` en seco; en mojado el coche pide el doble de gas y no hay
+   patinaje medible. Antes de cualquier fine-tune conviene repetir `bc40_perturb` en seco (mismo comando, otro experimento, p. ej.
+   `bc40_perturb_seco`) para separar «40 km/h» de «lluvia»; si en seco pasa, el defecto es de lluvia (como H31) y el fine-tune se
+   hace con las filas mojadas y se valida en seco y en mojado. La lluvia no se puede forzar desde aquí: depende del tiempo que ponga el juego.
    Recomendado: A (no gasta juego y usa justo las filas que faltan). Criterio tras el fine-tune: el de H35 (salir de `accel_straight`
    en ≤ 2 s, ninguna por debajo de 32 km/h, freno < 2 % de la recuperación, solape ≤ 0,05 %, 0 incidencias). 50, 55 y 60 después.
 3. **A1, sesiones de identificación (`PLAN_A_LIMITES_COCHE.md`), antes de C1:** no hay código todavía; el siguiente trabajo mío.
