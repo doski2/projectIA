@@ -163,3 +163,9 @@ def test_run_isolated_resume_without_previous_model_starts_fresh(tmp_path, monke
     _fake_env(tmp_path, monkeypatch)
     aislado.run_isolated("r", 60, 6, ramp=True, resume=True)
     assert (tmp_path / "data" / "r_model.pt").read_bytes() == b"inicial"
+
+
+def test_argv_steer_damp_only_when_given():
+    assert "--steer-damp-kmh" not in aislado.build_argv(Path("py"), "e", 55, 2)
+    argv = aislado.build_argv(Path("py"), "e", 55, 2, steer_damp_kmh=0)
+    assert argv[argv.index("--steer-damp-kmh") + 1] == "0"

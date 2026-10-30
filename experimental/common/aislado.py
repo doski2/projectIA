@@ -63,7 +63,7 @@ def build_base_dataset(out: Path, sources: Optional[List[Path]] = None) -> int:
 def build_argv(
     python: Path, experiment: str, speed_band: float, laps: int, stage: str = "l1_linea", teacher_only: bool = False,
     learn_every: int = 99, base_dataset: Optional[Path] = None, perturb_every: float = 0.0,
-    ramp: bool = False, ramp_ceiling: float = 80.0, ramp_step: float = 5.0,
+    ramp: bool = False, ramp_ceiling: float = 80.0, ramp_step: float = 5.0, steer_damp_kmh: Optional[float] = None,
 ) -> List[str]:
     argv = [
         str(python), str(APP / "src" / "learn_driver.py"),
@@ -81,6 +81,8 @@ def build_argv(
         argv += ["--perturb-every", f"{perturb_every:g}"]
     if ramp:  # C1: rampa con puerta por ciclos; el estado queda en <buffer>.ramp.json
         argv += ["--ramp", "--ramp-ceiling", f"{ramp_ceiling:g}", "--ramp-step", f"{ramp_step:g}"]
+    if steer_damp_kmh is not None:  # None = el valor de producción (45 km/h); 0 = sin reducir el volante del BC
+        argv += ["--steer-damp-kmh", f"{steer_damp_kmh:g}"]
     return argv + (["--teacher-only"] if teacher_only else [])
 
 
@@ -88,6 +90,7 @@ def run_isolated(
     experiment: str, speed_band: float, laps: int, python: Optional[Path] = None, teacher_only: bool = False,
     model_src: Optional[Path] = None, finetune_every: int = 0, perturb_every: float = 0.0,
     ramp: bool = False, ramp_ceiling: float = 80.0, ramp_step: float = 5.0, resume: bool = False,
+    steer_damp_kmh: Optional[float] = None,
 ) -> int:
     DATA.mkdir(parents=True, exist_ok=True)
     model = DATA / f"{experiment}_model.pt"
@@ -113,7 +116,7 @@ def run_isolated(
             build_argv(
                 python or Path(sys.executable), experiment, speed_band, laps, teacher_only=teacher_only,
                 learn_every=finetune_every or 99, base_dataset=base, perturb_every=perturb_every,
-                ramp=ramp, ramp_ceiling=ramp_ceiling, ramp_step=ramp_step,
+                ramp=ramp, ramp_ceiling=ramp_ceiling, ramp_step=ramp_step, steer_damp_kmh=steer_damp_kmh,
             ),
             cwd=APP, env=env,
         ).returncode
@@ -156,6 +159,8 @@ if __name__ == "__main__":
                     help="Rampa de velocidad con puerta por ciclos (C1): empieza en --speed-band y sube de --ramp-step en --ramp-step")
     ap.add_argument("--ramp-ceiling", type=float, default=80.0)
     ap.add_argument("--ramp-step", type=float, default=5.0)
+    ap.add_argument("--steer-damp-kmh", type=float, default=None,
+                    help="Velocidad desde la que se reduce el volante del BC ∝ 1/v (producción: 45; 0 = desactivado)")
     ap.add_argument("--resume", action="store_true",
                     help="Conserva el modelo, el buffer y el estado de la rampa del experimento (siguiente bloque)")
     a = ap.parse_args()
@@ -163,7 +168,8 @@ if __name__ == "__main__":
     experiment = experiment_name(a.speed_band, a.teacher_only, a.experiment)
     code = run_isolated(experiment, a.speed_band, a.laps, teacher_only=a.teacher_only, model_src=a.model_src,
                        finetune_every=a.finetune_every, perturb_every=a.perturb_every,
-                       ramp=a.ramp, ramp_ceiling=a.ramp_ceiling, ramp_step=a.ramp_step, resume=a.resume)
+                       ramp=a.ramp, ramp_ceiling=a.ramp_ceiling, ramp_step=a.ramp_step, resume=a.resume,
+                       steer_damp_kmh=a.steer_damp_kmh)
     log = latest_log(experiment, t0)
     if log is None:
         print("[experimental] no se encontró el log de la prueba; sin informe")
