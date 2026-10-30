@@ -62,21 +62,34 @@ def load_source(path: Path, first: Optional[int] = None) -> tuple:
         return load_universal_dataset(str(cut), min_quality=MIN_QUALITY)
 
 
-def repeat_reason(chunk: tuple, reason: str, times: int) -> tuple:
-    """Añade `times - 1` copias de las filas de una intención (las pocas filas de recuperación frente a miles de `maintain_speed`)."""
+def repeat_rows(chunk: tuple, mask: np.ndarray, times: int) -> tuple:
+    """Añade `times - 1` copias de las filas marcadas (las pocas de recuperación frente a miles de `maintain_speed`)."""
     obs, act, rid, meta = chunk
-    if times <= 1 or len(obs) == 0:
+    pick = np.flatnonzero(mask)
+    if times <= 1 or len(pick) == 0:
         return chunk
-    pick = np.flatnonzero(rid == encode_reason_id(reason))
-    if len(pick) == 0:
-        return chunk
-    extra = [pick] * (times - 1)
+    extra = times - 1
     return (
-        np.concatenate([obs] + [obs[p] for p in extra]),
-        np.concatenate([act] + [act[p] for p in extra]),
-        np.concatenate([rid] + [rid[p] for p in extra]),
+        np.concatenate([obs] + [obs[pick]] * extra),
+        np.concatenate([act] + [act[pick]] * extra),
+        np.concatenate([rid] + [rid[pick]] * extra),
         meta,
     )
+
+
+def repeat_reason(chunk: tuple, reason: str, times: int) -> tuple:
+    """Repite las filas de una intención."""
+    if len(chunk[0]) == 0:
+        return chunk
+    return repeat_rows(chunk, chunk[2] == encode_reason_id(reason), times)
+
+
+def repeat_off_line(chunk: tuple, cte_min: float, times: int) -> tuple:
+    """Repite las filas con |CTE| ≥ cte_min: el BC ya iba fuera de la línea y el teacher dice cómo volver (dirección en curvas)."""
+    if len(chunk[0]) == 0:
+        return chunk
+    cte = np.array([abs(float(r.get("cte", 0.0))) for r in chunk[3]])
+    return repeat_rows(chunk, cte >= cte_min, times)
 
 
 def concat(chunks: List[tuple]) -> tuple:
@@ -91,6 +104,8 @@ def main() -> int:
     ap.add_argument("--source", action="append", default=[], help="buffer en experimental/data (repetible); admite :first=N")
     ap.add_argument("--base", type=Path, default=BASE, help="base del teacher nuevo; 'none' para no usarla")
     ap.add_argument("--repeat-accel", type=int, default=1, help="veces que entran las filas de accel_straight de los --source")
+    ap.add_argument("--repeat-off-line", type=int, default=1, help="veces que entran las filas con |CTE| >= --off-line-cte de los --source")
+    ap.add_argument("--off-line-cte", type=float, default=1.0)
     ap.add_argument("--epochs", type=int, default=8)
     ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
@@ -114,7 +129,10 @@ def main() -> int:
         chunk = load_source(path, first)
         n = len(chunk[0])
         chunk = repeat_reason(chunk, "accel_straight", a.repeat_accel)
-        print(f"[finetune] {spec}: {n} filas" + (f" (x{a.repeat_accel} en accel_straight: {len(chunk[0])})" if a.repeat_accel > 1 else ""))
+        chunk = repeat_off_line(chunk, a.off_line_cte, a.repeat_off_line)
+        extra = (f" (accel_straight x{a.repeat_accel}, |CTE| >= {a.off_line_cte:g} x{a.repeat_off_line}: {len(chunk[0])})"
+                 if a.repeat_accel > 1 or a.repeat_off_line > 1 else "")
+        print(f"[finetune] {spec}: {n} filas{extra}")
         chunks.append(chunk)
     obs, act, rid = concat(chunks)
     print(f"[finetune] total {len(obs)} filas, {a.epochs} épocas, modelo de partida {a.model_src.name}")

@@ -26,21 +26,21 @@ identificación A1, (3) C1 con `--ramp`. C1 va con el usuario delante, en bloque
 
 1. **Hecho en código, sin probar en el juego (X19):** `learn_driver --ramp` (puerta por ciclos, recta libre, velocidad mínima por
    recta) y `aislado.py --ramp --resume`. Validado con los logs del teacher a 20-80 km/h.
-2. **Bucle por banda (D20). 20, 30, 40 y 50 km/h hechas (H33-H40); 55 km/h pasa con reservas (H41: check limpio, perturbaciones 25 de
-   26 en ≤ 2 s, CTE en curvas 0,40-0,42 m frente a 0,26 del teacher en seco).** El modelo de partida sigue siendo
-   `experimental/data/bc50_ft_model.pt`. Siguiente en el juego, antes de subir a 60: **el teacher al volante a 55 km/h, con la lluvia
-   que haya** (2 vueltas, ≈ 8 min, juego en parrilla en Sugo GP, perfil RA, sin hacer clic fuera del juego):
-   `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --experiment wet55_teacher --speed-band 55 --laps 2 --teacher-only`
-   (el nombre `wet55_teacher` no empieza por `teacher_`, así que no entra en la base de los fine-tunes por accidente). Qué mirar: CTE
-   medio y por zona del teacher mojado frente al BC mojado (0,40-0,42) y al teacher seco (0,26), y la lluvia del informe. Si el teacher
-   también sale ≈ 0,4, el CTE del BC es el agua: el criterio se compara con el teacher mojado y se sube a 60 con
-   `bc55_check`/`bc55_perturb` como referencia. Si sale ≈ 0,26, es un defecto de dirección del BC en curvas: fine-tune sin juego
-   (`finetune_offline.py`, dejando fuera una prueba para medir si generaliza) y repetir el par a 55. Luego 60 con el mismo método.
-   Criterios: puerta de L1 (mínima por recta ≥ 85 % de la consigna, solape ≤ 0,05 %, 0 incidencias); recuperación (H35): salir de
-   `accel_straight` en ≤ 2 s, ninguna por debajo de 0,8 × la consigna, freno < 2 % de la recuperación, solape ≤ 0,05 %; CTE medio del
-   teacher de la banda (con las mismas condiciones) + 0,10 m. **Controles de seco pendientes** (cuando deje de llover, con el modelo
-   más reciente): check de 30, 40, 50 y 55 y perturbaciones de 20 y 30, para descartar regresiones. Los buffers de perturbaciones se
-   conservan para el BC final reentrenado con todas las bandas.
+2. **Bucle por banda (D20). 20, 30, 40 y 50 km/h hechas (H33-H40). 55 km/h: velocidad y recuperación bien (H41), CTE en curvas 0,40-0,42 m
+   que no es el agua (teacher con lluvia 0,27-0,28, H42) sino la dirección del BC corta cuando va fuera de la línea; fine-tune sin
+   juego hecho y modelo nuevo `experimental/data/bc55_ft_model.pt`, que es ahora el punto de partida.** Siguiente en el juego: el par a
+   55 km/h con ese modelo (cada prueba: 2 vueltas de ≈ 4:00, ≈ 9 min, juego en parrilla en Sugo GP, perfil RA, sin hacer clic fuera del
+   juego). Primero el check (mínima por recta ≥ 46,75 km/h, solape ≤ 0,05 %, 0 incidencias, CTE medio ≤ 0,38 m = teacher mojado 0,28
+   + 0,10):
+   `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --experiment bc55_ft_check --speed-band 55 --laps 2 --model-src C:\Users\doski\projectIA\experimental\data\bc55_ft_model.pt`
+   Si pasa, las perturbaciones:
+   `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --experiment bc55_ft_perturb --speed-band 55 --laps 2 --model-src C:\Users\doski\projectIA\experimental\data\bc55_ft_model.pt --perturb-every 250`
+   Criterio de recuperación (H35): salir de `accel_straight` en ≤ 2 s, ninguna por debajo de 44 km/h, freno < 2 % de la recuperación,
+   solape ≤ 0,05 % de los ticks de la vuelta, 0 incidencias. Mirar también el CTE por zona frente al teacher (curvas de 250-1250 y
+   2000-2250 m). Si pasa: 60 con el mismo método. Si el CTE no baja, mirar si queda corta la dirección (`diag_steer.py`, ahora en el
+   scratchpad) antes de otro fine-tune. **Controles de seco pendientes** (cuando deje de llover, con el modelo más reciente): check
+   de 30, 40, 50 y 55 y perturbaciones de 20 y 30, para descartar regresiones. Los buffers de perturbaciones se conservan para el BC
+   final reentrenado con todas las bandas.
 3. **A1, sesiones de identificación (`PLAN_A_LIMITES_COCHE.md`), antes de C1:** no hay código todavía; el siguiente trabajo mío.
    Sesiones de la sección 5 del estudio (dejar rodar, frenadas a fondo, aceleraciones, círculos, barridos de volante).
 4. **C1 (paso 8):** rampa de 60 a 80 con `--ramp`, con el usuario delante y en bloques de 2-3 ciclos (`--resume` entre bloques).

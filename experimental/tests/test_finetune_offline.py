@@ -36,3 +36,13 @@ def test_load_source_first_cuts_before_quality_filter(tmp_path):
     src.write_text("\n".join(json.dumps(row) for _ in range(10)) + "\n", encoding="utf-8")
     assert len(fo.load_source(src)[0]) == 10
     assert len(fo.load_source(src, first=4)[0]) == 4
+
+
+def test_repeat_off_line_duplicates_rows_far_from_the_line():
+    rid = np.zeros(4, dtype=np.int64)
+    meta = [{"cte": 0.1}, {"cte": -1.2}, {"cte": 2.0}, {}]
+    chunk = (np.arange(4, dtype=np.float32).reshape(4, 1), np.zeros((4, 3), dtype=np.float32), rid, meta)
+    obs, act, out_rid, _ = fo.repeat_off_line(chunk, 1.0, 4)
+    assert len(obs) == 4 + 2 * 3 and len(act) == len(out_rid) == len(obs)
+    assert sorted(obs[4:].ravel().tolist()) == [1.0] * 3 + [2.0] * 3
+    assert fo.repeat_off_line(chunk, 1.0, 1) is chunk
