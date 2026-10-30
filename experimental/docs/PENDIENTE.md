@@ -54,6 +54,15 @@ Notas que vienen de la rampa:
   de marcha (lo hace `auto_shift`); la marcha entra como entrada (`gear_norm`).
 - Aceleración lateral p99 de 10 m/s² desde 70 km/h, con `lat_accel_limit` = 6,5: calibrar el límite.
 
+## Pestaña Experimental (GUI): todavía no
+
+Hoy la pestaña solo lanza C0 (banda, vueltas, «Conduce el profesor») y el registro pasivo. Lo nuevo (modelo de partida,
+`--perturb-every`, `--ramp`, `--resume`) se lanza solo por línea de comandos con `aislado.py`, a propósito: no se ha probado en el
+juego y los parámetros pueden cambiar. **No integrarlo hasta que un flujo haya funcionado de punta a punta** (el bucle por banda
+—check más perturbaciones— o el primer bloque de C1). Entonces añadir: selector de modelo de partida, banda, casilla de perturbaciones,
+casilla de rampa con «retomar» y botón para abrir el informe. Decidir también si queda como pestaña de experimentos o pasa a
+producción cuando se sustituya la escalera L1→L7.
+
 ## Después
 
 - **Registro pasivo** (pestaña, «conduces tú»): un golpe controlado para ver los canales de daño y su escala, y un
