@@ -26,20 +26,21 @@ identificación A1, (3) C1 con `--ramp`. C1 va con el usuario delante, en bloque
 
 1. **Hecho en código, sin probar en el juego (X19):** `learn_driver --ramp` (puerta por ciclos, recta libre, velocidad mínima por
    recta) y `aislado.py --ramp --resume`. Validado con los logs del teacher a 20-80 km/h.
-2. **Bucle por banda (D20). 20, 30, 40 y 50 km/h hechas (H33-H40). 55 km/h: velocidad y recuperación bien con `bc55_ft_model.pt` (H41,
-   H43), CTE 0,37-0,39 m frente a 0,28 del teacher con la misma lluvia. La brecha que queda es `damp_bc_steering` (H43): reduce el
-   volante del BC por 45 km/h / v (0,82 a 55 km/h, 0,75 a 60, 0,56 a 80), solo al BC.** Siguiente en el juego: el check de 55 km/h con
-   `bc55_ft_model.pt` y **el amortiguador desactivado** (2 vueltas, ≈ 9 min, juego en parrilla en Sugo GP, perfil RA, sin hacer clic
-   fuera del juego; si el coche empieza a oscilar de lado a lado, parar la prueba con Ctrl+C):
-   `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --experiment bc55_nodamp_check --speed-band 55 --laps 2 --model-src C:\Users\doski\projectIA\experimental\data\bc55_ft_model.pt --steer-damp-kmh 0`
-   Qué mirar: CTE medio (≈ 0,28-0,30 si el amortiguador es la causa; objetivo ≤ 0,38), volante > 0,9 en 0 ticks, jitter del volante,
-   CTE máx. similar al del teacher (1,7), y la puerta de L1 de siempre. Si no oscila y el CTE baja: las perturbaciones a 55 km/h sin
-   amortiguador, y se **plantea al usuario** cambiar el valor de producción de `damp_bc_steering` (hoy 45 km/h) o quitarlo, porque
-   afecta a C1 (60-80 km/h) y al BC de producción; no se toca en un experimento. Si oscila: decidir con el usuario (otra función de
-   amortiguación, filas de recuperación, o la palanca *Sensibilidad de velocidad* del juego, CONFIGURACION_JUEGO.md). Luego 60 con el
-   mismo método. **Controles de seco pendientes** (cuando deje de llover, con el modelo más reciente): check de 30, 40, 50 y 55 y
-   perturbaciones de 20 y 30, para descartar regresiones. Los buffers de perturbaciones se conservan para el BC final reentrenado con
-   todas las bandas.
+2. **Bucle por banda (D20). 20, 30, 40 y 50 km/h hechas (H33-H40); 55 km/h hecha (H41-H44) con `bc55_ft_model.pt` y el amortiguador
+   del volante desactivado (CTE 0,28 m = teacher, sin oscilación).** El modelo de partida es `experimental/data/bc55_ft_model.pt` y
+   **desde ahora todas las pruebas llevan `--steer-damp-kmh 0`** (P25: el valor de producción no se toca). Siguiente en el juego: **60
+   km/h** (2 vueltas de ≈ 3:35, ≈ 8 min, juego en parrilla en Sugo GP, perfil RA, sin hacer clic fuera del juego; si el coche oscila
+   de lado a lado, parar con Ctrl+C: sería la oscilación original, a 60 km/h). Primero el check (mínima por recta ≥ 51 km/h,
+   solape ≤ 0,05 %, 0 incidencias, CTE medio ≤ 0,38 m = teacher 0,28 + 0,10, volante > 0,9 en 0 ticks):
+   `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --experiment bc60_check --speed-band 60 --laps 2 --model-src C:\Users\doski\projectIA\experimental\data\bc55_ft_model.pt --steer-damp-kmh 0`
+   Si pasa, las perturbaciones:
+   `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --experiment bc60_perturb --speed-band 60 --laps 2 --model-src C:\Users\doski\projectIA\experimental\data\bc55_ft_model.pt --steer-damp-kmh 0 --perturb-every 250`
+   Criterio de recuperación (H35): salir de `accel_straight` en ≤ 2 s, ninguna por debajo de 48 km/h (0,8 × 60), freno < 2 % de la
+   recuperación, solape ≤ 0,05 %, 0 incidencias. Anotar la lluvia de cada informe. Si una banda falla por el BC: medir con
+   `diag_rows.py` (gas) y `diag_steer.py` (dirección), fine-tune sin juego (`finetune_offline.py`, dejando una prueba fuera) y repetir.
+   Después de 60, el bucle de D20 está hecho y toca A1. **Controles de seco pendientes** (cuando deje de llover, con el modelo más
+   reciente): check de 30, 40, 50, 55 y 60 y perturbaciones de 20 y 30, para descartar regresiones. Los buffers de perturbaciones se
+   conservan para el BC final reentrenado con todas las bandas.
 3. **A1, sesiones de identificación (`PLAN_A_LIMITES_COCHE.md`), antes de C1:** no hay código todavía; el siguiente trabajo mío.
    Sesiones de la sección 5 del estudio (dejar rodar, frenadas a fondo, aceleraciones, círculos, barridos de volante).
 4. **C1 (paso 8):** rampa de 60 a 80 con `--ramp`, con el usuario delante y en bloques de 2-3 ciclos (`--resume` entre bloques).
