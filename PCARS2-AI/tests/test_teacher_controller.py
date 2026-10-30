@@ -430,6 +430,22 @@ def test_physical_curve_target_needs_no_slowdown_at_40_kmh_but_anticipates_at_80
     assert min(targets) < 80.0 / 3.6 - 2.0  # alguna curva obliga a bajar
 
 
+def test_free_straight_physical_mode_on_sugo():
+    ds = [float(d) for d in range(0, 3560, 5)]
+    slow = TeachingController(_sugo(), TeacherConfig(speed_target_kmh=40.0, lat_accel_limit=6.5))
+    fast = TeachingController(_sugo(), TeacherConfig(speed_target_kmh=80.0, lat_accel_limit=6.5))
+    assert all(slow.free_straight(d) for d in ds)  # a 40 km/h el teacher no pide bajar en ningún punto
+    share = sum(fast.free_straight(d) for d in ds) / len(ds)
+    assert 0.3 < share < 0.95  # a 80 hay rectas libres y tramos donde ya pide bajar
+
+
+def test_free_straight_without_physical_model_uses_curvature():
+    straight = TeachingController(_straight_ref(), TeacherConfig(speed_target_kmh=40.0))
+    assert straight.free_straight(10.0)
+    curved = TeachingController(_curved_ref(), TeacherConfig(speed_target_kmh=40.0))
+    assert not curved.free_straight(10.0)
+
+
 def test_physical_curve_target_removes_spurious_overspeed_brake_at_fixed_40_kmh():
     ref = _sugo()
     heuristic = TeachingController(ref, TeacherConfig(speed_target_kmh=40.0))

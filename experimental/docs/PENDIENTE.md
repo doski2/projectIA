@@ -20,12 +20,22 @@ El paso 7c está **cerrado** (2026-10-30): `bc7c_ft_limpio_model.pt` es el BC de
 puerta de L1 con velocidad mínima y solape (X17, commit `d039a0f`) y la prueba de recuperación con perturbaciones (H33, X18,
 commit `ae56bc8`: 28 de 28 recuperadas sin freno ni solape).
 
-1. **Cerrar lo que queda de P23 antes de C1:** decidir si la puerta de la rampa 60 → 80 usa la misma velocidad mínima (en curva el
-   teacher frena, H23: la mínima de toda la vuelta no vale) y si se añade `accel_straight` con freno.
-2. **C1 (paso 8, `PLAN_C_RAMPA_BC.md`):** rampa 60 → 80 con puerta. Antes hay que responder las preguntas de «Por resolver antes de C1»
-   (vueltas por escalón, paso, techo, umbrales de vuelta limpia, día o noche). Tampoco está decidido cómo se sube desde 20 km/h: el BC
-   solo se ha probado a 20. La prueba de perturbaciones (`--perturb-every`) se puede repetir en cada banda para comprobar la
-   recuperación antes de subir.
+Parámetros de C1 decididos el 2026-10-30 (D20, `PLAN_C_RAMPA_BC.md`): ciclo de 2 vueltas, 2 ciclos limpios para subir, paso de 5,
+techo 80, vuelta limpia medida por recta. **Orden:** (1) subir de 20 a 60 km/h con el bucle en cada banda, (2) sesiones de
+identificación A1, (3) C1 con `--ramp`. C1 va con el usuario delante, en bloques cortos; las sesiones largas sin vigilar son para el PPO.
+
+1. **Hecho en código, sin probar en el juego (X19):** `learn_driver --ramp` (puerta por ciclos, recta libre, velocidad mínima por
+   recta) y `aislado.py --ramp --resume`. Validado con los logs del teacher a 20-80 km/h.
+2. **Siguiente en el juego: check de 30 km/h** con el modelo cerrado, sin fine-tune (2 vueltas, ≈ 15 min, juego en parrilla en Sugo
+   GP, perfil RA, sin hacer clic fuera del juego):
+   `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --experiment bc30_check --speed-band 30 --laps 2 --model-src C:\Users\doski\projectIA\experimental\data\bc7c_ft_limpio_model.pt`
+   Criterio: las 2 vueltas limpias por la puerta de L1 (velocidad mínima ≥ 25,5 km/h por recta, solape ≤ 0,05 %), CTE ≤ 0,25 m,
+   0 incidencias, 0 ticks con freno y gas, y mirar `teacher:speed`. Si pasa: la misma prueba con `--perturb-every 250` y subir a 40.
+   Si falla: mirar dónde (como en H30-H31) antes de hacer un fine-tune; cada uno puede destapar otra zona.
+3. **A1, sesiones de identificación (`PLAN_A_LIMITES_COCHE.md`), antes de C1:** no hay código todavía; el siguiente trabajo mío.
+   Sesiones de la sección 5 del estudio (dejar rodar, frenadas a fondo, aceleraciones, círculos, barridos de volante).
+4. **C1 (paso 8):** rampa de 60 a 80 con `--ramp`, con el usuario delante y en bloques de 2-3 ciclos (`--resume` entre bloques).
+5. **Sustituir la escalera L1→L7** por la rampa, después de que C1 llegue limpio a 80 (la escalera queda detrás de una opción).
 
 Datos que hay que conservar en `experimental/data/` (fuera de git, no se pueden recuperar): `bc_7c.pt`, `bc7c_ft_limpio_model.pt`,
 los buffers limpios `bc7c_anti_windup_check_buffer.jsonl`, `bc7c_ft_limpio_buffer.jsonl` y `bc7c_ft_limpio_perturb_buffer.jsonl`

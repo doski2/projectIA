@@ -109,6 +109,56 @@ def test_l1_lap_overlap_limit():
     assert "gas+freno" in ev["summary"]
 
 
+def _timed(speeds, straight, dt=0.1, t0=0.0):
+    out = []
+    for i, (v, s) in enumerate(zip(speeds, straight)):
+        t = _lap_tick(speed=v)
+        t.update(t_s=t0 + i * dt, straight=s)
+        out.append(t)
+    return out
+
+
+def test_min_speed_ignores_curves_and_their_exit():
+    """60 km/h: el teacher frena en curva (35) y la sale acelerando; solo cuenta la recta una vez a velocidad."""
+    ticks = _timed([60.0] * 50, [True] * 50)
+    ticks += _timed([40.0, 35.0, 35.0, 38.0], [False] * 4, t0=5.0)
+    ticks += _timed([40.0, 45.0, 50.0, 55.0] + [60.0] * 40, [True] * 44, t0=6.0)
+    ev = evaluate_lap(ticks, "l1_linea", speed_band_kmh=60.0)
+    assert ev["clean"] is True
+    assert ev["min_speed_kmh"] == 55.0  # la recta de salida cuenta desde que llega a 51 (85 % de 60)
+
+
+def test_min_speed_catches_stall_on_straight():
+    ticks = _timed([60.0] * 50 + [40.0] * 10 + [60.0] * 50, [True] * 110)
+    ev = evaluate_lap(ticks, "l1_linea", speed_band_kmh=60.0)
+    assert ev["clean"] is False
+    assert ev["min_speed_kmh"] == 40.0
+
+
+def test_min_speed_long_straight_that_never_reaches_speed_is_dirty():
+    ticks = _timed([60.0] * 20, [True] * 20) + _timed([30.0] * 150, [True] * 150, t0=2.0)
+    # una sola racha: alcanza 60 y cae a 30 -> sucia por caída
+    assert evaluate_lap(ticks, "l1_linea", speed_band_kmh=60.0)["clean"] is False
+    solo_lenta = _timed([30.0] * 150, [True] * 150)  # 14,9 s sin llegar a 51: más que los 10 s de gracia
+    assert evaluate_lap(solo_lenta, "l1_linea", speed_band_kmh=60.0)["min_speed_kmh"] is None
+
+
+def test_short_straight_that_does_not_reach_speed_is_forgiven():
+    ticks = _timed([60.0] * 50, [True] * 50)
+    ticks += _timed([35.0] * 30, [False] * 30, t0=5.0)
+    ticks += _timed([40.0, 42.0, 44.0], [True] * 3, t0=8.0)  # recta corta, sin llegar a 51
+    ticks += _timed([35.0] * 30, [False] * 30, t0=8.3)
+    ev = evaluate_lap(ticks, "l1_linea", speed_band_kmh=60.0)
+    assert ev["clean"] is True
+
+
+def test_straight_speed_dev_is_informative():
+    ticks = _timed([60.0, 61.0] * 40, [True] * 80)
+    ev = evaluate_lap(ticks, "l1_linea", speed_band_kmh=60.0)
+    assert ev["straight_dev_kmh"] == 0.5
+    assert ev["clean"] is True
+
+
 def test_l2_lap_not_affected_by_min_speed_or_overlap():
     ticks = [_lap_tick(speed=20.0) for _ in range(100)]
     ticks[10].update(speed=5.0)

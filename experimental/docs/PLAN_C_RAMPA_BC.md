@@ -24,10 +24,30 @@ C1 se ejecuta ya en el perfil auténtico RA (`DECISIONES.md`, D11 y sección 6):
 desgaste de neumáticos, combustible real y tiempo real. Antes de C1 hacen falta la guardia de daños (P15) y
 el teacher de un solo eje de pedal con el BC reentrenado (P16), y un C0 corto en RA (paso 7 de la línea de trabajo).
 
-## Por resolver antes de C1
+## Decidido para C1 (2026-10-30, D20)
 
-Las preguntas de la sección 4.6 del estudio (vueltas por escalón, paso, techo, umbrales de vuelta limpia,
-día o noche, sustituir o convivir). Se anotan las respuestas en este plan y en `DECISIONES.md`.
+Respuestas a las preguntas de la sección 4.6 del estudio:
+
+- **Vueltas y paso:** ciclo de 2 vueltas lanzadas, 2 ciclos limpios seguidos para subir, paso de 5 km/h.
+- **Techo:** 80 km/h en C1. Subirlo se decide en C2.
+- **Vuelta limpia:** velocidad mínima y desviación solo en recta, solape ≈ 0; CTE y overrides sin aflojar salvo que los datos lo pidan.
+- **Sesiones de identificación antes de la rampa:** sí (A1, paso 9, antes de C1; el usuario: «adelante es hacerlo»). Fijan el techo con el límite real del coche.
+- **Subida de 20 a 60 km/h:** bucle completo en cada banda (30, 40, 50, 55, 60): check sin fine-tune, puerta y prueba de perturbaciones (`--perturb-every`); fine-tune solo si falla; al final un BC reentrenado con todas las bandas.
+
+## Día o noche y escalera (decididos)
+
+- **Día o noche:** C1 con el usuario pendiente, en bloques de pocas vueltas (2-3 ciclos). Las sesiones sin vigilar y de muchas vueltas se dejan para el PPO. Una vuelta a 60-80 km/h dura 3-5 min; un ciclo (salida + 2 lanzadas + ajuste) ≈ 12-15 min y un escalón (2 ciclos) 25-30 min.
+- **Sustituir la escalera L1→L7:** sí, después de que C1 llegue limpio a 80 y con la prueba de perturbaciones pasada en cada banda; hasta entonces la rampa va como modo aparte y la escalera queda detrás de una opción.
+
+## Hecho en código (X19)
+
+`learn_driver --ramp` con la puerta por ciclos (`ramp_gate.py`), recta libre del teacher y velocidad mínima por recta; `aislado.py --ramp --resume` para encadenar bloques. Sin probar en el juego.
+
+## Orden de trabajo
+
+1. Subir de 20 a 60 km/h con el bucle completo en cada banda (30, 40, 50, 55, 60): check sin fine-tune y prueba de perturbaciones.
+2. A1: sesiones de identificación (`PLAN_A_LIMITES_COCHE.md`); fijan el techo con el límite real del coche.
+3. C1: rampa de 60 a 80 km/h con `--ramp`.
 
 ## Qué reutiliza de `src/` (sin modificarlo)
 

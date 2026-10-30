@@ -51,3 +51,45 @@ def test_announce_autonomy_once(monkeypatch, capsys):
     ld.announce_autonomy(p)
     assert p.autonomy_announced
     assert capsys.readouterr().out.count("autonomía total") == 1
+
+
+def _ramp_cycle(p, g, calls, *laps):
+    ld.advance_ramp(p, g, True, lambda: calls.append("ramp"), lambda: calls.append("persist"))  # salida
+    ev = None
+    for clean in laps:
+        ev = ld.advance_ramp(p, g, clean, lambda: calls.append("ramp"), lambda: calls.append("persist"))
+    return ev
+
+
+def test_advance_ramp_rise_updates_band_and_persists(capsys):
+    g = ld.RampGate(bands=[60.0, 65.0])
+    p = ld.LearnProgress(stage_id="l1_linea", speed_band=60.0, clean_streak=3)
+    calls = []
+    assert _ramp_cycle(p, g, calls, True, True) == "cycle_clean"
+    assert p.speed_band == 60.0 and not p.goal_reached
+    assert _ramp_cycle(p, g, calls, True, True) == "rise"
+    assert p.speed_band == 65.0 and p.clean_streak == 0 and "persist" in calls
+    assert "sube a 65 km/h" in capsys.readouterr().out
+
+
+def test_advance_ramp_drop_and_end(capsys):
+    g = ld.RampGate(bands=[60.0, 65.0], index=1)
+    p = ld.LearnProgress(stage_id="l1_linea", speed_band=65.0)
+    calls = []
+    for _ in range(2):
+        _ramp_cycle(p, g, calls, False, False)
+    assert _ramp_cycle(p, g, calls, False, False) == "drop"
+    assert p.speed_band == 60.0 and not p.goal_reached
+    for _ in range(2):
+        _ramp_cycle(p, g, calls, False, False)
+    assert _ramp_cycle(p, g, calls, False, False) == "stop"
+    assert p.goal_reached is True
+
+
+def test_advance_ramp_saves_state_every_lap():
+    g = ld.RampGate(bands=[60.0, 65.0])
+    p = ld.LearnProgress(stage_id="l1_linea", speed_band=60.0)
+    calls = []
+    ld.advance_ramp(p, g, True, lambda: calls.append("ramp"), lambda: None)
+    ld.advance_ramp(p, g, True, lambda: calls.append("ramp"), lambda: None)
+    assert calls == ["ramp", "ramp"]

@@ -47,6 +47,7 @@ from lap_session import (
 )
 from lap_transition import LapTransitionGuard
 from lap_tracker import format_lap_time
+from ramp_gate import DROP, END_EVENTS, RISE, RampGate, bands_from
 from speed_perturbation import SpeedPerturber
 from learn_guards import StuckOffTrackAbort, SustainedCteGuard, is_poor_demo
 from learn_progress import read_saved_speed_band, read_saved_stage, save_learn_progress
@@ -152,6 +153,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--perturb-drop-kmh", type=float, default=4.5,
         help="Velocidad que se deja perder en cada perturbación (4,5 km/h cruza con holgura el umbral de accel_straight).",
+    )
+    parser.add_argument(
+        "--ramp", action="store_true",
+        help="Rampa de velocidad con puerta por ciclos (C1): empieza en --speed-band y sube --ramp-step km/h tras 2 ciclos "
+             "limpios (salida + 2 vueltas lanzadas, con ajuste en meta). Un ciclo sucio se repite; 3 seguidos bajan una banda.",
+    )
+    parser.add_argument("--ramp-ceiling", type=float, default=80.0, help="Techo de la rampa en km/h (D20: 80 en C1).")
+    parser.add_argument("--ramp-step", type=float, default=5.0, help="Paso de la rampa en km/h.")
+    parser.add_argument(
+        "--ramp-state", default="",
+        help="JSON con el estado de la puerta para retomar la rampa (por defecto <buffer>.ramp.json).",
     )
     parser.add_argument("--open-report", action="store_true")
     parser.add_argument("--auto-shift", action=argparse.BooleanOptionalAction, default=True)
@@ -267,6 +279,22 @@ def advance_progress(prog: LearnProgress, persist: Callable[[], None]) -> None:
         prog.goal_reached = True
 
 
+def advance_ramp(
+    prog: LearnProgress, ramp: RampGate, clean: bool, save_ramp: Callable[[], None], persist: Callable[[], None],
+) -> Optional[str]:
+    """Registra la vuelta en la puerta por ciclos; si cambia la banda la pasa al progreso, y si la rampa termina cierra el objetivo."""
+    event = ramp.on_lap(clean)
+    print(f"[Learn] Rampa: {ramp.message}")
+    if event in (RISE, DROP):
+        prog.speed_band = ramp.band
+        prog.clean_streak = 0
+        persist()
+    if event in END_EVENTS:
+        prog.goal_reached = True
+    save_ramp()
+    return event
+
+
 def announce_autonomy(prog: LearnProgress) -> None:
     stage_now = get_learn_stage(prog.stage_id)
     if (
@@ -347,6 +375,19 @@ class BackgroundFineTuner:
 def run(args: argparse.Namespace) -> int:
     stage_id = args.stage or read_saved_stage(DEFAULT_LEARN_STAGE)
     speed_band = args.speed_band if args.speed_band > 0 else read_saved_speed_band()
+    ramp: Optional[RampGate] = None
+    ramp_state = ""
+    if getattr(args, "ramp", False):
+        ramp_state = args.ramp_state or f"{args.buffer}.ramp.json"
+        ramp = RampGate.load(ramp_state)
+        if ramp is None:
+            ramp = RampGate(bands=bands_from(speed_band, args.ramp_ceiling, args.ramp_step))
+        else:
+            ramp.restart_cycle()
+            print(f"[Learn] Rampa retomada de {ramp_state}: banda {ramp.band:g} km/h (se ignora --speed-band); "
+                  f"{ramp.clean_cycles} ciclo(s) limpio(s) y {ramp.dirty_cycles} sucio(s) seguidos")
+        speed_band = ramp.band
+        args.learn_every = ramp.cycle_laps  # salida + vueltas lanzadas, y ajuste en meta tras cada ciclo
     ref = ReferenceLine.load(args.reference)
     stage = get_learn_stage(stage_id)
     effective_speed = resolve_learn_speed(stage_id, speed_band, args.speed_target)
@@ -389,8 +430,12 @@ def run(args: argparse.Namespace) -> int:
         "reference_lap_s": round(ref.lap_time, 3) if ref.lap_time else None,
         "origin": "experimental" if experiment else "main",
         "experiment": experiment or None,
+        "ramp": ramp.to_dict() if ramp is not None else None,
     })
 
+    if ramp is not None:
+        print(f"[Learn] Rampa {ramp.bands[0]:g} -> {ramp.bands[-1]:g} km/h | ciclo: salida + {ramp.laps_per_cycle} lanzadas | "
+              f"estado: {ramp_state}")
     if args.speed_target > 0:
         speed_note = f"{effective_speed:.0f} km/h (override fino)"
     else:
@@ -593,6 +638,7 @@ def run(args: argparse.Namespace) -> int:
                 off_track_cte=flags.off_track_cte,
                 throttle=final[0],
                 brake=final[1],
+                straight=teacher.free_straight(timings.lap_distance),
             ))
 
             track_diag = maybe_build_track_diag(
@@ -673,7 +719,10 @@ def run(args: argparse.Namespace) -> int:
 
                 lap_ticks = rotate_lap_buffer(lap_ticks)
 
-                advance_progress(prog, _persist_progress)
+                if ramp is not None:
+                    advance_ramp(prog, ramp, lap_result.clean, lambda: ramp.save(ramp_state), _persist_progress)
+                else:
+                    advance_progress(prog, _persist_progress)
 
                 laps_since_learn += 1
                 teacher.reset()

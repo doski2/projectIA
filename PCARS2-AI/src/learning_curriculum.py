@@ -326,6 +326,57 @@ def min_speed_after_launch(ticks: List[dict], floor_kmh: float) -> Optional[floa
     return low
 
 
+STRAIGHT_GRACE_S = 10.0  # tiempo que se le da a una recta para volver a la consigna (salida de curva) antes de darla por perdida
+
+
+def straight_segments(ticks: List[dict]) -> List[List[dict]]:
+    """Rachas de ticks seguidos en recta libre. Un tick sin la marca `straight` cuenta como recta (logs y tests antiguos)."""
+    segs: List[List[dict]] = []
+    cur: List[dict] = []
+    for t in ticks:
+        if t.get("straight") is not False:
+            cur.append(t)
+        elif cur:
+            segs.append(cur)
+            cur = []
+    if cur:
+        segs.append(cur)
+    return segs
+
+
+def min_speed_on_straights(ticks: List[dict], floor_kmh: float, grace_s: float = STRAIGHT_GRACE_S) -> Optional[float]:
+    """Velocidad mínima en rectas, contada en cada recta desde que alcanza `floor_kmh` (salida de curva y arranque no cuentan).
+
+    None si una recta larga (> grace_s) no llega nunca a `floor_kmh`, o si ninguna recta lo alcanza: el coche no cogió la velocidad.
+    En una recta corta que no llega se perdona: es una salida de curva.
+    """
+    low: Optional[float] = None
+    for seg in straight_segments(ticks):
+        m = min_speed_after_launch(seg, floor_kmh)
+        if m is None:
+            if float(seg[-1].get("t_s", 0.0)) - float(seg[0].get("t_s", 0.0)) > grace_s:
+                return None
+            continue
+        low = m if low is None else min(low, m)
+    return low
+
+
+def straight_speed_dev(ticks: List[dict], floor_kmh: float) -> Optional[float]:
+    """Desviación típica de la velocidad en recta una vez alcanzada la consigna (informativa; no entra en la puerta, D20)."""
+    speeds = []
+    for seg in straight_segments(ticks):
+        reached = False
+        for t in seg:
+            v = float(t.get("speed_kmh", 0.0))
+            reached = reached or v >= floor_kmh
+            if reached:
+                speeds.append(v)
+    if len(speeds) < 2:
+        return None
+    mean = sum(speeds) / len(speeds)
+    return round((sum((v - mean) ** 2 for v in speeds) / len(speeds)) ** 0.5, 2)
+
+
 def overlap_pct(ticks: List[dict], pedal_min: float = 0.02) -> float:
     """% de ticks con gas y freno aplicados a la vez (ticks sin pedales registrados no cuentan)."""
     if not ticks:
@@ -379,7 +430,7 @@ def evaluate_lap(
     min_speed = None
     if stage.min_speed_frac is not None:
         floor = round(resolve_learn_speed(stage_id, speed_band_kmh) * stage.min_speed_frac, 1)
-        min_speed = min_speed_after_launch(ticks, floor)
+        min_speed = min_speed_on_straights(ticks, floor)
         clean = clean and min_speed is not None and min_speed >= floor
     pct_overlap = overlap_pct(ticks)
     if stage.max_overlap_pct is not None:
@@ -408,6 +459,7 @@ def evaluate_lap(
         "avg_cte": avg_cte,
         "avg_speed_kmh": avg_speed,
         "min_speed_kmh": min_speed,
+        "straight_dev_kmh": straight_speed_dev(ticks, floor) if floor is not None else None,
         "pct_overlap": pct_overlap,
         "cte_p95": p95_cte,
         "pct_override": pct_override,

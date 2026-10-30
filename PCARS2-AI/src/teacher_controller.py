@@ -153,6 +153,19 @@ class TeachingController:
             s += CURVE_SAMPLE_M
         return best
 
+    def free_straight(self, lap_distance: float, curvature_tol: float = 0.02) -> bool:
+        """True si el teacher no pide bajar de la consigna aquí ni en lo que viene (recta libre).
+
+        Con modelo físico de curva: la velocidad máxima para poder frenar a tiempo (`physical_curve_target`) alcanza la consigna.
+        Sin él: curvatura baja ahora y a `CURV_LOOKAHEAD_M`.
+        """
+        if self.config.lat_accel_limit is not None:
+            return self.physical_curve_target(lap_distance) >= self.speed_target_ms
+        return (
+            abs(self.ref.curvature(lap_distance)) <= curvature_tol
+            and abs(self.ref.curvature(lap_distance + CURV_LOOKAHEAD_M)) <= curvature_tol
+        )
+
     @property
     def speed_target_ms(self) -> float:
         return self.config.speed_target_kmh / 3.6

@@ -63,6 +63,7 @@ def build_base_dataset(out: Path, sources: Optional[List[Path]] = None) -> int:
 def build_argv(
     python: Path, experiment: str, speed_band: float, laps: int, stage: str = "l1_linea", teacher_only: bool = False,
     learn_every: int = 99, base_dataset: Optional[Path] = None, perturb_every: float = 0.0,
+    ramp: bool = False, ramp_ceiling: float = 80.0, ramp_step: float = 5.0,
 ) -> List[str]:
     argv = [
         str(python), str(APP / "src" / "learn_driver.py"),
@@ -78,18 +79,27 @@ def build_argv(
         argv += ["--base-dataset", str(base_dataset), "--curated", ""]
     if perturb_every > 0:  # P24: el coche rueda sin pedales cada N m y se mide la recuperación
         argv += ["--perturb-every", f"{perturb_every:g}"]
+    if ramp:  # C1: rampa con puerta por ciclos; el estado queda en <buffer>.ramp.json
+        argv += ["--ramp", "--ramp-ceiling", f"{ramp_ceiling:g}", "--ramp-step", f"{ramp_step:g}"]
     return argv + (["--teacher-only"] if teacher_only else [])
 
 
 def run_isolated(
     experiment: str, speed_band: float, laps: int, python: Optional[Path] = None, teacher_only: bool = False,
     model_src: Optional[Path] = None, finetune_every: int = 0, perturb_every: float = 0.0,
+    ramp: bool = False, ramp_ceiling: float = 80.0, ramp_step: float = 5.0, resume: bool = False,
 ) -> int:
     DATA.mkdir(parents=True, exist_ok=True)
     model = DATA / f"{experiment}_model.pt"
     buffer = DATA / f"{experiment}_buffer.jsonl"
-    shutil.copyfile(model_src or APP / "models" / "universal_bc.pt", model)
-    buffer.unlink(missing_ok=True)
+    if resume and model.is_file():  # sigue el bloque anterior: mismo modelo, buffer y estado de la rampa
+        print(f"[experimental] retomo {experiment}: modelo y buffer se conservan")
+    else:
+        shutil.copyfile(model_src or APP / "models" / "universal_bc.pt", model)
+        buffer.unlink(missing_ok=True)
+        Path(f"{buffer}.ramp.json").unlink(missing_ok=True)
+    if ramp and not finetune_every:
+        finetune_every = 3  # la rampa ajusta en meta tras cada ciclo; learn_driver fija el valor exacto
     base: Optional[Path] = None
     if finetune_every > 0:
         base = DATA / f"{experiment}_base.jsonl"
@@ -103,6 +113,7 @@ def run_isolated(
             build_argv(
                 python or Path(sys.executable), experiment, speed_band, laps, teacher_only=teacher_only,
                 learn_every=finetune_every or 99, base_dataset=base, perturb_every=perturb_every,
+                ramp=ramp, ramp_ceiling=ramp_ceiling, ramp_step=ramp_step,
             ),
             cwd=APP, env=env,
         ).returncode
@@ -141,11 +152,18 @@ if __name__ == "__main__":
                     help="Fine-tune cada N vueltas con el teacher nuevo como base (0 = sin fine-tune, D7)")
     ap.add_argument("--perturb-every", type=float, default=0.0,
                     help="Cada N metros el coche rueda sin gas ni freno hasta perder 4,5 km/h y se suelta (P24)")
+    ap.add_argument("--ramp", action="store_true",
+                    help="Rampa de velocidad con puerta por ciclos (C1): empieza en --speed-band y sube de --ramp-step en --ramp-step")
+    ap.add_argument("--ramp-ceiling", type=float, default=80.0)
+    ap.add_argument("--ramp-step", type=float, default=5.0)
+    ap.add_argument("--resume", action="store_true",
+                    help="Conserva el modelo, el buffer y el estado de la rampa del experimento (siguiente bloque)")
     a = ap.parse_args()
     t0 = time.time() - 5
     experiment = experiment_name(a.speed_band, a.teacher_only, a.experiment)
     code = run_isolated(experiment, a.speed_band, a.laps, teacher_only=a.teacher_only, model_src=a.model_src,
-                       finetune_every=a.finetune_every, perturb_every=a.perturb_every)
+                       finetune_every=a.finetune_every, perturb_every=a.perturb_every,
+                       ramp=a.ramp, ramp_ceiling=a.ramp_ceiling, ramp_step=a.ramp_step, resume=a.resume)
     log = latest_log(experiment, t0)
     if log is None:
         print("[experimental] no se encontró el log de la prueba; sin informe")
