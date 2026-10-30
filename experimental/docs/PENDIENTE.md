@@ -26,12 +26,13 @@ identificación A1, (3) C1 con `--ramp`. C1 va con el usuario delante, en bloque
 
 1. **Hecho en código, sin probar en el juego (X19):** `learn_driver --ramp` (puerta por ciclos, recta libre, velocidad mínima por
    recta) y `aislado.py --ramp --resume`. Validado con los logs del teacher a 20-80 km/h.
-2. **Siguiente en el juego: check de 30 km/h** con el modelo cerrado, sin fine-tune (2 vueltas, ≈ 15 min, juego en parrilla en Sugo
-   GP, perfil RA, sin hacer clic fuera del juego):
-   `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --experiment bc30_check --speed-band 30 --laps 2 --model-src C:\Users\doski\projectIA\experimental\data\bc7c_ft_limpio_model.pt`
-   Criterio: las 2 vueltas limpias por la puerta de L1 (velocidad mínima ≥ 25,5 km/h por recta, solape ≤ 0,05 %), CTE ≤ 0,25 m,
-   0 incidencias, 0 ticks con freno y gas, y mirar `teacher:speed`. Si pasa: la misma prueba con `--perturb-every 250` y subir a 40.
-   Si falla: mirar dónde (como en H30-H31) antes de hacer un fine-tune; cada uno puede destapar otra zona.
+2. **Bucle por banda (D20). 30 km/h: check hecho (H34, pasa).** Siguiente en el juego: **prueba de perturbaciones a 30 km/h** con el
+   mismo modelo (2 vueltas, ≈ 15 min, juego en parrilla en Sugo GP, perfil RA, sin hacer clic fuera del juego):
+   `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --experiment bc30_perturb --speed-band 30 --laps 2 --model-src C:\Users\doski\projectIA\experimental\data\bc7c_ft_limpio_model.pt --perturb-every 250`
+   Criterio (el de H33 escalado a 30): todas las perturbaciones vuelven a ≥ 29,5 km/h (informativo: ≤ 15 s), ninguna baja de 24 km/h,
+   freno < 2 % de los ticks de recuperación, 0 solape, 0 incidencias. Las vueltas saldrán «sucias» a propósito. Si pasa: subir a 40 con
+   el mismo par de pruebas (`bc40_check`, `bc40_perturb`), luego 50, 55 y 60. Si una banda falla: mirar dónde antes de hacer un
+   fine-tune (cada uno de H31 destapó otra zona).
 3. **A1, sesiones de identificación (`PLAN_A_LIMITES_COCHE.md`), antes de C1:** no hay código todavía; el siguiente trabajo mío.
    Sesiones de la sección 5 del estudio (dejar rodar, frenadas a fondo, aceleraciones, círculos, barridos de volante).
 4. **C1 (paso 8):** rampa de 60 a 80 con `--ramp`, con el usuario delante y en bloques de 2-3 ciclos (`--resume` entre bloques).
