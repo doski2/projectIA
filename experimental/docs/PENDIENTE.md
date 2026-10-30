@@ -1,6 +1,6 @@
 # Pendiente para la próxima sesión
 
-> Escrito el 2026-10-28, actualizado el 2026-10-30. Detalle completo en [DECISIONES.md](DECISIONES.md) (D19, pasos 7b y 7c, H25-H32, X7-X16, P23-P24).
+> Escrito el 2026-10-28, actualizado el 2026-10-30. Detalle completo en [DECISIONES.md](DECISIONES.md) (D19, pasos 7b y 7c, H25-H33, X7-X18, P23-P24).
 
 ## Dónde estamos
 
@@ -9,36 +9,27 @@
 - `bc_7c.pt` (H25) es el BC base. Es limpio, porque se entrenó con datos de la rampa.
 - **Windup del PI resuelto (H29, X16, commit `e5ace06`):** antes, con el BC al volante, la etiqueta de gas del teacher se inflaba hasta 0,55.
   Ahora se queda en ≈ 0,06 (verificado en el juego, H30). Los buffers y modelos contaminados se borraron.
-- **El BC tenía huecos de cobertura en L1 a 20 km/h** (700-900 m en H30, 3000-3250 m en H31). El check del modelo final en seco (H32,
-  `bc7c_ft_limpio_model.pt`) no los reproduce: velocidad mínima 18,1 km/h, solape de 1 tick por vuelta, 0 `accel_straight` en 700-900 y
-  3000-3250 m. Pero el estancamiento de 3000-3250 m apareció **con lluvia** y en seco el coche nunca baja de 21,2 km/h ahí: **la corrección
-  no está probada en el estado que falló.** Falla `teacher:speed` < 5 % (11 %), que es el sesgo de H26 y no un defecto nuevo.
+- **El BC tenía huecos de cobertura en L1 a 20 km/h** (700-900 m en H30, 3000-3250 m en H31). `bc7c_ft_limpio_model.pt` ya no los
+  muestra: en seco conduce sin estancarse ni frenar con gas (H32) y se recupera de 28 perturbaciones forzadas de 4,5 km/h repartidas
+  por la pista, también en 3000-3250 m (H33). Queda un último tramo lento hasta la consigna en 3 zonas, dentro de `maintain_speed`.
+  **Paso 7c cerrado por el usuario el 2026-10-30 con ese modelo, sin más fine-tunes.**
 
-## Lo primero (paso 7c: cerrar el bucle de L1 a 20 km/h)
+## Lo primero (paso 8: C1)
 
-1. **Hecho (H32): check del modelo final en seco.** Cumple velocidad mínima, CTE, incidencias, gas estable y `accel_straight` sin freno
-   (1 tick por vuelta con freno 0,029 en 2275 m). Falla `teacher:speed` (11 %) y, según la medida, la desviación (0,72 típica, 1,09 RMS).
-2. **Hecho (X17, P23 para L1):** `teacher:speed` y desviación en seco pasan a informativos; la vuelta limpia de L1 exige velocidad
-   mínima ≥ 85 % de la consigna (tras el arranque) y solape ≤ 0,05 %. Comprobado con los logs de H26, H30, H31 y H32 (commit `d039a0f`).
-3. **Probar la recuperación, que H32 no visitó (X18, preparado, sin probar en el juego).** Perturbación determinista: cada 250 m el
-   coche rueda sin gas ni freno hasta perder 4,5 km/h y se suelta; conduce el BC y el teacher etiqueta la recuperación. 2 vueltas,
-   ≈ 21-25 min, juego en parrilla en Sugo GP, perfil RA, sin hacer clic fuera del juego:
-   `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --experiment bc7c_ft_limpio_perturb --speed-band 20 --laps 2 --model-src C:\Users\doski\projectIA\experimental\data\bc7c_ft_limpio_model.pt --perturb-every 250`
-   Analizar por perturbación (ticks `perturb:coast` y lo que sigue hasta volver a la consigna): tiempo de recuperación, velocidad
-   mínima, freno y gas aplicados. Criterio propuesto: todas vuelven a ≥ 19,5 km/h en ≤ 15 s, ninguna baja de 14 km/h, 0 solape,
-   freno < 2 % de los ticks de recuperación, 0 incidencias. Las vueltas saldrán «sucias» por la puerta de L1 a propósito.
-   **Si alguna no se recupera**, el buffer `bc7c_ft_limpio_perturb_buffer.jsonl` ya trae esas filas: fine-tune con
-   `--finetune-every 1 --laps 2` partiendo de `bc7c_ft_limpio_model.pt` (la base incluye los buffers limpios) y repetir la prueba.
-   **Si tras 2 iteraciones sigue habiendo zonas sin recuperar**, el problema es de cobertura general: replantear el BC (más datos de
-   la rampa a 20 km/h) en lugar de seguir parcheando.
-4. **Antes de C1, cerrar lo que queda de P23:** decidir si la puerta de la rampa 60 → 80 usa la misma velocidad mínima (en curva el
+El paso 7c está **cerrado** (2026-10-30): `bc7c_ft_limpio_model.pt` es el BC de L1 a 20 km/h. Se llegó con el check en seco (H32), la
+puerta de L1 con velocidad mínima y solape (X17, commit `d039a0f`) y la prueba de recuperación con perturbaciones (H33, X18,
+commit `ae56bc8`: 28 de 28 recuperadas sin freno ni solape).
+
+1. **Cerrar lo que queda de P23 antes de C1:** decidir si la puerta de la rampa 60 → 80 usa la misma velocidad mínima (en curva el
    teacher frena, H23: la mínima de toda la vuelta no vale) y si se añade `accel_straight` con freno.
-5. **C1 (paso 8, `PLAN_C_RAMPA_BC.md`):** rampa 60 → 80 con puerta. Antes hay que responder las preguntas de «Por resolver antes de C1»
+2. **C1 (paso 8, `PLAN_C_RAMPA_BC.md`):** rampa 60 → 80 con puerta. Antes hay que responder las preguntas de «Por resolver antes de C1»
    (vueltas por escalón, paso, techo, umbrales de vuelta limpia, día o noche). Tampoco está decidido cómo se sube desde 20 km/h: el BC
-   solo se ha probado a 20.
+   solo se ha probado a 20. La prueba de perturbaciones (`--perturb-every`) se puede repetir en cada banda para comprobar la
+   recuperación antes de subir.
 
 Datos que hay que conservar en `experimental/data/` (fuera de git, no se pueden recuperar): `bc_7c.pt`, `bc7c_ft_limpio_model.pt`,
-los buffers limpios `bc7c_anti_windup_check_buffer.jsonl` y `bc7c_ft_limpio_buffer.jsonl` (contienen recuperaciones etiquetadas) y los
+los buffers limpios `bc7c_anti_windup_check_buffer.jsonl`, `bc7c_ft_limpio_buffer.jsonl` y `bc7c_ft_limpio_perturb_buffer.jsonl`
+(contienen recuperaciones etiquetadas) y los
 buffers de la rampa (`c0_log`, `teacher_*`). Los `*_base.jsonl` se regeneran solos.
 
 Aviso: el `learn_driver` de aislado cierra la sesión solo al cumplir el objetivo de la etapa (aquí tras 2 vueltas limpias),
