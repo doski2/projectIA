@@ -212,6 +212,8 @@ def make_lap_buffer_tick(
     settling: bool = False,
     off_surface: bool = False,
     off_track_cte: bool = False,
+    throttle: Optional[float] = None,
+    brake: Optional[float] = None,
 ) -> dict:
     return {
         "t_s": t_s,
@@ -224,6 +226,8 @@ def make_lap_buffer_tick(
         "stuck": stuck,
         "teacher_reason": teacher_reason,
         "settling": settling,
+        "throttle": throttle,
+        "brake": brake,
     }
 
 

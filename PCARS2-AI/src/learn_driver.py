@@ -568,6 +568,8 @@ def run(args: argparse.Namespace) -> int:
                 settling=lap_guard.active,
                 off_surface=flags.off_surface,
                 off_track_cte=flags.off_track_cte,
+                throttle=final[0],
+                brake=final[1],
             ))
 
             track_diag = maybe_build_track_diag(

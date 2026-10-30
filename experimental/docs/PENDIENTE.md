@@ -1,39 +1,43 @@
 # Pendiente para la próxima sesión
 
-> Escrito el 2026-10-28, actualizado el 2026-10-29. Detalle completo en [DECISIONES.md](DECISIONES.md) (D19, pasos 7b y 7c, H25-H29, X7-X16).
+> Escrito el 2026-10-28, actualizado el 2026-10-30. Detalle completo en [DECISIONES.md](DECISIONES.md) (D19, pasos 7b y 7c, H25-H32, X7-X16, P23-P24).
 
 ## Dónde estamos
 
-- El teacher nuevo (un solo eje de pedal, velocidad de curva física, gas por PI) está validado a 40 km/h con el
-  teacher al volante: 0 % de freno, 0 % de solape, velocidad 40,1 ± 0,58 km/h, 2 vueltas limpias (H17).
-- Decisión D19: rehacer el BC desde cero con datos del teacher nuevo y volver al currículo en **L1 a 20 km/h**.
-- Ya hecho en código: `--teacher-only`, registro pasivo, reetiquetado, guardia de daños, límite de lluvia (apagado).
+- El teacher nuevo (un solo eje de pedal, velocidad de curva física, gas por PI) está validado en toda la rampa 20 → 80 km/h con el
+  teacher al volante (H17-H24). Decisión D19: rehacer el BC con sus datos y volver al currículo en **L1 a 20 km/h**.
+- `bc_7c.pt` (H25) es el BC base. Es limpio, porque se entrenó con datos de la rampa.
+- **Windup del PI resuelto (H29, X16, commit `e5ace06`):** antes, con el BC al volante, la etiqueta de gas del teacher se inflaba hasta 0,55.
+  Ahora se queda en ≈ 0,06 (verificado en el juego, H30). Los buffers y modelos contaminados se borraron.
+- **El BC tenía huecos de cobertura en L1 a 20 km/h** (700-900 m en H30, 3000-3250 m en H31). El check del modelo final en seco (H32,
+  `bc7c_ft_limpio_model.pt`) no los reproduce: velocidad mínima 18,1 km/h, solape de 1 tick por vuelta, 0 `accel_straight` en 700-900 y
+  3000-3250 m. Pero el estancamiento de 3000-3250 m apareció **con lluvia** y en seco el coche nunca baja de 21,2 km/h ahí: **la corrección
+  no está probada en el estado que falló.** Falla `teacher:speed` < 5 % (11 %), que es el sesgo de H26 y no un defecto nuevo.
 
-## Lo primero (reabierto el 2026-10-29: etiquetas de gas contaminadas, H28-H29)
+## Lo primero (paso 7c: cerrar el bucle de L1 a 20 km/h)
 
-El check del modelo final (`bc7c_ft20_model.pt`, H28) **no pasa**: solape 0,15 % (no 0 %) y el freno con gas, que antes estaba en un
-solo punto (≈ 875 m), aparece en 700-900 m y 2250-2450 m en las dos vueltas. Se descartó la causa que se sospechaba (la velocidad
-objetivo de las bandas 70-80) y se encontró otra: **el PI del teacher acumulaba integral mientras conducía el BC** y la etiqueta de gas
-de los buffers del BC al volante quedó inservible (media 0,02 → 0,55 con 0,04 aplicado, H29). Está corregido en el código (X16, sin
-commit); los modelos y buffers grabados antes de la corrección no.
+1. **Hecho (H32): check del modelo final en seco.** Cumple velocidad mínima, CTE, incidencias, gas estable y `accel_straight` sin freno
+   (1 tick por vuelta con freno 0,029 en 2275 m). Falla `teacher:speed` (11 %) y, según la medida, la desviación (0,72 típica, 1,09 RMS).
+2. **Hecho (X17, P23 para L1):** `teacher:speed` y desviación en seco pasan a informativos; la vuelta limpia de L1 exige velocidad
+   mínima ≥ 85 % de la consigna (tras el arranque) y solape ≤ 0,05 %. Comprobado con los logs de H26, H30, H31 y H32. Sin commit.
+3. **Probar la recuperación, que H32 no visitó:** o bien un check con lluvia (no se puede forzar, depende del clima real), o bien
+   perturbaciones forzadas con el teacher al volante (P24, determinista; recomendado). **Si aparece otra zona** (o el estancamiento sigue): otra iteración del bucle, `--finetune-every 1 --laps 2` partiendo de
+   `bc7c_ft_limpio_model.pt` (añade el buffer nuevo a la base) y vuelta a comprobar. **Si tras 2 iteraciones sigue destapando zonas
+   nuevas**, pasar a perturbaciones forzadas con el teacher al volante (bajar la velocidad bajo el umbral de `accel_straight` y
+   soltarla en cada tramo) en lugar de esperar a que el BC se equivoque (P24).
+4. **Antes de C1, cerrar lo que queda de P23:** decidir si la puerta de la rampa 60 → 80 usa la misma velocidad mínima (en curva el
+   teacher frena, H23: la mínima de toda la vuelta no vale) y si se añade `accel_straight` con freno.
+5. **C1 (paso 8, `PLAN_C_RAMPA_BC.md`):** rampa 60 → 80 con puerta. Antes hay que responder las preguntas de «Por resolver antes de C1»
+   (vueltas por escalón, paso, techo, umbrales de vuelta limpia, día o noche). Tampoco está decidido cómo se sube desde 20 km/h: el BC
+   solo se ha probado a 20.
 
-1. **Decidir qué se hace con los buffers contaminados** (`bc7c_20`, `bc7c_ft20`, `bc7c_ft20_check` en `experimental/data/`, y los
-   modelos `bc7c_ft20_model.pt` y `bc7c_ft20_check_model.pt`). No se han borrado ni movido. Su freno y su volante valen; su gas, no.
-2. **Repetir el check desde `bc_7c.pt`** (sin fine-tune, 2 vueltas, ≈ 21 min, juego en parrilla en Sugo GP, perfil RA, sin hacer clic fuera del juego),
-   ya con el teacher corregido:
-   `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --experiment bc7c_anti_windup_check --speed-band 20 --laps 2 --model-src C:\Users\doski\projectIA\experimental\data\bc_7c.pt`
-   Criterio de H26: desviación < 1 km/h, tope < 5 %, solape 0 %, CTE ≤ 0,25 m, 0 incidencias. Comprobar además que la etiqueta de gas
-   de `maintain_speed` en el buffer nuevo se queda cerca de lo aplicado (≈ 0,04) y no deriva a lo largo de la sesión.
-3. **Si el solape o la caída de 700-900 m / 2250-2450 m persisten con `bc_7c.pt`** son un defecto del BC base, no del fine-tune:
-   entonces ponderar `accel_straight` / `recover_line` / `brake_overspeed` en la pérdida y reentrenar de cero (la pérdida final de H25 es
-   0,000035: ajusta casi perfecto lo que ve, así que el fallo es de cobertura, no de peso). Si desaparecen, repetir el fine-tune con etiquetas limpias
-   (`--finetune-every 1 --laps 2`) y volver a comprobar.
-4. **Después, C1 (paso 8, `PLAN_C_RAMPA_BC.md`):** rampa 60 → 80 con puerta. Antes hay que responder las preguntas de
-   «Por resolver antes de C1» (vueltas por escalón, paso, techo, umbrales de vuelta limpia, día o noche). Tampoco está
-   decidido cómo se sube desde 20 km/h: el BC solo se ha probado a 20.
+Datos que hay que conservar en `experimental/data/` (fuera de git, no se pueden recuperar): `bc_7c.pt`, `bc7c_ft_limpio_model.pt`,
+los buffers limpios `bc7c_anti_windup_check_buffer.jsonl` y `bc7c_ft_limpio_buffer.jsonl` (contienen recuperaciones etiquetadas) y los
+buffers de la rampa (`c0_log`, `teacher_*`). Los `*_base.jsonl` se regeneran solos.
 
 Aviso: el `learn_driver` de aislado cierra la sesión solo al cumplir el objetivo de la etapa (aquí tras 2 vueltas limpias),
-aunque `--laps` pida más.
+aunque `--laps` pida más. Las esperas del fine-tune (≈ 65 s por ajuste, coche parado en meta) provocan pausas del juego de 0,2-0,6 s: es
+la CPU ocupada, no un clic fuera de la ventana, aunque el informe lo diga.
 
 Notas que vienen de la rampa:
 
@@ -47,18 +51,21 @@ Notas que vienen de la rampa:
 
 - **Registro pasivo** (pestaña, «conduces tú»): un golpe controlado para ver los canales de daño y su escala, y un
   rodaje largo para el desgaste de neumáticos (`tyre_wear` sigue en 0). Reiniciar el coche después: Back no repara.
-- ~~Paso 7c: dataset y entrenamiento~~ hecho (H25); queda la prueba al volante de arriba.
-- Después, C1 (paso 8) y A1 (paso 9). `universal_v2` con los ejes de aceleración corregidos, tras A1 (D16).
+- C1 (paso 8) y A1 (paso 9). `universal_v2` con los ejes de aceleración corregidos, tras A1 (D16).
 
 ## Cosas pequeñas que no hay que olvidar
 
 - **H11 / P17:** actualizar `PCARS2-AI/docs/CONFIGURACION_JUEGO.md` con el perfil RA y la ayuda de bloqueo opuesto
   (Activ.). Comprobar que sigue activada antes de grabar.
 - Calibrar con datos reales: umbrales de daño (`--damage-limit 25`, `--damage-jump 10`), `lat_accel_limit` (6,5 m/s²)
-  y la frenada supuesta (4 m/s²), valores del PI (`pi_kp`, `pi_ki`, `pi_ff` puede bajar a ~0,1).
+  y la frenada supuesta (4 m/s²), valores del PI (`pi_kp`, `pi_ki`, `pi_ff` puede bajar a ~0,1, `pi_kt` del anti-windup).
 - El informe marca «fallo» en `lat_accel` antiguo (esperado por H1): pasarlo a informativo. No detecta un Back.
+- El informe atribuye las pausas del juego a «clic fuera de la ventana» también cuando coinciden con la espera del fine-tune (CPU):
+  distinguirlas.
 - Instalar `pyarrow` (P7) y pasar los logs a Parquet (D6): los logs pesan ×2,25.
-- Lluvia (P21): el 2026-10-29 llovió (153 → 128) y quedó validado el paquete 4 y su etiquetado (H28); falta el umbral: una sesión vigilada con lluvia a 50-60 km/h y su referencia en seco con el mismo modelo. `--rain-limit` sigue apagado.
-- Daño de motor `engine_damage` 0 → 1 a los ≈ 14-16 min en las cuatro sesiones largas de L1, también en seco y sin golpe: es desgaste por tiempo; tenerlo en cuenta al calibrar `--damage-limit`.
-- `pi_kt` (anti-windup, X16) está sin ajustar en el juego; hacer commit de X16 tras el check.
+- **Lluvia (P21):** el paquete 4 y su etiquetado están validados (H28, H30, H31: 153 constante o decreciente, pista 19-20 °C). Falta el
+  umbral: una sesión vigilada con lluvia a 50-60 km/h y su referencia en seco con el mismo modelo. `--rain-limit` sigue apagado.
+  Con lluvia el mismo modelo pide más gas (0,068 frente a 0,029); no se separó de la temperatura de pista.
+- Daño de motor `engine_damage` 0 → 1 a los ≈ 14-16 min en las seis sesiones largas de L1 (H31: la sexta), también en seco y sin golpe: es
+  desgaste por tiempo; tenerlo en cuenta al calibrar `--damage-limit`.
 - Pendientes de producción que no son de `experimental/`: guardia de deslizamiento (aviso previo al daño).

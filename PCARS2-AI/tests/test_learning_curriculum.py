@@ -14,8 +14,11 @@ from learning_curriculum import (
 )
 
 
-def _lap_tick(cte=2.0, override=False, reason="maintain_speed"):
+def _lap_tick(cte=2.0, override=False, reason="maintain_speed", speed=15.0, throttle=0.1, brake=0.0):
     return {
+        "speed_kmh": speed,
+        "throttle": throttle,
+        "brake": brake,
         "cte": cte,
         "safety_override": override,
         "teacher_reason": reason,
@@ -67,6 +70,50 @@ def test_dirty_lap_high_cte():
     ticks = [_lap_tick(cte=8.0) for _ in range(50)]
     ev = evaluate_lap(ticks, "l1_linea")
     assert ev["clean"] is False
+
+
+def test_l1_lap_ignores_launch_below_min_speed():
+    ticks = [_lap_tick(speed=v) for v in (0.0, 5.0, 12.0)] + [_lap_tick(speed=20.0) for _ in range(100)]
+    ev = evaluate_lap(ticks, "l1_linea", speed_band_kmh=20.0)
+    assert ev["clean"] is True
+    assert ev["min_speed_kmh"] == 20.0
+
+
+def test_l1_lap_with_stall_is_dirty():
+    """P23 / H31: el coche se arrastra a 11 km/h con CTE bueno y la vuelta no debe contar."""
+    ticks = [_lap_tick(speed=20.0) for _ in range(100)]
+    ticks += [_lap_tick(speed=11.0) for _ in range(20)]
+    ticks += [_lap_tick(speed=20.0) for _ in range(100)]
+    ev = evaluate_lap(ticks, "l1_linea", speed_band_kmh=20.0)
+    assert ev["clean"] is False
+    assert ev["min_speed_kmh"] == 11.0
+    assert "vel mín" in ev["summary"]
+
+
+def test_l1_lap_that_never_reaches_speed_is_dirty():
+    ticks = [_lap_tick(speed=10.0) for _ in range(100)]
+    ev = evaluate_lap(ticks, "l1_linea", speed_band_kmh=20.0)
+    assert ev["clean"] is False
+    assert ev["min_speed_kmh"] is None
+    assert "sin alcanzar" in ev["summary"]
+
+
+def test_l1_lap_overlap_limit():
+    ticks = [_lap_tick(speed=20.0) for _ in range(10000)]
+    ticks[5].update(throttle=0.1, brake=0.03)  # 1 tick: 0,01 %, dentro del límite
+    assert evaluate_lap(ticks, "l1_linea", speed_band_kmh=20.0)["clean"] is True
+    for t in ticks[100:120]:  # 21 ticks: 0,21 %
+        t.update(throttle=0.1, brake=0.03)
+    ev = evaluate_lap(ticks, "l1_linea", speed_band_kmh=20.0)
+    assert ev["clean"] is False
+    assert "gas+freno" in ev["summary"]
+
+
+def test_l2_lap_not_affected_by_min_speed_or_overlap():
+    ticks = [_lap_tick(speed=20.0) for _ in range(100)]
+    ticks[10].update(speed=5.0)
+    ticks[20].update(throttle=0.5, brake=0.5)
+    assert evaluate_lap(ticks, "l2_velocidad")["clean"] is True
 
 
 def test_advance_after_clean_streak():

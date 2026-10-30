@@ -46,6 +46,17 @@ Una entrada por experimento: fecha, qué se hizo, resultado frente al criterio d
 - **Falsa pista y hallazgo real.** Se sospechó que el BC generalizaba el freno de las bandas 70-80 por la velocidad objetivo; probado
   sin juego, cambiar `obs[14]` casi no mueve el freno. Al comparar las etiquetas del buffer con lo aplicado apareció el windup del PI
   del teacher mientras conduce el BC: la etiqueta de gas de `maintain_speed` va de 0,02 (teacher al volante) a 0,55 (check) con 0,04
-  aplicado (H29). Los fine-tunes de H27 entrenaron con eso. Corregido con anti-windup por retrocálculo (X16, 4 tests, sin commit).
-- **Decisión pendiente del usuario:** qué hacer con los buffers y modelos contaminados, y lanzar el check desde `bc_7c.pt`
-  (comando en `PENDIENTE.md`).
+  aplicado (H29). Los fine-tunes de H27 entrenaron con eso. Corregido con anti-windup por retrocálculo (X16, 4 tests).
+- **Limpieza (decisión del usuario):** borrados los modelos y buffers contaminados (`bc7c_ft20*`, `bc7c_20_buffer`).
+- **Check de `bc_7c.pt` con el teacher corregido (H30).** El anti-windup funciona (etiqueta de gas estable), pero el solape sigue:
+  es un defecto de cobertura del BC base con la intención `accel_straight` en 700-900 m, que la lluvia solo hace más probable. Una
+  prueba sin juego con el fine-tune limpio lo corrigió en lazo abierto.
+- **Fine-tune limpio en el juego (H31).** Corrige 700-900 m, pero la vuelta 2 se estanca a 11 km/h en 3000-3250 m: estado nuevo que
+  el teacher etiqueta bien y el BC no obedece. El criterio de vuelta limpia no lo detecta (P23). Siguiente: check del modelo final
+  (`bc7c_ft_limpio_model.pt`).
+
+## 2026-10-30
+
+- **Check del modelo final sin fine-tune, en seco (H32).** `bc7c_ft_limpio_check`, 2 vueltas limpias de ≈ 10:17, 0 incidencias. Velocidad mínima 18,1 km/h (el estancamiento de H31 no aparece), 0 freno en 700-900 m, solape de 1 tick por vuelta (2275 m) y etiqueta de gas estable en 0,024. Falla `teacher:speed` < 5 % (11 %), que es el sesgo de siempre en seco (el BC va ≈ 0,8 km/h por encima y el tope lo corta), no un defecto nuevo.
+- **Lo que el check no prueba.** El estancamiento de 3000-3250 m apareció con lluvia; en seco el coche no baja de 21,2 km/h ahí y nunca entra en el estado que falló. Siguiente: decidir P23 y el criterio en seco, y probar la recuperación con una perturbación forzada (P24) o con un check bajo lluvia.
+- **Puerta de L1 con velocidad mínima y solape (P23, X17).** Decidido con el usuario: `teacher:speed` y desviación en seco son informativos; la vuelta limpia exige velocidad mínima ≥ 85 % de la consigna una vez alcanzada y solape ≤ 0,05 %. Con los logs reales: H32 limpias, H31 vuelta 2 (estancamiento) y H30 sucias. 409 tests en verde.

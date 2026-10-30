@@ -35,6 +35,10 @@ class LearnStage:
     max_lap_override_pct: float
     min_brake_pct: Optional[float] = None
     min_avg_speed_kmh: Optional[float] = None
+    # Fracción de la consigna que no se puede cruzar hacia abajo una vez alcanzada (P23: detecta estancamientos).
+    min_speed_frac: Optional[float] = None
+    # Máx. % de ticks con gas y freno a la vez.
+    max_overlap_pct: Optional[float] = None
     next_stage: Optional[str] = None
     autonomous_ready: bool = False
     objectives: List[LearnObjective] = field(default_factory=list)
@@ -53,6 +57,8 @@ LEARN_STAGES: Dict[str, LearnStage] = {
         clean_laps_required=2,
         max_lap_cte=4.5,
         max_lap_override_pct=12.0,
+        min_speed_frac=0.85,
+        max_overlap_pct=0.05,
         next_stage="l2_velocidad",
         objectives=_objs(
             LearnObjective("linea", "Trazado (CTE medio)", "avg_cte", 4.5, "m", "le"),
@@ -303,6 +309,34 @@ def evaluate_objectives(
     return rows
 
 
+def min_speed_after_launch(ticks: List[dict], floor_kmh: float) -> Optional[float]:
+    """Velocidad mínima desde que la vuelta alcanza `floor_kmh` por primera vez (el arranque no cuenta).
+
+    None si nunca llega: el coche no cogió la velocidad.
+    """
+    low: Optional[float] = None
+    for t in ticks:
+        v = float(t.get("speed_kmh", 0.0))
+        if low is None:
+            if v < floor_kmh:
+                continue
+            low = v
+        else:
+            low = min(low, v)
+    return low
+
+
+def overlap_pct(ticks: List[dict], pedal_min: float = 0.02) -> float:
+    """% de ticks con gas y freno aplicados a la vez (ticks sin pedales registrados no cuentan)."""
+    if not ticks:
+        return 0.0
+    n = sum(
+        1 for t in ticks
+        if (t.get("throttle") or 0.0) > pedal_min and (t.get("brake") or 0.0) > pedal_min
+    )
+    return round(100.0 * n / len(ticks), 3)
+
+
 def evaluate_lap(
     ticks: List[dict],
     stage_id: str,
@@ -341,6 +375,16 @@ def evaluate_lap(
     if min_avg is not None:
         clean = clean and avg_speed >= min_avg
 
+    floor = None
+    min_speed = None
+    if stage.min_speed_frac is not None:
+        floor = round(resolve_learn_speed(stage_id, speed_band_kmh) * stage.min_speed_frac, 1)
+        min_speed = min_speed_after_launch(ticks, floor)
+        clean = clean and min_speed is not None and min_speed >= floor
+    pct_overlap = overlap_pct(ticks)
+    if stage.max_overlap_pct is not None:
+        clean = clean and pct_overlap <= stage.max_overlap_pct
+
     issues = []
     if avg_cte > stage.max_lap_cte:
         issues.append(f"CTE {avg_cte}m")
@@ -350,6 +394,10 @@ def evaluate_lap(
         issues.append(f"freno {pct_brake}%")
     if min_avg is not None and avg_speed < min_avg:
         issues.append(f"vel {avg_speed} km/h")
+    if floor is not None and (min_speed is None or min_speed < floor):
+        issues.append(f"vel mín {min_speed if min_speed is not None else 'sin alcanzar'} km/h (< {floor})")
+    if stage.max_overlap_pct is not None and pct_overlap > stage.max_overlap_pct:
+        issues.append(f"gas+freno {pct_overlap}%")
     if off_track > 8.0:
         issues.append(f"off-track {off_track}%")
     if stuck > 5.0:
@@ -359,6 +407,8 @@ def evaluate_lap(
         "clean": clean,
         "avg_cte": avg_cte,
         "avg_speed_kmh": avg_speed,
+        "min_speed_kmh": min_speed,
+        "pct_overlap": pct_overlap,
         "cte_p95": p95_cte,
         "pct_override": pct_override,
         "pct_off_track": off_track,
