@@ -26,20 +26,20 @@ identificación A1, (3) C1 con `--ramp`. C1 va con el usuario delante, en bloque
 
 1. **Hecho en código, sin probar en el juego (X19):** `learn_driver --ramp` (puerta por ciclos, recta libre, velocidad mínima por
    recta) y `aislado.py --ramp --resume`. Validado con los logs del teacher a 20-80 km/h.
-2. **Bucle por banda (D20). 20, 30 y 40 km/h hechas (H33-H38, pasan; 40 con el modelo `bc40_ft_model.pt`, que sustituye al cerrado
-   como punto de partida).** Siguiente en el juego: **50 km/h** con `bc40_ft_model.pt` (cada prueba: 2 vueltas de ≈ 4:15, ≈ 10 min,
-   juego en parrilla en Sugo GP, perfil RA, sin hacer clic fuera del juego). Primero el check (puerta de L1: mínima por recta ≥ 42,5
-   km/h, solape ≤ 0,05 %, CTE ≤ 0,25 m, 0 incidencias):
-   `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --experiment bc50_check --speed-band 50 --laps 2 --model-src C:\Users\doski\projectIA\experimental\data\bc40_ft_model.pt`
+2. **Bucle por banda (D20). 20, 30 y 40 km/h hechas (H33-H38). 50 km/h: con `bc40_ft_model.pt` fallan el check y las perturbaciones
+   (H39: el gas no sube con el error, gas predicho 0,16 frente a 0,37); fine-tune sin juego hecho (X20) y modelo nuevo
+   `experimental/data/bc50_ft_model.pt`, que es ahora el punto de partida.** Siguiente en el juego: el mismo par a 50 km/h con ese
+   modelo (cada prueba: 2 vueltas de ≈ 4:30, ≈ 10 min, juego en parrilla en Sugo GP, perfil RA, sin hacer clic fuera del juego).
+   Primero el check (puerta de L1: mínima por recta ≥ 42,5 km/h, solape ≤ 0,05 %, CTE ≤ 0,25 m, 0 incidencias):
+   `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --experiment bc50_ft_check --speed-band 50 --laps 2 --model-src C:\Users\doski\projectIA\experimental\data\bc50_ft_model.pt`
    Si pasa, las perturbaciones:
-   `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --experiment bc50_perturb --speed-band 50 --laps 2 --model-src C:\Users\doski\projectIA\experimental\data\bc40_ft_model.pt --perturb-every 250`
-   Criterio de recuperación (H35): todas salen de `accel_straight` en ≤ 2 s, ninguna baja de 0,8 × la consigna (40 km/h), freno < 2 %
-   de los ticks de recuperación, solape ≤ 0,05 % de los ticks de la vuelta, 0 incidencias. Anotar la lluvia de cada informe (registro
-   `conditions`): con lluvia el coche pide el doble de gas (H36) y la prueba es más dura. Luego 55 y 60. Si una banda falla: mirar
-   dónde y, si es el BC, repetir el fine-tune sin juego (`finetune_offline.py`, X20) con los buffers nuevos.
-   **Controles de seco pendientes** (cuando deje de llover, con `bc40_ft_model.pt`): check de 30 y 40 y perturbaciones de 20 y 30,
-   para descartar regresiones (H37 solo lo comprobó offline). Los buffers de perturbaciones se conservan para el BC final
-   reentrenado con todas las bandas.
+   `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --experiment bc50_ft_perturb --speed-band 50 --laps 2 --model-src C:\Users\doski\projectIA\experimental\data\bc50_ft_model.pt --perturb-every 250`
+   Criterio de recuperación (H35): todas salen de `accel_straight` en ≤ 2 s, ninguna baja de 40 km/h, freno < 2 % de los ticks de
+   recuperación, solape ≤ 0,05 % de los ticks de la vuelta, 0 incidencias. Mirar sobre todo 2750-3500 m y 900-1100 m. Anotar la lluvia
+   de cada informe (registro `conditions`). Si pasa: 55 y 60 con el mismo método; si falla el BC, otro fine-tune sin juego
+   (`finetune_offline.py`, dejando fuera una prueba para medir si generaliza). **Controles de seco pendientes** (cuando deje de
+   llover, con el modelo más reciente): check de 30, 40 y 50 y perturbaciones de 20 y 30, para descartar regresiones (H37 y H39 solo
+   lo comprobaron offline). Los buffers de perturbaciones se conservan para el BC final reentrenado con todas las bandas.
 3. **A1, sesiones de identificación (`PLAN_A_LIMITES_COCHE.md`), antes de C1:** no hay código todavía; el siguiente trabajo mío.
    Sesiones de la sección 5 del estudio (dejar rodar, frenadas a fondo, aceleraciones, círculos, barridos de volante).
 4. **C1 (paso 8):** rampa de 60 a 80 con `--ramp`, con el usuario delante y en bloques de 2-3 ciclos (`--resume` entre bloques).
