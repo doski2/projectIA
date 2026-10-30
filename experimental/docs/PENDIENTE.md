@@ -26,17 +26,18 @@ identificación A1, (3) C1 con `--ramp`. C1 va con el usuario delante, en bloque
 
 1. **Hecho en código, sin probar en el juego (X19):** `learn_driver --ramp` (puerta por ciclos, recta libre, velocidad mínima por
    recta) y `aislado.py --ramp --resume`. Validado con los logs del teacher a 20-80 km/h.
-2. **Bucle por banda (D20). 20 y 30 km/h hechas (H33-H35, pasan).** Siguiente en el juego: **40 km/h**, el mismo par con el modelo
-   cerrado y sin fine-tune (cada prueba: 2 vueltas de ≈ 5:20, ≈ 12 min, juego en parrilla en Sugo GP, perfil RA, sin hacer clic fuera
-   del juego). Primero el check (puerta de L1: mínima por recta ≥ 34 km/h, solape ≤ 0,05 %, CTE ≤ 0,25 m, 0 incidencias):
-   `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --experiment bc40_check --speed-band 40 --laps 2 --model-src C:\Users\doski\projectIA\experimental\data\bc7c_ft_limpio_model.pt`
-   Si pasa, las perturbaciones:
-   `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --experiment bc40_perturb --speed-band 40 --laps 2 --model-src C:\Users\doski\projectIA\experimental\data\bc7c_ft_limpio_model.pt --perturb-every 250`
-   Criterio de recuperación (revisado en H35): todas salen de `accel_straight` en ≤ 2 s, ninguna baja de 0,8 × la consigna (32 km/h),
-   freno < 2 % de los ticks de recuperación, solape ≤ 0,05 % de los ticks de la vuelta, 0 incidencias. Las vueltas perturbadas saldrán
-   «sucias» a propósito. Luego 50, 55 y 60. Vigilar si el solape del arranque de la recuperación crece con la banda (0 a 20, ≈ 0,045 % a
-   30): si pasa el límite, o si una banda falla, mirar dónde antes de un fine-tune. Los buffers de perturbaciones se conservan para el BC
-   final reentrenado con todas las bandas.
+2. **Bucle por banda (D20). 20 y 30 km/h hechas (H33-H35, pasan). 40 km/h: el check pasa y las perturbaciones fallan (H36).** El
+   BC cerrado se estanca ≈ 75 s en 2884-3424 m (vuelta 2: baja a 23,4 km/h con gas 0,13 y etiqueta del teacher 0,73) y el solape al
+   arrancar la recuperación sube a 0,10-0,12 % (límite 0,05 %). Por D20 toca fine-tune en esta banda. **A decidir con el usuario, sin
+   lanzar nada todavía:**
+   - **A. Fine-tune sin juego** con los buffers de perturbaciones ya grabados (`bc40_perturb`, `bc30_perturb`,
+     `bc7c_ft_limpio_perturb`, más la base del teacher), que ya tienen las filas del estancamiento etiquetadas. Hay que escribir un
+     script pequeño en `experimental/` que llame a `fine_tune_universal` (hoy solo se hace dentro del juego). Después, en el juego:
+     `bc40_check`, `bc40_perturb` y una perturbación de regresión a 20 y a 30 km/h.
+   - **B. Fine-tune en el juego** a 40 km/h con perturbaciones (`--finetune-every 1 --perturb-every 250`, el mecanismo de H31). El BC
+     visita estados nuevos, pero cada fine-tune de H31 destapó otra zona, y luego igualmente hay que repetir la comprobación.
+   Recomendado: A (no gasta juego y usa justo las filas que faltan). Criterio tras el fine-tune: el de H35 (salir de `accel_straight`
+   en ≤ 2 s, ninguna por debajo de 32 km/h, freno < 2 % de la recuperación, solape ≤ 0,05 %, 0 incidencias). 50, 55 y 60 después.
 3. **A1, sesiones de identificación (`PLAN_A_LIMITES_COCHE.md`), antes de C1:** no hay código todavía; el siguiente trabajo mío.
    Sesiones de la sección 5 del estudio (dejar rodar, frenadas a fondo, aceleraciones, círculos, barridos de volante).
 4. **C1 (paso 8):** rampa de 60 a 80 con `--ramp`, con el usuario delante y en bloques de 2-3 ciclos (`--resume` entre bloques).
