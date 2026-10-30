@@ -62,7 +62,7 @@ def build_base_dataset(out: Path, sources: Optional[List[Path]] = None) -> int:
 
 def build_argv(
     python: Path, experiment: str, speed_band: float, laps: int, stage: str = "l1_linea", teacher_only: bool = False,
-    learn_every: int = 99, base_dataset: Optional[Path] = None,
+    learn_every: int = 99, base_dataset: Optional[Path] = None, perturb_every: float = 0.0,
 ) -> List[str]:
     argv = [
         str(python), str(APP / "src" / "learn_driver.py"),
@@ -76,12 +76,14 @@ def build_argv(
     ]
     if base_dataset is not None:  # fine-tune: la base es el teacher nuevo, no los datos antiguos de producción
         argv += ["--base-dataset", str(base_dataset), "--curated", ""]
+    if perturb_every > 0:  # P24: el coche rueda sin pedales cada N m y se mide la recuperación
+        argv += ["--perturb-every", f"{perturb_every:g}"]
     return argv + (["--teacher-only"] if teacher_only else [])
 
 
 def run_isolated(
     experiment: str, speed_band: float, laps: int, python: Optional[Path] = None, teacher_only: bool = False,
-    model_src: Optional[Path] = None, finetune_every: int = 0,
+    model_src: Optional[Path] = None, finetune_every: int = 0, perturb_every: float = 0.0,
 ) -> int:
     DATA.mkdir(parents=True, exist_ok=True)
     model = DATA / f"{experiment}_model.pt"
@@ -100,7 +102,7 @@ def run_isolated(
         return subprocess.run(
             build_argv(
                 python or Path(sys.executable), experiment, speed_band, laps, teacher_only=teacher_only,
-                learn_every=finetune_every or 99, base_dataset=base,
+                learn_every=finetune_every or 99, base_dataset=base, perturb_every=perturb_every,
             ),
             cwd=APP, env=env,
         ).returncode
@@ -137,11 +139,13 @@ if __name__ == "__main__":
                     help="BC de partida (por defecto el de producción, models/universal_bc.pt)")
     ap.add_argument("--finetune-every", type=int, default=0,
                     help="Fine-tune cada N vueltas con el teacher nuevo como base (0 = sin fine-tune, D7)")
+    ap.add_argument("--perturb-every", type=float, default=0.0,
+                    help="Cada N metros el coche rueda sin gas ni freno hasta perder 4,5 km/h y se suelta (P24)")
     a = ap.parse_args()
     t0 = time.time() - 5
     experiment = experiment_name(a.speed_band, a.teacher_only, a.experiment)
     code = run_isolated(experiment, a.speed_band, a.laps, teacher_only=a.teacher_only, model_src=a.model_src,
-                       finetune_every=a.finetune_every)
+                       finetune_every=a.finetune_every, perturb_every=a.perturb_every)
     log = latest_log(experiment, t0)
     if log is None:
         print("[experimental] no se encontró el log de la prueba; sin informe")

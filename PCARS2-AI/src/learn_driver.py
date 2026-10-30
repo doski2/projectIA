@@ -26,6 +26,7 @@ from pcars2_gear import (
     cap_bc_to_speed_target,
     choose_bc_drive_pedals,
     damp_bc_steering,
+    is_forward_gear,
 )
 from bc_training import fine_tune_universal
 from curate_dataset import load_curated
@@ -46,6 +47,7 @@ from lap_session import (
 )
 from lap_transition import LapTransitionGuard
 from lap_tracker import format_lap_time
+from speed_perturbation import SpeedPerturber
 from learn_guards import StuckOffTrackAbort, SustainedCteGuard, is_poor_demo
 from learn_progress import read_saved_speed_band, read_saved_stage, save_learn_progress
 from learning_curriculum import (
@@ -140,6 +142,16 @@ def parse_args() -> argparse.Namespace:
         "--teacher-only", action="store_true",
         help="Conduce el profesor en toda la vuelta (sin consultar al BC): sirve para medir sus pedales, el PI de "
              "velocidad y el modelo físico de curva (P16). Los ticks salen con drive_source=teacher:only.",
+    )
+    parser.add_argument(
+        "--perturb-every", type=float, default=0.0,
+        help="Cada N metros de vuelta el coche rueda sin gas ni freno hasta perder --perturb-drop-kmh y se suelta, "
+             "para probar si quien conduce (el BC) recupera la velocidad; el teacher etiqueta la recuperación. "
+             "Los ticks perturbados salen con drive_source=perturb:coast. 0 = sin perturbación (P24).",
+    )
+    parser.add_argument(
+        "--perturb-drop-kmh", type=float, default=4.5,
+        help="Velocidad que se deja perder en cada perturbación (4,5 km/h cruza con holgura el umbral de accel_straight).",
     )
     parser.add_argument("--open-report", action="store_true")
     parser.add_argument("--auto-shift", action=argparse.BooleanOptionalAction, default=True)
@@ -343,6 +355,11 @@ def run(args: argparse.Namespace) -> int:
     ))
     safety = SafetyMonitor(ref=ref, surface_profile=ns_str(args, "safety_profile"))
     session = DriveSession()
+    perturb_every = float(getattr(args, "perturb_every", 0.0) or 0.0)
+    perturber = (
+        SpeedPerturber(perturb_every, float(getattr(args, "perturb_drop_kmh", 4.5)))
+        if perturb_every > 0 else None
+    )
 
     model: Optional[UniversalPolicy] = None
     if os.path.isfile(args.model):
@@ -522,6 +539,12 @@ def run(args: argparse.Namespace) -> int:
                 if capped:
                     drive_source = "teacher:speed"
 
+            if perturber is not None and perturber.update(
+                timings.lap_distance, telem.speed, teacher.speed_target_ms, session_rec.elapsed_s(),
+                allowed=not (lap_guard.active or override or cte_takeover or ovr_inc) and is_forward_gear(telem),
+            ):
+                proposed, drive_source = (0.0, 0.0, proposed[2]), "perturb:coast"
+
             settle = lap_guard.apply(
                 teacher_tuple, proposed, speed_ms=telem.speed, gear=telem.gear,
             )
@@ -531,7 +554,7 @@ def run(args: argparse.Namespace) -> int:
             else:
                 final = proposed
 
-            if drive_source in ("bc", "teacher:speed"):
+            if drive_source in ("bc", "teacher:speed", "perturb:coast"):
                 teacher.track_applied_pedals(final[0], final[1])  # anti-windup: el PI no integra lo que el BC no sigue
 
             controller.apply_action(*final)

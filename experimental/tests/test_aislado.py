@@ -86,6 +86,12 @@ def test_argv_finetune_uses_new_base_and_no_curated():
     assert "--base-dataset" not in sin and "--curated" not in sin
 
 
+def test_argv_perturb_every_only_when_positive():
+    argv = aislado.build_argv(Path("py"), "e", 20, 2, perturb_every=250)
+    assert argv[argv.index("--perturb-every") + 1] == "250"
+    assert "--perturb-every" not in aislado.build_argv(Path("py"), "e", 20, 2)
+
+
 def test_run_isolated_finetune_builds_base_and_passes_it(tmp_path, monkeypatch):
     monkeypatch.setattr(aislado, "progress_file", lambda: tmp_path / "prog.json")
     monkeypatch.setattr(aislado, "DATA", tmp_path / "data")

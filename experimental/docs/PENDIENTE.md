@@ -19,12 +19,18 @@
 1. **Hecho (H32): check del modelo final en seco.** Cumple velocidad mínima, CTE, incidencias, gas estable y `accel_straight` sin freno
    (1 tick por vuelta con freno 0,029 en 2275 m). Falla `teacher:speed` (11 %) y, según la medida, la desviación (0,72 típica, 1,09 RMS).
 2. **Hecho (X17, P23 para L1):** `teacher:speed` y desviación en seco pasan a informativos; la vuelta limpia de L1 exige velocidad
-   mínima ≥ 85 % de la consigna (tras el arranque) y solape ≤ 0,05 %. Comprobado con los logs de H26, H30, H31 y H32. Sin commit.
-3. **Probar la recuperación, que H32 no visitó:** o bien un check con lluvia (no se puede forzar, depende del clima real), o bien
-   perturbaciones forzadas con el teacher al volante (P24, determinista; recomendado). **Si aparece otra zona** (o el estancamiento sigue): otra iteración del bucle, `--finetune-every 1 --laps 2` partiendo de
-   `bc7c_ft_limpio_model.pt` (añade el buffer nuevo a la base) y vuelta a comprobar. **Si tras 2 iteraciones sigue destapando zonas
-   nuevas**, pasar a perturbaciones forzadas con el teacher al volante (bajar la velocidad bajo el umbral de `accel_straight` y
-   soltarla en cada tramo) en lugar de esperar a que el BC se equivoque (P24).
+   mínima ≥ 85 % de la consigna (tras el arranque) y solape ≤ 0,05 %. Comprobado con los logs de H26, H30, H31 y H32 (commit `d039a0f`).
+3. **Probar la recuperación, que H32 no visitó (X18, preparado, sin probar en el juego).** Perturbación determinista: cada 250 m el
+   coche rueda sin gas ni freno hasta perder 4,5 km/h y se suelta; conduce el BC y el teacher etiqueta la recuperación. 2 vueltas,
+   ≈ 21-25 min, juego en parrilla en Sugo GP, perfil RA, sin hacer clic fuera del juego:
+   `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --experiment bc7c_ft_limpio_perturb --speed-band 20 --laps 2 --model-src C:\Users\doski\projectIA\experimental\data\bc7c_ft_limpio_model.pt --perturb-every 250`
+   Analizar por perturbación (ticks `perturb:coast` y lo que sigue hasta volver a la consigna): tiempo de recuperación, velocidad
+   mínima, freno y gas aplicados. Criterio propuesto: todas vuelven a ≥ 19,5 km/h en ≤ 15 s, ninguna baja de 14 km/h, 0 solape,
+   freno < 2 % de los ticks de recuperación, 0 incidencias. Las vueltas saldrán «sucias» por la puerta de L1 a propósito.
+   **Si alguna no se recupera**, el buffer `bc7c_ft_limpio_perturb_buffer.jsonl` ya trae esas filas: fine-tune con
+   `--finetune-every 1 --laps 2` partiendo de `bc7c_ft_limpio_model.pt` (la base incluye los buffers limpios) y repetir la prueba.
+   **Si tras 2 iteraciones sigue habiendo zonas sin recuperar**, el problema es de cobertura general: replantear el BC (más datos de
+   la rampa a 20 km/h) en lugar de seguir parcheando.
 4. **Antes de C1, cerrar lo que queda de P23:** decidir si la puerta de la rampa 60 → 80 usa la misma velocidad mínima (en curva el
    teacher frena, H23: la mínima de toda la vuelta no vale) y si se añade `accel_straight` con freno.
 5. **C1 (paso 8, `PLAN_C_RAMPA_BC.md`):** rampa 60 → 80 con puerta. Antes hay que responder las preguntas de «Por resolver antes de C1»
