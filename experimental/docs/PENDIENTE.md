@@ -26,22 +26,17 @@ identificación A1, (3) C1 con `--ramp`. C1 va con el usuario delante, en bloque
 
 1. **Hecho en código, sin probar en el juego (X19):** `learn_driver --ramp` (puerta por ciclos, recta libre, velocidad mínima por
    recta) y `aislado.py --ramp --resume`. Validado con los logs del teacher a 20-80 km/h.
-2. **Bucle por banda (D20). 20 y 30 km/h hechas (H33-H35, pasan). 40 km/h: el check pasa y las perturbaciones fallan (H36).** El
-   BC cerrado se estanca ≈ 75 s en 2884-3424 m (vuelta 2: baja a 23,4 km/h con gas 0,13 y etiqueta del teacher 0,73) y el solape al
-   arrancar la recuperación sube a 0,10-0,12 % (límite 0,05 %). Por D20 toca fine-tune en esta banda. **A decidir con el usuario, sin
-   lanzar nada todavía:**
-   - **A. Fine-tune sin juego** con los buffers de perturbaciones ya grabados (`bc40_perturb`, `bc30_perturb`,
-     `bc7c_ft_limpio_perturb`, más la base del teacher), que ya tienen las filas del estancamiento etiquetadas. Hay que escribir un
-     script pequeño en `experimental/` que llame a `fine_tune_universal` (hoy solo se hace dentro del juego). Después, en el juego:
-     `bc40_check`, `bc40_perturb` y una perturbación de regresión a 20 y a 30 km/h.
-   - **B. Fine-tune en el juego** a 40 km/h con perturbaciones (`--finetune-every 1 --perturb-every 250`, el mecanismo de H31). El BC
-     visita estados nuevos, pero cada fine-tune de H31 destapó otra zona, y luego igualmente hay que repetir la comprobación.
-   **Matiz (lluvia):** `bc40_perturb` fue con lluvia 153 y `bc40_check` en seco; en mojado el coche pide el doble de gas y no hay
-   patinaje medible. Antes de cualquier fine-tune conviene repetir `bc40_perturb` en seco (mismo comando, otro experimento, p. ej.
-   `bc40_perturb_seco`) para separar «40 km/h» de «lluvia»; si en seco pasa, el defecto es de lluvia (como H31) y el fine-tune se
-   hace con las filas mojadas y se valida en seco y en mojado. La lluvia no se puede forzar desde aquí: depende del tiempo que ponga el juego.
-   Recomendado: A (no gasta juego y usa justo las filas que faltan). Criterio tras el fine-tune: el de H35 (salir de `accel_straight`
-   en ≤ 2 s, ninguna por debajo de 32 km/h, freno < 2 % de la recuperación, solape ≤ 0,05 %, 0 incidencias). 50, 55 y 60 después.
+2. **Bucle por banda (D20). 20 y 30 km/h hechas (H33-H35, pasan). 40 km/h: el check pasa (seco) y las perturbaciones fallan con
+   lluvia (H36); fine-tune sin juego hecho (H37, X20).** El estancamiento (BC con gas 0,13 y etiqueta 0,73 a 23 km/h) se reproduce
+   fuera del juego y el modelo nuevo `experimental/data/bc40_ft_model.pt` lo corrige sin empeorar los controles secos. Se salta la
+   repetición en seco de `bc40_perturb` (sigue lloviendo). **Siguiente en el juego, con el tiempo que haya** (2 vueltas, ≈ 12 min;
+   si llueve igual que antes, la comparación con H36 es directa):
+   `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --experiment bc40_ft_perturb --speed-band 40 --laps 2 --model-src C:\Users\doski\projectIA\experimental\data\bc40_ft_model.pt --perturb-every 250`
+   Criterio (H35): todas salen de `accel_straight` en ≤ 2 s, ninguna baja de 32 km/h, freno < 2 % de los ticks de recuperación,
+   solape ≤ 0,05 % de los ticks de la vuelta, 0 incidencias. Mirar sobre todo 2750-3400 m. Si pasa: `bc40_ft_check` (check con el
+   modelo nuevo) y, cuando deje de llover, regresión en seco: check de 30 y 40 y perturbaciones de 20 y 30 con `bc40_ft_model.pt`.
+   Luego 50, 55 y 60 (con el modelo nuevo como punto de partida). Si falla: mirar dónde antes de otro fine-tune. Los buffers de
+   perturbaciones se conservan para el BC final reentrenado con todas las bandas.
 3. **A1, sesiones de identificación (`PLAN_A_LIMITES_COCHE.md`), antes de C1:** no hay código todavía; el siguiente trabajo mío.
    Sesiones de la sección 5 del estudio (dejar rodar, frenadas a fondo, aceleraciones, círculos, barridos de volante).
 4. **C1 (paso 8):** rampa de 60 a 80 con `--ramp`, con el usuario delante y en bloques de 2-3 ciclos (`--resume` entre bloques).
