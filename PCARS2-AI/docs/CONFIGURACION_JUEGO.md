@@ -10,43 +10,44 @@ neumáticos lisos (1,69 / 1,55 bar).
 
 ## Controles → Configuración
 
-| Opción                      | Valor | Nota                                                       |
-| --------------------------- | ----: | ---------------------------------------------------------- |
-| Zona muerta de dirección    |     0 | Sin zona muerta: el volante responde desde la primera señal |
-| Sensibilidad de dirección   |    50 | Neutra (el juego equipara lo aplicado a lo introducido)    |
-| Zona muerta de acelerador   |     0 |                                                            |
-| Sensibilidad de acelerador  |    50 | Neutra                                                     |
-| Zona muerta del freno       |     0 |                                                            |
-| Sensibilidad del freno      |    50 | Neutra                                                     |
-| Zona muerta de embrague     |     0 |                                                            |
-| Sensibilidad de embrague    |    25 | Única sensibilidad que no está en 50                       |
-| Sensibilidad de velocidad   |     0 | Sin reducción del volante al subir la velocidad            |
-| Amortiguación de mando      |     0 |                                                            |
-| Vibración del mando         |    50 |                                                            |
-| Tiempo de cambio mínimo     |     0 |                                                            |
-| Visor RPM/marchas           |    No |                                                            |
+| Opción                      | Valor | Nota                                                        |
+| --------------------------- | ----- | ----------------------------------------------------------- |
+| Zona muerta de dirección    | 0     | Sin zona muerta: el volante responde desde la primera señal |
+| Sensibilidad de dirección   | 50    | Neutra (el juego equipara lo aplicado a lo introducido)     |
+| Zona muerta de acelerador   | 0     |                                                             |
+| Sensibilidad de acelerador  | 50    | Neutra                                                      |
+| Zona muerta del freno       | 0     |                                                             |
+| Sensibilidad del freno      | 50    | Neutra                                                      |
+| Zona muerta de embrague     | 0     |                                                             |
+| Sensibilidad de embrague    | 25    | Única sensibilidad que no está en 50                        |
+| Sensibilidad de velocidad   | 0     | Sin reducción del volante al subir la velocidad             |
+| Amortiguación de mando      | 0     |                                                             |
+| Vibración del mando         | 50    |                                                             |
+| Tiempo de cambio mínimo     | 0     |                                                             |
+| Visor RPM/marchas           | No    |                                                             |
 
 Los cambios en estas opciones se guardan y **surten efecto al volver a la central de carreras e
 iniciar una nueva sesión** (indicado por el propio juego), no en caliente.
 
 ## Juego → Realismo (captura 2026-10-25)
 
-| Opción                    | Valor                | Nota                                      |
-| ------------------------- | -------------------- | ----------------------------------------- |
-| Asistencia de dirección   | No                   |                                           |
-| Asistencia al frenado     | No                   |                                           |
+| Opción                    | Valor                | Nota                                                                 |
+| ------------------------- | -------------------- | -------------------------------------------------------------------- |
+| Asistencia de dirección   | No                   |                                                                      |
+| Asistencia al frenado     | No                   |                                                                      |
 | Asistencias de conducción | Auténticas           | ABS Alto, control de estabilidad Auténtico, control de tracción Alto |
-| Ayuda de bloqueo opuesto  | Desact.              |                                           |
-| Tipo de daño              | Desact.              |                                           |
-| Fallos mecánicos          | No                   |                                           |
-| Desgaste de neumáticos    | Desact.              |                                           |
-| Uso de combustible        | Desact.              |                                           |
-| Arranque automático       | Sí                   | El motor se rearranca solo tras calarse   |
-| Reglas y sanciones        | Desact.              |                                           |
-| Parada en boxes manual    | No                   |                                           |
+| Ayuda de bloqueo opuesto  | Desact.              |                                                                      |
+| Tipo de daño              | Desact.              |                                                                      |
+| Fallos mecánicos          | No                   |                                                                      |
+| Desgaste de neumáticos    | Desact.              |                                                                      |
+| Uso de combustible        | Desact.              |                                                                      |
+| Arranque automático       | Sí                   | El motor se rearranca solo tras calarse                              |
+| Reglas y sanciones        | Desact.              |                                                                      |
+| Parada en boxes manual    | No                   |                                                                      |
 
 Los ajustes del mando se guardan en un fichero binario cifrado/comprimido
-(`Documents\Project CARS 2\savegame\<id>\project cars 2\profiles\default.controllersettings.v1.03.sav`)
+(`Documents\Project CARS 2\savegame\<id>\project cars
+2\profiles\default.controllersettings.v1.03.sav`)
 que no se puede leer ni editar a mano; `ffb_custom_settings.txt` es solo del force feedback de
 volantes físicos y no afecta al mando virtual. Por eso la referencia son estas tablas y las
 capturas.
@@ -57,9 +58,9 @@ El juego **no aplica lo que se envía**. Medido con `vehicle.game_steer` frente 
 (retardo de 3 ticks compensado, solo a más de 25 km/h): 18 sesiones, 639 250 ticks, y la curva
 sale igual en todas, así que es estática.
 
-| Enviado | 0,075 | 0,125 | 0,175 | 0,225 | 0,275 | 0,325 | 0,425 | 0,525 | 0,625 | 0,725 | 0,825 | 0,925 |
-| ------- | ----: | ----: | ----: | ----: | ----: | ----: | ----: | ----: | ----: | ----: | ----: | ----: |
-| Aplicado |0,007 | 0,028 | 0,058 | 0,096 | 0,140 | 0,193 | 0,317 | 0,468 | 0,618 | 0,780 | 0,917 | 0,990 |
+| Enviado  | 0,075 | 0,125 | 0,175 | 0,225 | 0,275 | 0,325 | 0,425 | 0,525 | 0,625 | 0,725 | 0,825 | 0,925 |
+| -------- | ----- | ----- | ----- | ----- | ----- | ----- | ----- | ----- | ----- | ----- | ----- | ----- |
+| Aplicado | 0,007 | 0,028 | 0,058 | 0,096 | 0,140 | 0,193 | 0,317 | 0,468 | 0,618 | 0,780 | 0,917 | 0,990 |
 
 Zona muerta blanda en el centro (órdenes menores de ~0,1 casi no hacen nada), ganancia menor
 que 1 hasta ~0,6 y mayor que 1 entre 0,65 y 0,9. Los valores completos están en
@@ -72,17 +73,19 @@ compensación la ganancia cerca del centro sube (hasta ~3×) y a volante alto ba
 primero a baja velocidad (L1 a 30 km/h) y comparar CTE y volantazos antes de subir.
 
 **Verificación (2026-10-25, L1 a 55 km/h con `--steer-comp`, sesión
-`20261025T004755Z_sugo_gp_l1_linea`):** `game_steer` ≈ **1,00** × volante pedido (2738 ticks con
+`20261025T004755Z_sugo_gp_l1_linea`):**`game_steer` ≈**1,00** × volante pedido (2738 ticks con
+
 |volante| > 0,15), frente a ≈ 0,82 sin compensar. Resultado frente a las dos sesiones a 55 km/h
+
 sin compensar (`000528`, `001539`):
 
-| Métrica                          | Sin compensar        | Con compensación          |
-| -------------------------------- | -------------------- | ------------------------- |
+| Métrica                          | Sin compensar          | Con compensación           |
+| -------------------------------- | ---------------------- | -------------------------- |
 | Vuelta 1 completada              | No (se salía a 1389 m) | Sí, 5:03, CTE medio 0,48 m |
-| CTE máximo                       | 8,3 m                | 2,0 m                     |
-| Ticks con volante > 0,9          | 2729                 | 0                         |
-| Ticks de `edge_grass`            | 619                  | 23                        |
-| Cuota de conducción del BC       | 55 %                 | 76,5 %                    |
+| CTE máximo                       | 8,3 m                  | 2,0 m                      |
+| Ticks con volante > 0,9          | 2729                   | 0                          |
+| Ticks de `edge_grass`            | 619                    | 23                         |
+| Cuota de conducción del BC       | 55 %                   | 76,5 %                     |
 
 Dos vueltas limpias seguidas (CTE medio 0,48 y 0,26 m) y paso a L2. La variable que cambió fue la
 compensación; no se puede separar su efecto del de `damp_bc_steering` porque ambos estaban
@@ -96,12 +99,12 @@ Coche de fórmula de 4 marchas (`num_gears = 4` en el log) en Sugo. Reglaje **si
 
 ### Neumáticos, frenos y chasis
 
-| Opción                          | Delantero      | Trasero        |
-| ------------------------------- | -------------- | -------------- |
-| Compuesto                       | Lisos, Automático | Lisos, Automático |
-| Presión de los neumáticos (reglaje) | 1,25 bar   | 1,15 bar       |
-| Presión mostrada (en caliente)  | 1,51 bar       | 1,39 bar       |
-| Temperatura (int. / centro / ext.) | 87 / 87 / 87 °C | 87 / 87 / 87 °C |
+| Opción                              | Delantero         | Trasero           |
+| ----------------------------------- | ----------------- | ----------------- |
+| Compuesto                           | Lisos, Automático | Lisos, Automático |
+| Presión de los neumáticos (reglaje) | 1,25 bar          | 1,15 bar          |
+| Presión mostrada (en caliente)      | 1,51 bar          | 1,39 bar          |
+| Temperatura (int. / centro / ext.)  | 87 / 87 / 87 °C   | 87 / 87 / 87 °C   |
 
 | Opción                         | Valor       |
 | ------------------------------ | ----------- |
@@ -115,15 +118,15 @@ Coche de fórmula de 4 marchas (`num_gears = 4` en el log) en Sugo. Reglaje **si
 
 ### Suspensión
 
-| Opción               | Delantera    | Trasera     |
-| -------------------- | ------------ | ----------- |
-| Relación de dirección | **12,0 : 1** | —           |
-| Ángulo de pivote     | 5,0°         | —           |
-| Ángulo de caída      | -1,5°        | -2,0°       |
-| Ángulo de puntera    | -0,2°        | 0,4°        |
-| Altura de rodaje     | 85 mm        | 95 mm       |
-| Índice de rigidez (muelle) | 48 N/mm | 38 N/mm     |
-| Barra estabilizadora | 20 N/mm      | 2 N/mm      |
+| Opción                     | Delantera    | Trasera     |
+| -------------------------- | ------------ | ----------- |
+| Relación de dirección      | **12,0 : 1** | —           |
+| Ángulo de pivote           | 5,0°         | —           |
+| Ángulo de caída            | -1,5°        | -2,0°       |
+| Ángulo de puntera          | -0,2°        | 0,4°        |
+| Altura de rodaje           | 85 mm        | 95 mm       |
+| Índice de rigidez (muelle) | 48 N/mm      | 38 N/mm     |
+| Barra estabilizadora       | 20 N/mm      | 2 N/mm      |
 
 ### Amortiguadores
 
@@ -139,14 +142,14 @@ Coche de fórmula de 4 marchas (`num_gears = 4` en el log) en Sugo. Reglaje **si
 
 ### ECU / motor / marchas
 
-| Opción               | Valor                 |
-| -------------------- | --------------------- |
-| Carga de combustible | 33 L (47 vueltas)     |
-| Apertura del radiador | 75 %                 |
-| Freno de motor       | 8                     |
-| Transmisión final    | 3,444                 |
-| 1.ª / 2.ª marcha     | 2,846 / 1,875         |
-| 3.ª / 4.ª marcha     | 1,421 / 1,125         |
+| Opción                | Valor                 |
+| --------------------- | --------------------- |
+| Carga de combustible  | 33 L (47 vueltas)     |
+| Apertura del radiador | 75 %                  |
+| Freno de motor        | 8                     |
+| Transmisión final     | 3,444                 |
+| 1.ª / 2.ª marcha      | 2,846 / 1,875         |
+| 3.ª / 4.ª marcha      | 1,421 / 1,125         |
 
 > El marcador superior seguía mostrando 18 L mientras el reglaje decía 33 L: comprobar cuál se
 > aplicó en la sesión.
@@ -159,20 +162,26 @@ embragues y potencia de rampa no se veían en la captura, y el eje delantero que
 ### Qué dice esto del comportamiento observado
 
 - **Relación de dirección 12:1** es lo único del reglaje que toca directamente la ganancia del
+
   volante. Según la ayuda del juego, una relación mayor da menos ángulo de rueda por movimiento
   de volante (menos ganancia); una menor, más sensibilidad. Subirla reduciría la ganancia del
   lazo igual que `damp_bc_steering`, pero dentro del juego y para todas las velocidades, y
   limitaría el giro máximo en curvas cerradas. **Sin probar**, y cambia lo que el dataset
   aprendió, igual que cualquier ajuste del mando.
+
 - **Marchas y bandas 70-80.** En 1.ª se miden ~92,6 rpm por km/h, y `auto_shift` sube a 2.ª al
+
   87 % del régimen máximo (estimo ~72 km/h con un máximo de ~7700 rpm; no leí `max_rpm` de la
   telemetría). Todas las sesiones hasta hoy fueron ≤ 61 km/h **sin pasar de 1.ª**, así que
   **la primera subida de marcha en vuelta llegará en las bandas 70 y 80** y es un
   comportamiento nuevo que conviene vigilar (`shift_event: up` en el log).
   **Confirmado el 2026-10-28 (banda 80 del teacher, H24):** 1.ª → 2.ª a ≈ 71 km/h y 6600 rpm, con
-  `clutch` = 255 durante el cambio. Los ajustes «Zona muerta de embrague» (0) y «Sensibilidad de embrague»
+`clutch` = 255 durante el cambio. Los ajustes «Zona muerta de embrague» (0) y «Sensibilidad de
+embrague»
   (25) solo afectan a un embrague manual; con *Embrague automático* activado no hace falta tocarlos.
+
 - **Nada del resto del reglaje** (muelles, amortiguadores, barras, diferencial, presiones)
+
   señala una causa clara del zigzag; no hay forma de deducirlo de las capturas. Barra trasera de
   2 N/mm frente a 20 N/mm delante y reparto 45/55 son valores poco habituales, anotados por si
   hay que revisarlos.
@@ -208,27 +217,37 @@ una captura de cada una.
 ## Relación con el código
 
 - **Volante.** El mando de Xbox se emula con `vgamepad` ([controller.py](../src/controller.py)).
+
   Referencia medida con esta configuración (sesión `20261025T000528Z_sugo_gp_l1_linea`, 2091
   ticks del BC con |volante| > 0,2, ajuste por el origen): `game_steer` ≈ **0,82** × volante
   enviado y `raw_steer` ≈ **0,90** × enviado. Incluye el retardo entre la orden y la respuesta,
   así que es una pendiente aparente, no la ganancia estática. Si en otro coche o configuración
   estos cocientes cambian mucho, el mando ha cambiado. Ver el Flujo B de
   [PLAN_NUEVAS_PISTAS_Y_COCHES.md](PLAN_NUEVAS_PISTAS_Y_COCHES.md).
+
 - **Marchas.** RB sube y LB baja ([TEACHING_MARCHAS_Y_DATASET.md](TEACHING_MARCHAS_Y_DATASET.md)).
+
   «Tiempo de cambio mínimo» en 0 y «Visor RPM/marchas» en No no afectan al envío de botones.
-- **Frecuencia de telemetría.** Con el juego renderizando a 120 fps, la telemetría UDP sigue a ~60 Hz (intervalo mediano 0,017 s en los logs de 2026-10-25), porque es un ajuste aparte de los fps. `GAME_FPS = 60` ([safety_monitor.py](../src/safety_monitor.py)) depende de ese valor: si cambia la tasa UDP del juego, hay que cambiar la constante.
+
+- **Frecuencia de telemetría.** Con el juego renderizando a 120 fps, la telemetría UDP sigue a ~60
+
+  Hz (intervalo mediano 0,017 s en los logs de 2026-10-25), porque es un ajuste aparte de los fps.
+  `GAME_FPS = 60` ([safety_monitor.py](../src/safety_monitor.py)) depende de ese valor: si cambia la
+  tasa UDP del juego, hay que cambiar la constante.
+
 - **Oscilación del volante a 55-60 km/h.** Con *Sensibilidad de velocidad* = 0 el juego no reduce
+
   el volante al subir la velocidad. Ya se amortigua del lado del código
   (`damp_bc_steering`, argumento `--steer-damp-kmh` de `learn_driver`). *Sensibilidad de
-  velocidad* y *Amortiguación de mando* del juego son dos palancas alternativas **sin probar**;
+  velocidad*y*Amortiguación de mando* del juego son dos palancas alternativas **sin probar**;
   si se prueban, anotar aquí el valor y el resultado, porque cambiar el mando obliga a regrabar
   el dataset del teacher (las respuestas del coche a la misma orden ya no serían las mismas).
 
 ## Registro de cambios
 
-| Fecha      | Cambio                              | Motivo |
-| ---------- | ----------------------------------- | ------ |
-| 2026-10-25 | Configuración inicial documentada   | Referencia para volver a ajustar |
-| 2026-10-25 | Reglajes del coche documentados (capturas); notas sobre marchas 70-80 y presiones | Referencia para volver a ajustar |
-| 2026-10-25 | Compensación del volante verificada en L1 a 55 km/h (pendiente 1,00; CTE máx. 8,3 → 2,0 m) | Resultado de la prueba |
-| 2026-10-25 | Medida la curva de respuesta del volante; compensación opcional | El volante aplicado es la mitad del pedido por debajo de ~0,3 |
+| Fecha      | Cambio                                                                                     | Motivo                                                        |
+| ---------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| 2026-10-25 | Configuración inicial documentada                                                          | Referencia para volver a ajustar                              |
+| 2026-10-25 | Reglajes del coche documentados (capturas); notas sobre marchas 70-80 y presiones          | Referencia para volver a ajustar                              |
+| 2026-10-25 | Compensación del volante verificada en L1 a 55 km/h (pendiente 1,00; CTE máx. 8,3 → 2,0 m) | Resultado de la prueba                                        |
+| 2026-10-25 | Medida la curva de respuesta del volante; compensación opcional                            | El volante aplicado es la mitad del pedido por debajo de ~0,3 |

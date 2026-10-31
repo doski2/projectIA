@@ -265,8 +265,6 @@ Regenerar HTML sin volver a conducir:
 ## Qué pasar para revisión (IA / análisis)
 
 ```text
-@PCARS2-AI/logs/teaching/ULTIMA_SESION.html
-@PCARS2-AI/logs/teaching/ULTIMA_SESION.jsonl
 ```
 
 Indica la fase y si el banner dice APTO o REVISAR.
