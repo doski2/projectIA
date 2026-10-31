@@ -106,7 +106,7 @@ antes.** En seco, juego en parrilla en Sugo GP, perfil RA, sin hacer clic fuera.
 vuelta (la ventana cruza la meta: la primera empieza al final de la vuelta 1), unas 4 vueltas ≈ 14
 min la tanda; la sesión se cierra sola al encontrar el límite o al acabar las velocidades. Ctrl+C si
 el coche hace eses o se descontrola.
-**Tanda 1 lanzada el 2026-10-31 (H53): la pasada de 80 salió limpia, pero la sesión se cerró a las 2 vueltas por un fallo del currículo (corregido). Repetir con 85 y 90 (o la tanda entera) tras el commit.**
+**Tanda 1 lanzada el 2026-10-31 (H53): la pasada de 80 salió limpia, pero la sesión se cerró a las 2 vueltas por un fallo del currículo (corregido). La repetición (H54) tampoco valió: la rampa no tenía efecto porque el teacher guardaba en caché los límites de curva (corregido con un test). Con el arreglo, la pasada de 80 salió limpia y real (H55: lateral p95 12,05 y máx. 12,89 m/s², |CTE| máx. 2,08 m). Siguiente: `--ident-arc-speeds 85,90 --laps 6`. **Hecho (H56): 85 limpia en el borde (lateral máx. 14,6 m/s²), 90 cortada por CTE 2,54 m en la 1ª curva por el seguimiento de la línea y no por el agarre. **A1.3 CERRADA (D21, 2026-11-01): se toma ≥ 14,6 m/s² como cota inferior validada del límite lateral; el techo real, la presión, la suspensión y la técnica de conducción quedan para más adelante. Siguiente: A2.**
 a. Tanda 1: `C:\Users\doski\projectIA\.venv\Scripts\python.exe
 C:\Users\doski\projectIA\experimental\common\aislado.py --ident arco --speed-band 60
 --ident-arc-speeds 80,85,90 --laps 6`
