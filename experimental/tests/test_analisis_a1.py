@@ -8,16 +8,19 @@ from experimental.common import analisis_a1 as a1
 DT = 1 / 60
 
 
-def _ticks(kind, v0_kmh, accel_ms2, seconds, gear=1, t0=0.0, d0=1000.0):
+def _ticks(kind, v0_kmh, accel_ms2, seconds, gear=1, t0=0.0, d0=1000.0, slope=0.0):
+    """Ticks con aceleración constante y la pista subiendo `slope` (0,1 = 10 %): la posición avanza por z y sube por y."""
     out = []
     n = int(seconds / DT)
     for i in range(n):
         t = i * DT
         v = v0_kmh / 3.6 + accel_ms2 * t
+        z = (v0_kmh / 3.6) * t + 0.5 * accel_ms2 * t * t
         out.append({
             "type": "tick", "t_s": t0 + t, "speed_kmh": v * 3.6, "gear": gear, "rpm": 4000.0, "lap": 1, "cte": 0.2,
             "lap_distance": d0 + i, "drive_source": kind,
-            "vehicle": {"local_accel": [0.0, 0.0, -accel_ms2], "engine_torque": 120.0, "game_throttle": 1.0},
+            "vehicle": {"local_accel": [0.0, 0.0, -accel_ms2], "engine_torque": 120.0, "game_throttle": 1.0,
+                        "position": [0.0, slope * z, z]},
         })
     return out
 
@@ -79,11 +82,39 @@ def test_brake_event_survives_a_downshift_in_the_middle():
     assert len(ev) == 1
     e = ev[0]
     assert e["v_in"] == pytest.approx(100.0, abs=0.5) and e["a_mean"] == pytest.approx(10.0, abs=0.3)
+    assert e["a_mean_raw"] == pytest.approx(10.0, abs=0.3) and e["grade_pct"] == pytest.approx(0.0, abs=0.1)
     assert e["a_peak"] == pytest.approx(10.0, abs=0.3) and 0 in e["gears"] and 2 in e["gears"]
 
 
-def test_brake_table_is_in_the_summary():
-    brk = _ticks("ident:frenar", 100, -10.0, 1.8, gear=2)
-    res = a1.analyze(brk)
-    assert res["summary"]["ident:frenar"]["table"]
-    assert all(r["a_med"] < -9.0 for r in res["summary"]["ident:frenar"]["table"])
+def test_brake_curve_is_in_the_result():
+    res = a1.analyze(_ticks("ident:frenar", 100, -10.0, 1.8, gear=2))
+    assert res["brake_curve"]
+    assert all(r["a_med"] == pytest.approx(-10.0, abs=0.1) for r in res["brake_curve"])
+
+
+def test_slope_is_removed_from_acceleration():
+    """Subiendo un 10 % el coche mide 3,0 m/s², pero en llano daría 3,0 + 9,81 · 0,1 ≈ 3,98."""
+    res = a1.analyze(_ticks("ident:acel", 30, 3.0, 4.0, gear=1, slope=0.10))
+    table = res["summary"]["ident:acel"]["table"]
+    assert table
+    for r in table:
+        assert r["a_raw_med"] == pytest.approx(3.0, abs=0.02)
+        assert r["a_med"] == pytest.approx(3.0 + 9.81 * 0.10, abs=0.05)
+        assert r["grade_med_pct"] == pytest.approx(10.0, abs=0.5)
+
+
+def test_slope_is_removed_from_braking():
+    """Frenando cuesta arriba el coche mide -10 m/s²: la pendiente ayuda ≈ 0,98, así que el freno solo da ≈ 9,02."""
+    ev = a1.analyze(_ticks("ident:frenar", 100, -10.0, 1.8, gear=2, slope=0.10))["brake_events"]
+    assert len(ev) == 1
+    assert ev[0]["a_mean_raw"] == pytest.approx(10.0, abs=0.2)
+    assert ev[0]["a_mean"] == pytest.approx(10.0 - 0.981, abs=0.2)
+    assert ev[0]["grade_pct"] == pytest.approx(10.0, abs=0.5)
+
+
+def test_missing_position_falls_back_to_no_correction():
+    ticks = _ticks("ident:acel", 30, 3.0, 4.0, gear=1)
+    for t in ticks:
+        t["vehicle"].pop("position")
+    r = a1.analyze(ticks)["summary"]["ident:acel"]["table"]
+    assert r and all(x["a_med"] == pytest.approx(3.0, abs=0.02) and x["no_grade"] == x["n"] for x in r)
