@@ -49,6 +49,7 @@ from lap_transition import LapTransitionGuard
 from lap_tracker import format_lap_time
 from ramp_gate import DROP, END_EVENTS, RISE, RampGate, bands_from
 from speed_perturbation import SpeedPerturber
+from ident_arc import ArcRamp, FREE_LATERAL_MS2
 from ident_maneuver import KINDS as IDENT_KINDS, IdentManeuver, find_straights, select_straights
 from learn_guards import StuckOffTrackAbort, SustainedCteGuard, is_poor_demo
 from learn_progress import read_saved_speed_band, read_saved_stage, save_learn_progress
@@ -156,11 +157,18 @@ def parse_args() -> argparse.Namespace:
         help="Velocidad que se deja perder en cada perturbación (4,5 km/h cruza con holgura el umbral de accel_straight).",
     )
     parser.add_argument(
-        "--ident", choices=IDENT_KINDS, default="",
+        "--ident", choices=IDENT_KINDS + ("arco",), default="",
         help="Maniobra de identificación del coche (A1): en las rectas largas, `acel` acelera a fondo hasta --ident-cap-kmh y "
              "`rodar` rueda sin pedales hasta --ident-floor-kmh; el resto lo conduce el teacher. Ticks con drive_source=ident:*; "
-             "no se graban en el buffer.",
+             "no se graban en el buffer. `arco` (A1.3) no impone pedales: sube por vueltas la consigna del teacher en una ventana de curvas "
+             "(--ident-arc-speeds) hasta que algún criterio de corte marca el límite lateral.",
     )
+    parser.add_argument("--ident-arc-speeds", default="", help="`arco`: velocidades de las pasadas, de menor a mayor (p. ej. 80,85,90).")
+    parser.add_argument("--ident-arc-window", default="3200,600",
+                        help="`arco`: inicio y fin de la ventana en metros de vuelta (Sugo: la recta de salida y las curvas de 228-600 m).")
+    parser.add_argument("--ident-arc-cte", type=float, default=2.5, help="`arco`: |CTE| que corta la pasada (m).")
+    parser.add_argument("--ident-arc-heading", type=float, default=0.30, help="`arco`: error de rumbo que corta la pasada (rad).")
+    parser.add_argument("--ident-arc-decay", type=float, default=6.0, help="`arco`: km/h por segundo que baja la consigna tras un corte.")
     parser.add_argument("--ident-cap-kmh", type=float, default=0.0, help="Techo de velocidad de `acel` y `acelrodar` (km/h).")
     parser.add_argument(
         "--ident-caps", default="",
@@ -425,7 +433,22 @@ def run(args: argparse.Namespace) -> int:
     )
     ident_kind = str(getattr(args, "ident", "") or "")
     ident: Optional[IdentManeuver] = None
-    if ident_kind:
+    arc: Optional[ArcRamp] = None
+    if ident_kind == "arco":
+        try:
+            win = [float(w) for w in str(args.ident_arc_window).split(",")]
+            arc = ArcRamp(
+                [float(v) for v in str(args.ident_arc_speeds).split(",") if v.strip()], win[0], win[1], ref.track_length,
+                band_kmh=effective_speed, cte_limit_m=float(args.ident_arc_cte), heading_limit_rad=float(args.ident_arc_heading),
+                decay_kmh_s=float(args.ident_arc_decay),
+            )
+        except (ValueError, IndexError) as exc:
+            print(f"[Learn] --ident arco: {exc}")
+            return 1
+        print(f"[Learn] Identificación A1.3 (arcos): ventana {win[0]:.0f}-{win[1]:.0f} m, velocidades "
+              f"{', '.join(f'{v:g}' for v in arc.speeds)} km/h, corte por |CTE| > {arc.cte_limit_m:g} m, rumbo > "
+              f"{arc.heading_limit_rad:g} rad o rueda fuera del asfalto")
+    elif ident_kind:
         all_straights = find_straights(ref.curvature, ref.track_length)
         print("[Learn] Rectas de la pista: " + ", ".join(
             f"{i}: {a:.0f}-{b:.0f} m" for i, (a, b) in enumerate(all_straights)))
@@ -555,6 +578,9 @@ def run(args: argparse.Namespace) -> int:
     lap_completion.reset(start_lap, _init_dist)
     last_conditions: Optional[dict] = None
     damage_watch = DamageWatch(limit_pct=args.damage_limit, jump_pct=args.damage_jump)
+    base_lat_limit = teacher.config.lat_accel_limit
+    arc_closing = False
+    arc_prev = (0.0, 0.0, False, False)  # CTE, rumbo, fuera de asfalto y control tomado, del tick anterior (este aún no está decidido)
 
     try:
         while True:
@@ -582,6 +608,27 @@ def run(args: argparse.Namespace) -> int:
             teacher.config.speed_target_kmh = resolve_learn_speed(
                 prog.stage_id, prog.speed_band, args.speed_target,
             )
+            arc_dec = None
+            if arc is not None:
+                arc_dec = arc.update(
+                    timings.lap_distance, telem.speed, arc_prev[0], arc_prev[1], arc_prev[2], session_rec.elapsed_s(),
+                    allowed=not lap_guard.active and not arc_prev[3] and (telem.gear == 0 or is_forward_gear(telem)),
+                )
+                if arc_dec.event is not None:
+                    session_rec.record_event(arc_dec.event)
+                    if arc_dec.event["phase"] == "end":
+                        verdict = "limpia" if arc_dec.event["result"] == "clean" else f"LÍMITE ({arc_dec.event['reason']})"
+                        print(f"[Learn] Arco a {arc_dec.event['target_kmh']:g} km/h: {verdict}")
+                if arc_dec.target_kmh is not None:
+                    teacher.config.speed_target_kmh = arc_dec.target_kmh
+                    teacher.config.lat_accel_limit = FREE_LATERAL_MS2
+                else:
+                    teacher.config.lat_accel_limit = base_lat_limit
+                if arc.finished and not arc_closing:
+                    arc_closing = True
+                    args.max_laps = laps_done + 1 if args.max_laps <= 0 else min(args.max_laps, laps_done + 1)
+                    why = arc.limit_reason or "todas las velocidades hechas"
+                    print(f"[Learn] A1.3: fin de la rampa ({why}); la sesión se cierra al terminar esta vuelta")
 
             status = safety.update(telem, timings)
             if lap_guard.active:
@@ -657,6 +704,9 @@ def run(args: argparse.Namespace) -> int:
             else:
                 final = proposed
 
+            if arc_dec is not None and arc_dec.tag:
+                drive_source = arc_dec.tag  # los ticks de la pasada salen con su etiqueta y no entran en el buffer
+
             if drive_source in ("bc", "teacher:speed", "perturb:coast") or drive_source.startswith("ident:"):
                 teacher.track_applied_pedals(final[0], final[1])  # anti-windup: el PI no integra lo que el BC no sigue
 
@@ -682,6 +732,7 @@ def run(args: argparse.Namespace) -> int:
                 )
 
             flags = lap_tick_safety_flags(status, decision.cte, lap_guard.active)
+            arc_prev = (decision.cte, decision.heading_err, bool(flags.off_surface or flags.off_track), bool(override or cte_takeover))
             lap_override = (override or cte_takeover) if not lap_guard.active else False
             lap_ticks.append(make_lap_buffer_tick(
                 session_rec.elapsed_s(),
@@ -779,7 +830,7 @@ def run(args: argparse.Namespace) -> int:
 
                 if ramp is not None:
                     advance_ramp(prog, ramp, lap_result.clean, lambda: ramp.save(ramp_state), _persist_progress)
-                else:
+                elif not ident_kind:  # las sesiones de identificación (A1) no avanzan el currículo: acaban por --max-laps o por la maniobra
                     advance_progress(prog, _persist_progress)
 
                 laps_since_learn += 1
@@ -790,7 +841,7 @@ def run(args: argparse.Namespace) -> int:
                     if tuner.start_async():
                         laps_since_learn = 0
 
-                if prog.goal_reached and not tuner.running:
+                if prog.goal_reached and not tuner.running and not ident_kind:
                     print("[Learn] Objetivo cumplido — cerrando sesión")
                     break
 

@@ -9,6 +9,8 @@ de 3113 m sube un 9,8 % hasta ≈ 3320 m y llega al 1 % hacia 3440 m, lo que mue
 - Las frenadas a fondo (`ident:frenar`, A1.2) se resumen por evento (velocidad de entrada y salida, distancia, tiempo, deceleración
   media y máxima, medidas y corregidas de pendiente) y como curva `a_freno(v)` por tramos de 10 km/h. Un cambio de marcha a mitad de
   frenada no parte el evento.
+- Los arcos (`ident:arco`, A1.3) se resumen por pasada: velocidad de consigna y real en las curvas, aceleración lateral real (eje 0 de
+  `local_accel`, H52), CTE, volante y rumbo máximos, neumáticos y el resultado (limpia o límite con su motivo).
 - El eje 2 de `local_accel` se imprime solo como contraste (H1).
 
 Uso:
@@ -219,6 +221,52 @@ def brake_curve(ticks: List[dict]) -> List[dict]:
     return _table(rows, by_gear=False, min_n=8)
 
 
+ARC_TAGS = ("ident:arco", "ident:arco_fin")
+BEND_FROM_M, BEND_TO_M = 228.0, 600.0  # las curvas de la ventana de Sugo; el resto de la pasada es la recta de aproximación
+
+
+def load_events(path: Path, kind: str) -> List[dict]:
+    with open(path, encoding="utf-8") as fh:
+        return [r for r in map(json.loads, fh) if r.get("type") == kind]
+
+
+def arc_passes(ticks: List[dict], events: List[dict]) -> List[dict]:
+    """Una fila por pasada de A1.3: tramos consecutivos de `ident:arco` (+ aterrizaje) emparejados por orden con los eventos `arc_pass`."""
+    starts = [e for e in events if e.get("phase") == "start"]
+    ends = {e["k"]: e for e in events if e.get("phase") == "end"}
+    runs: List[List[dict]] = []
+    cur: List[dict] = []
+    for t in ticks:
+        if t.get("drive_source") in ARC_TAGS:
+            cur.append(t)
+        elif cur:
+            runs.append(cur)
+            cur = []
+    if cur:
+        runs.append(cur)
+    out = []
+    for n, run in enumerate(runs):
+        bends = [x for x in run if BEND_FROM_M <= x["lap_distance"] <= BEND_TO_M] or run
+        v = np.array([x["speed_kmh"] for x in bends], dtype=float)
+        lat = np.array([abs(((x.get("vehicle") or {}).get("local_accel") or [0.0])[0]) for x in bends], dtype=float)
+        k = starts[n]["k"] if n < len(starts) else n
+        end = ends.get(k, {})
+        veh = run[-1].get("vehicle") or {}
+        entry = min(run, key=lambda x: abs(x["lap_distance"] - BEND_FROM_M))
+        v_med = float(np.median(v)) / 3.6
+        out.append({
+            "k": k, "lap": run[0].get("lap"), "target_kmh": starts[n]["target_kmh"] if n < len(starts) else None,
+            "v_entry_kmh": round(entry["speed_kmh"], 1), "v_bends_med_kmh": round(float(np.median(v)), 1), "v_bends_max_kmh": round(float(v.max()), 1),
+            "lat_p95": round(float(np.percentile(lat, 95)), 2), "lat_max": round(float(lat.max()), 2),
+            "lat_over_v2": round(float(np.percentile(lat, 95)) / v_med ** 2, 4) if v_med > 0 else None,  # 1/R equivalente
+            "max_cte": round(max(abs(x["signed_cte"]) for x in run), 2), "max_steer": round(max(abs(x["steering"]) for x in run), 2),
+            "max_heading": round(max(abs(x["heading_err"]) for x in run), 3),
+            "tyre_temp": round(float(np.mean(veh.get("tyre_temp") or [0])), 1), "tyre_wear": max(veh.get("tyre_wear") or [0]),
+            "result": end.get("result", "?"), "reason": end.get("reason", ""),
+        })
+    return out
+
+
 def la2_check(passes: List[dict]) -> Optional[float]:
     """Correlación del eje 2 de local_accel con la derivada, para contrastar (no se usa)."""
     a = [r["a_raw"] for p in passes for r in p["rows"]]
@@ -228,13 +276,14 @@ def la2_check(passes: List[dict]) -> Optional[float]:
     return round(float(np.corrcoef(a, b)[0, 1]), 3)
 
 
-def analyze(ticks: List[dict]) -> dict:
+def analyze(ticks: List[dict], events: Optional[List[dict]] = None) -> dict:
     passes = [analyze_pass(p) for p in split_passes(ticks) if len(p) >= 12]
     return {
         "passes": [{k: v for k, v in p.items() if k != "rows"} for p in passes],
         "summary": summarize(passes),
         "brake_events": brake_events(ticks),
         "brake_curve": brake_curve(ticks),
+        "arc_passes": arc_passes(ticks, events or []),
         "local_accel_axis2_corr": la2_check(passes),
     }
 
@@ -244,8 +293,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("log", type=Path)
     ap.add_argument("--json", type=Path, default=None, help="guarda el resultado completo")
     a = ap.parse_args(argv)
-    res = analyze(load_ticks(a.log))
-    if not res["passes"]:
+    res = analyze(load_ticks(a.log), load_events(a.log, "arc_pass"))
+    if res["arc_passes"]:
+        print(f"{len(res['arc_passes'])} pasada(s) de arco (A1.3). Lateral = eje 0 de local_accel; 1/R eq. = lat_p95 / v²:")
+        print("  pasada vuelta objetivo entrada  v_curvas  lat_p95  lat_máx  1/R_eq  CTE_máx  volante  rumbo  neum°C  resultado")
+        for r in res["arc_passes"]:
+            print(f"  {r['k']:>6} {r['lap']:>6} {r['target_kmh']:>8} {r['v_entry_kmh']:>7} {r['v_bends_med_kmh']:>9} {r['lat_p95']:>8} "
+                  f"{r['lat_max']:>8} {r['lat_over_v2']:>7} {r['max_cte']:>8} {r['max_steer']:>8} {r['max_heading']:>6} {r['tyre_temp']:>7}  "
+                  f"{r['result']} {r['reason']}")
+        print()
+    if not res["passes"] and not res["arc_passes"]:
         print("No hay maniobras de identificación en el log (¿se lanzó con --ident?).")
         return 1
     print(f"{len(res['passes'])} pasadas | contraste local_accel[2]: correlación {res['local_accel_axis2_corr']}")

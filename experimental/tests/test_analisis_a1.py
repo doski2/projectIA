@@ -118,3 +118,39 @@ def test_missing_position_falls_back_to_no_correction():
         t["vehicle"].pop("position")
     r = a1.analyze(ticks)["summary"]["ident:acel"]["table"]
     assert r and all(x["a_med"] == pytest.approx(3.0, abs=0.02) and x["no_grade"] == x["n"] for x in r)
+
+
+def _arc_ticks(target_kmh, lat, cte, lap=2, t0=0.0, d0=3300.0):
+    """Una pasada de 12 s: recta de aproximación y curvas (228-600 m) con aceleración lateral `lat`."""
+    out = []
+    for i in range(720):
+        d = (d0 + i * 1.0) % 3567.0
+        in_bends = 228.0 <= d <= 600.0
+        out.append({
+            "type": "tick", "t_s": t0 + i * DT, "speed_kmh": target_kmh, "gear": 2, "rpm": 6000.0, "lap": lap, "cte": abs(cte),
+            "signed_cte": cte if in_bends else 0.1, "heading_err": 0.05, "steering": 0.25 if in_bends else 0.0,
+            "lap_distance": d, "drive_source": "ident:arco",
+            "vehicle": {"local_accel": [lat if in_bends else 0.5, 0.0, 0.0], "tyre_temp": [90, 90, 88, 88], "tyre_wear": [1, 1, 0, 0]},
+        })
+    return out
+
+
+def test_arc_passes_are_summarised_per_pass_with_their_event():
+    ticks = _arc_ticks(80.0, 11.0, -1.2) + _ticks("teacher:only", 60, 0, 1, t0=20.0) + _arc_ticks(85.0, 12.5, -1.5, lap=3, t0=30.0)
+    events = [
+        {"type": "arc_pass", "phase": "start", "k": 0, "target_kmh": 80.0}, {"type": "arc_pass", "phase": "end", "k": 0, "result": "clean"},
+        {"type": "arc_pass", "phase": "start", "k": 1, "target_kmh": 85.0},
+        {"type": "arc_pass", "phase": "end", "k": 1, "result": "limit", "reason": "|CTE| 2.60 m > 2.5"},
+    ]
+    rows = a1.analyze(ticks, events)["arc_passes"]
+    assert [r["target_kmh"] for r in rows] == [80.0, 85.0]
+    assert rows[0]["result"] == "clean" and rows[1]["result"] == "limit" and "CTE" in rows[1]["reason"]
+    assert rows[0]["lat_p95"] == pytest.approx(11.0, abs=0.01) and rows[1]["lat_max"] == pytest.approx(12.5, abs=0.01)
+    assert rows[0]["max_cte"] == pytest.approx(1.2) and rows[0]["v_bends_med_kmh"] == pytest.approx(80.0)
+    # 1/R equivalente = lateral / v²: 11 / (80/3,6)² ≈ 0,0223 1/m (R ≈ 45 m)
+    assert rows[0]["lat_over_v2"] == pytest.approx(11.0 / (80 / 3.6) ** 2, rel=0.01)
+    assert rows[0]["lap"] == 2 and rows[1]["lap"] == 3
+
+
+def test_no_arc_ticks_gives_no_arc_rows():
+    assert a1.analyze(_ticks("teacher:only", 60, 0, 2))["arc_passes"] == []

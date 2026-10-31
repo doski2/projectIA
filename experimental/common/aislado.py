@@ -21,6 +21,7 @@ APP = REPO / "PCARS2-AI"
 DATA = REPO / "experimental" / "data"
 
 sys.path.insert(0, str(APP / "src"))
+from ident_arc import MAX_ARC_KMH as IDENT_MAX_ARC_KMH  # noqa: E402
 from ident_maneuver import MAX_CAP_KMH as IDENT_MAX_CAP_KMH  # noqa: E402
 from learn_progress import progress_file  # noqa: E402
 
@@ -76,6 +77,7 @@ def build_argv(
     ramp: bool = False, ramp_ceiling: float = 80.0, ramp_step: float = 5.0, steer_damp_kmh: Optional[float] = None,
     ident: str = "", ident_cap_kmh: float = 0.0, ident_floor_kmh: float = 30.0, ident_end_margin_m: float = 150.0,
     ident_straights: str = "", ident_caps: str = "",
+    ident_arc_speeds: str = "", ident_arc_window: str = "3200,600", ident_arc_cte: float = 2.5,
 ) -> List[str]:
     argv = [
         str(python), str(APP / "src" / "learn_driver.py"),
@@ -102,6 +104,9 @@ def build_argv(
             argv += ["--ident-straights", ident_straights]
         if ident_caps:
             argv += ["--ident-caps", ident_caps]
+        if ident == "arco":  # A1.3: la rampa de velocidades por vueltas y sus límites
+            argv += ["--ident-arc-speeds", ident_arc_speeds, "--ident-arc-window", ident_arc_window,
+                     "--ident-arc-cte", f"{ident_arc_cte:g}"]
     return argv + (["--teacher-only"] if teacher_only else [])
 
 
@@ -112,6 +117,7 @@ def run_isolated(
     steer_damp_kmh: Optional[float] = None,
     ident: str = "", ident_cap_kmh: float = 0.0, ident_floor_kmh: float = 30.0, ident_end_margin_m: float = 150.0,
     ident_straights: str = "", ident_caps: str = "",
+    ident_arc_speeds: str = "", ident_arc_window: str = "3200,600", ident_arc_cte: float = 2.5,
 ) -> int:
     DATA.mkdir(parents=True, exist_ok=True)
     model = DATA / f"{experiment}_model.pt"
@@ -140,6 +146,7 @@ def run_isolated(
                 ramp=ramp, ramp_ceiling=ramp_ceiling, ramp_step=ramp_step, steer_damp_kmh=steer_damp_kmh,
                 ident=ident, ident_cap_kmh=ident_cap_kmh, ident_floor_kmh=ident_floor_kmh,
                 ident_end_margin_m=ident_end_margin_m, ident_straights=ident_straights, ident_caps=ident_caps,
+                ident_arc_speeds=ident_arc_speeds, ident_arc_window=ident_arc_window, ident_arc_cte=ident_arc_cte,
             ),
             cwd=APP, env=env,
         ).returncode
@@ -187,10 +194,11 @@ if __name__ == "__main__":
     ap.add_argument("--ramp-step", type=float, default=5.0)
     ap.add_argument("--steer-damp-kmh", type=float, default=None,
                     help="Velocidad desde la que se reduce el volante del BC ∝ 1/v (producción: 45; 0 = desactivado)")
-    ap.add_argument("--ident", choices=("acel", "rodar", "acelrodar", "frenar"), default="",
+    ap.add_argument("--ident", choices=("acel", "rodar", "acelrodar", "frenar", "arco"), default="",
                     help="Identificación del coche (A1): en las rectas largas acelera a fondo hasta --ident-cap-kmh (acel), "
                          "rueda sin pedales hasta --ident-floor-kmh (rodar), las dos cosas seguidas (acelrodar) o frena a fondo desde "
-                         "cada velocidad de --ident-caps (frenar); "
+                         "cada velocidad de --ident-caps (frenar) o sube por vueltas la velocidad en una ventana de curvas hasta "
+                         "encontrar el límite lateral (arco, A1.3, --ident-arc-speeds); "
                          "conduce el teacher en todo lo demás")
     ap.add_argument("--ident-cap-kmh", type=float, default=0.0, help="Techo de velocidad de acel (km/h)")
     ap.add_argument("--ident-floor-kmh", type=float, default=30.0, help="Suelo de velocidad de rodar (km/h)")
@@ -199,6 +207,12 @@ if __name__ == "__main__":
     ap.add_argument("--ident-caps", default="",
                     help="frenar: velocidades de entrada de las frenadas, de menor a mayor (60,80,100); cada una acelera a fondo "
                          "hasta ella y frena a fondo hasta --ident-floor-kmh")
+    ap.add_argument("--ident-arc-speeds", default="",
+                    help="arco: velocidades de las pasadas, una por vuelta y de menor a mayor (80,85,90); cada una solo se lanza si la "
+                         "anterior fue limpia")
+    ap.add_argument("--ident-arc-window", default="3200,600",
+                    help="arco: inicio y fin de la ventana en metros de vuelta (por defecto, Sugo: recta de salida y curvas de 228-600 m)")
+    ap.add_argument("--ident-arc-cte", type=float, default=2.5, help="arco: |CTE| en metros que corta la pasada y marca el límite")
     ap.add_argument("--ident-straights", default="",
                     help="Rectas donde se hace la maniobra, por posición (la sesión imprime la lista): 1 o 0,1; vacío = todas")
     ap.add_argument("--resume", action="store_true",
@@ -206,6 +220,18 @@ if __name__ == "__main__":
     a = ap.parse_args()
     if a.ident in ("acel", "acelrodar") and a.ident_cap_kmh <= a.speed_band:
         ap.error(f"--ident {a.ident} necesita --ident-cap-kmh mayor que --speed-band (la maniobra acelera desde la banda hasta el techo)")
+    if a.ident == "arco":
+        try:
+            arc_speeds = [float(c) for c in a.ident_arc_speeds.split(",") if c.strip()]
+        except ValueError:
+            arc_speeds = []
+        if not arc_speeds:
+            ap.error("--ident arco necesita --ident-arc-speeds con las velocidades de las pasadas, p. ej. 80,85,90")
+        if max(arc_speeds) > IDENT_MAX_ARC_KMH:
+            ap.error(f"--ident-arc-speeds {a.ident_arc_speeds}: la mayor ({max(arc_speeds):g}) supera el máximo permitido "
+                     f"({IDENT_MAX_ARC_KMH:g}), H50")
+        if min(arc_speeds) < a.speed_band + 5:
+            ap.error(f"--ident-arc-speeds: la menor ({min(arc_speeds):g}) debe superar --speed-band ({a.speed_band:g}) en 5 km/h o más")
     if a.ident == "frenar":
         try:
             caps = [float(c) for c in a.ident_caps.split(",") if c.strip()]
@@ -230,7 +256,8 @@ if __name__ == "__main__":
                        ramp=a.ramp, ramp_ceiling=a.ramp_ceiling, ramp_step=a.ramp_step, resume=a.resume,
                        steer_damp_kmh=a.steer_damp_kmh, ident=a.ident, ident_cap_kmh=a.ident_cap_kmh,
                        ident_floor_kmh=a.ident_floor_kmh, ident_end_margin_m=a.ident_end_margin_m,
-                       ident_straights=a.ident_straights, ident_caps=a.ident_caps)
+                       ident_straights=a.ident_straights, ident_caps=a.ident_caps,
+                       ident_arc_speeds=a.ident_arc_speeds, ident_arc_window=a.ident_arc_window, ident_arc_cte=a.ident_arc_cte)
     log = latest_log(experiment, t0)
     if log is None:
         print("[experimental] no se encontró el log de la prueba; sin informe")

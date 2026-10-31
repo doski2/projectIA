@@ -233,3 +233,20 @@ def test_argv_ident_frenar_carries_the_entry_speeds():
     assert argv[argv.index("--ident-caps") + 1] == "60,80,100"
     assert "--ident-caps" not in aislado.build_argv(Path("py"), "e", 60, 2, ident="acel", ident_cap_kmh=100)
     assert aislado.experiment_name(60, True, "", "frenar") == "a1_frenar_60"
+
+
+def test_argv_ident_arco_carries_the_ramp():
+    argv = aislado.build_argv(Path("py"), "a1_arco_60", 60, 4, ident="arco", ident_arc_speeds="80,85,90", ident_arc_cte=2.5)
+    assert argv[argv.index("--ident") + 1] == "arco"
+    assert argv[argv.index("--ident-arc-speeds") + 1] == "80,85,90"
+    assert argv[argv.index("--ident-arc-window") + 1] == "3200,600"
+    assert argv[argv.index("--ident-arc-cte") + 1] == "2.5"
+    assert argv[argv.index("--rain-limit") + 1] == "1" and "--stop-on-damage" in argv
+    assert "--ident-arc-speeds" not in aislado.build_argv(Path("py"), "e", 60, 2, ident="frenar", ident_caps="60,80")
+    assert aislado.experiment_name(60, True, "", "arco") == "a1_arco_60"
+
+
+def test_arc_speed_limit_is_shared_with_the_ramp():
+    from ident_arc import MAX_ARC_KMH
+
+    assert aislado.IDENT_MAX_ARC_KMH == MAX_ARC_KMH <= aislado.IDENT_MAX_CAP_KMH
