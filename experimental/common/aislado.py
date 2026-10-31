@@ -77,7 +77,7 @@ def build_argv(
     ramp: bool = False, ramp_ceiling: float = 80.0, ramp_step: float = 5.0, steer_damp_kmh: Optional[float] = None,
     ident: str = "", ident_cap_kmh: float = 0.0, ident_floor_kmh: float = 30.0, ident_end_margin_m: float = 150.0,
     ident_straights: str = "", ident_caps: str = "",
-    ident_arc_speeds: str = "", ident_arc_window: str = "3200,600", ident_arc_cte: float = 2.5,
+    ident_arc_speeds: str = "", ident_arc_window: str = "3200,600", ident_arc_cte: float = 2.5, steer_ff_gain: float = 0.0,
 ) -> List[str]:
     argv = [
         str(python), str(APP / "src" / "learn_driver.py"),
@@ -107,6 +107,8 @@ def build_argv(
         if ident == "arco":  # A1.3: la rampa de velocidades por vueltas y sus límites
             argv += ["--ident-arc-speeds", ident_arc_speeds, "--ident-arc-window", ident_arc_window,
                      "--ident-arc-cte", f"{ident_arc_cte:g}"]
+    if steer_ff_gain:  # H58: anticipación de volante escalada con la velocidad; 0 = la de producción
+        argv += ["--steer-ff-gain", f"{steer_ff_gain:g}"]
     return argv + (["--teacher-only"] if teacher_only else [])
 
 
@@ -117,7 +119,7 @@ def run_isolated(
     steer_damp_kmh: Optional[float] = None,
     ident: str = "", ident_cap_kmh: float = 0.0, ident_floor_kmh: float = 30.0, ident_end_margin_m: float = 150.0,
     ident_straights: str = "", ident_caps: str = "",
-    ident_arc_speeds: str = "", ident_arc_window: str = "3200,600", ident_arc_cte: float = 2.5,
+    ident_arc_speeds: str = "", ident_arc_window: str = "3200,600", ident_arc_cte: float = 2.5, steer_ff_gain: float = 0.0,
 ) -> int:
     DATA.mkdir(parents=True, exist_ok=True)
     model = DATA / f"{experiment}_model.pt"
@@ -147,6 +149,7 @@ def run_isolated(
                 ident=ident, ident_cap_kmh=ident_cap_kmh, ident_floor_kmh=ident_floor_kmh,
                 ident_end_margin_m=ident_end_margin_m, ident_straights=ident_straights, ident_caps=ident_caps,
                 ident_arc_speeds=ident_arc_speeds, ident_arc_window=ident_arc_window, ident_arc_cte=ident_arc_cte,
+                steer_ff_gain=steer_ff_gain,
             ),
             cwd=APP, env=env,
         ).returncode
@@ -194,6 +197,8 @@ if __name__ == "__main__":
     ap.add_argument("--ramp-step", type=float, default=5.0)
     ap.add_argument("--steer-damp-kmh", type=float, default=None,
                     help="Velocidad desde la que se reduce el volante del BC ∝ 1/v (producción: 45; 0 = desactivado)")
+    ap.add_argument("--steer-ff-gain", type=float, default=0.0,
+                    help="Anticipación de volante del teacher escalada con la velocidad (H58): factor 1 + G · (v² − 60²) por encima de 60 km/h; 0 = producción")
     ap.add_argument("--ident", choices=("acel", "rodar", "acelrodar", "frenar", "arco"), default="",
                     help="Identificación del coche (A1): en las rectas largas acelera a fondo hasta --ident-cap-kmh (acel), "
                          "rueda sin pedales hasta --ident-floor-kmh (rodar), las dos cosas seguidas (acelrodar) o frena a fondo desde "
@@ -244,6 +249,8 @@ if __name__ == "__main__":
     if a.ident and a.ident_cap_kmh > IDENT_MAX_CAP_KMH:
         ap.error(f"--ident-cap-kmh {a.ident_cap_kmh:g} supera el máximo permitido ({IDENT_MAX_CAP_KMH:g}): el cambio automático solo "
                  "llega a 2ª y a ≈ 120 km/h el coche se descontrola (H50)")
+    if a.steer_ff_gain < 0:
+        ap.error("--steer-ff-gain no puede ser negativo")
     if a.ident:
         a.teacher_only = True  # el BC no conduce en A1
     t0 = time.time() - 5
@@ -257,7 +264,8 @@ if __name__ == "__main__":
                        steer_damp_kmh=a.steer_damp_kmh, ident=a.ident, ident_cap_kmh=a.ident_cap_kmh,
                        ident_floor_kmh=a.ident_floor_kmh, ident_end_margin_m=a.ident_end_margin_m,
                        ident_straights=a.ident_straights, ident_caps=a.ident_caps,
-                       ident_arc_speeds=a.ident_arc_speeds, ident_arc_window=a.ident_arc_window, ident_arc_cte=a.ident_arc_cte)
+                       ident_arc_speeds=a.ident_arc_speeds, ident_arc_window=a.ident_arc_window, ident_arc_cte=a.ident_arc_cte,
+                       steer_ff_gain=a.steer_ff_gain)
     log = latest_log(experiment, t0)
     if log is None:
         print("[experimental] no se encontró el log de la prueba; sin informe")

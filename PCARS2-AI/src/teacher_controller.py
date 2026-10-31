@@ -88,6 +88,10 @@ class TeacherConfig:
     k_heading: float = 0.55
     k_curvature: float = 2.5
     k_lookahead: float = 1.8
+    # Anticipación de volante escalada con la velocidad (H58): la curva pide ≈ 2,77 + 0,0183 · v² unidades de volante por unidad de κ
+    # y la anticipación fija da ≈ 4,3. Factor f(v) = 1 + ff_speed_gain · max(0, v² − v0²). 0 = como siempre (producción).
+    ff_speed_gain: float = 0.0  # (m/s)⁻²
+    ff_speed_v0_kmh: float = 60.0
     steer_smooth: float = 0.35
     throttle_rate: float = 0.08
     brake_rate: float = 0.12
@@ -242,6 +246,11 @@ class TeachingController:
             return False
         return True
 
+    def ff_speed_factor(self, speed_ms: float) -> float:
+        """Factor de la anticipación de volante por la velocidad: 1 hasta `ff_speed_v0_kmh` y creciente con v² por encima."""
+        v0 = self.config.ff_speed_v0_kmh / 3.6
+        return 1.0 + self.config.ff_speed_gain * max(0.0, speed_ms * speed_ms - v0 * v0)
+
     def compute_steering(
         self,
         telem: TelemetryFrame,
@@ -264,12 +273,10 @@ class TeachingController:
             smooth = self.config.steer_smooth
         else:
             k_cte = self._effective_k_cte(signed_cte, safety=False, edge_surface=edge_surface)
-            raw = (
-                -k_cte * signed_cte
-                + self.config.k_heading * heading_err
-                - self.config.k_curvature * curv
-                - self.config.k_lookahead * curv_ahead
-            )
+            feed_forward = self.config.k_curvature * curv + self.config.k_lookahead * curv_ahead
+            if self.config.ff_speed_gain:
+                feed_forward *= self.ff_speed_factor(telem.speed)
+            raw = -k_cte * signed_cte + self.config.k_heading * heading_err - feed_forward
             smooth = self.config.steer_smooth
 
         raw = max(-1.0, min(1.0, raw))

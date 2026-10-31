@@ -2,6 +2,7 @@
 
 import math
 
+import pytest
 
 from reference_recorder import ReferenceLine, ReferencePoint
 from teacher_controller import (
@@ -569,3 +570,36 @@ def test_track_applied_pedals_is_noop_outside_the_pi():
     teacher.decide(_on_line(10.0), _timings(), safety=True, safety_reason="stuck")  # rama de seguridad: no pasa por el PI
     teacher.track_applied_pedals(0.9, 0.0)
     assert teacher._speed_i == teacher.config.pi_ff
+
+
+def _steer_in_sugo_bend(gain: float, speed_kmh: float, **cfg) -> float:
+    """Volante del teacher parado en la línea de Sugo, justo antes de las curvas de 228-600 m, con la velocidad indicada (H58)."""
+    teacher = TeachingController(_sugo(), TeacherConfig(speed_target_kmh=speed_kmh, ff_speed_gain=gain, **cfg))
+    telem = _on_line(speed_kmh / 3.6)
+    steering, _ = teacher.compute_steering(telem, 330.0, 0.0, 0.0)
+    return steering
+
+
+def test_steer_ff_gain_zero_keeps_the_production_steering_at_any_speed():
+    for kmh in (20.0, 60.0, 85.0, 100.0):
+        base = TeachingController(_sugo(), TeacherConfig(speed_target_kmh=kmh))
+        telem = _on_line(kmh / 3.6)
+        expected = base.compute_steering(telem, 330.0, 0.0, 0.0)[0]
+        assert _steer_in_sugo_bend(0.0, kmh) == expected
+
+
+def test_steer_ff_factor_is_one_up_to_v0_and_grows_with_v_squared():
+    teacher = TeachingController(_sugo(), TeacherConfig(ff_speed_gain=0.003))
+    assert teacher.ff_speed_factor(10.0) == 1.0
+    assert teacher.ff_speed_factor(60.0 / 3.6) == 1.0
+    assert teacher.ff_speed_factor(80.0 / 3.6) == pytest.approx(1.65, abs=0.01)
+    assert teacher.ff_speed_factor(85.0 / 3.6) == pytest.approx(1.84, abs=0.01)
+    assert teacher.ff_speed_factor(90.0 / 3.6) == pytest.approx(2.04, abs=0.01)
+
+
+def test_steer_ff_gain_leaves_the_steering_unchanged_up_to_v0_and_adds_it_above():
+    assert _steer_in_sugo_bend(0.003, 50.0) == _steer_in_sugo_bend(0.0, 50.0)
+    base = _steer_in_sugo_bend(0.0, 85.0)
+    more = _steer_in_sugo_bend(0.003, 85.0)
+    assert base != 0.0 and more * base > 0.0 and abs(more) > abs(base)  # mismo signo y más volante
+    assert -1.0 <= more <= 1.0

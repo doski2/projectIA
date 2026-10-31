@@ -111,3 +111,16 @@ No necesita el juego para ajustar y probar el perfil, pero sí para conseguir lo
 - **Cómo se interpreta el resultado:** como `μ` de D21 es una cota inferior, el perfil con ese valor predice vueltas más lentas que las reales. Si el usuario pasa por las curvas a más de 14,6 m/s² laterales, la cota sube (se reabre D21 con un valor medido con control). Un error de más del 3 % sin explicación apunta a efectos que no están en el modelo (temperatura de neumáticos, combustible, bordillos, cambios de marcha).
 - **Fuera de A2:** A3 (segunda pista) y A4 (perfil como objetivo del teacher).
 - **Estado (2026-11-01):** diseño aprobado (D22). A2.1 hecho (H57). Falta A2.0 (bloqueos de arriba).
+
+## Diseño del volante con anticipación por velocidad (A2.0-a; aprobado por el usuario el 2026-11-01; código en X23)
+
+Es un cambio en `PCARS2-AI/src/teacher_controller.py` (código de producción: excepción a D2, X23 si se aprueba). Nace de H58 y es el primer bloqueo de D22.
+
+- **Qué cambia:** en la rama de conducción normal de `compute_steering`, la anticipación `k_curvature · curv + k_lookahead · curv_ahead` se multiplica por `f(v) = 1 + g · max(0, v² − v0²)` (v en m/s). `TeacherConfig` gana `ff_speed_gain` (g, **0 por defecto: el comportamiento de producción no cambia**) y `ff_speed_v0_kmh` (v0 = 60). Con g = 0 o v ≤ v0 el factor es 1 y la salida es idéntica a la de hoy.
+- **Valor de partida:** g = 0,003 (m/s)⁻²: factor 1,00 a 60 km/h, 1,65 a 80, 1,84 a 85 y 2,04 a 90 (H58 pide ≈ 3 veces más a 85; se deja la realimentación del CTE como red de seguridad y se sube por escalones). Se afina midiendo, no a ojo.
+- **Activación:** `learn_driver.py --steer-ff-gain G` (por defecto 0) y paso en `aislado.py`. Solo las sesiones que lo pidan lo usan; las de producción y las del bucle del BC no.
+- **Lo que no se toca:** el refuerzo ×2,25 de la ganancia del CTE a 2,5 m (`LATERAL_WARN_M`) es una red de recuperación y se queda; el amortiguador del volante del BC (`damp_bc_steering`, P25) tampoco.
+- **Tests:** (1) con g = 0 la salida coincide con la actual en una batería de estados; (2) con g > 0 y v ≤ v0 también; (3) el factor crece con v² por encima de v0; (4) el signo y el límite [−1, 1] se respetan.
+- **Validación en el juego (con el usuario delante):** la misma rampa de arcos de A1.3 (80, 85, 90 km/h, `--steer-ff-gain 0.003`) y comparar con H55-H56. **Éxito si** |CTE| máx. a 85 km/h baja de 2,5 a ≤ 1,2 m y a 90 y 95 no hay corte por CTE; **descarte/ajuste si** aparece oscilación del volante (el factor es de lazo abierto sobre κ de la línea, no de la medida) o el CTE cambia de signo en las salidas.
+- **Riesgo:** una anticipación grande mete el coche hacia dentro (CTE de signo contrario) en curvas cortas o de radio variable (las eses de 1450-1500 m). Por eso se sube de 0,003 en pasos.
+- **Después:** las marchas por encima de 2ª (segundo bloqueo de D22) y el agarre a más velocidad (`k`), con los datos de A2.0.

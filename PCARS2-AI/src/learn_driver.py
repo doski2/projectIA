@@ -104,6 +104,10 @@ def parse_args() -> argparse.Namespace:
         help="Compensa la curva de respuesta del volante del juego (steering_curve.py)",
     )
     parser.add_argument(
+        "--steer-ff-gain", type=float, default=0.0,
+        help="Anticipación de volante del teacher escalada con la velocidad: factor 1 + G · (v² − 60²) por encima de 60 km/h (H58). 0 = producción.",
+    )
+    parser.add_argument(
         "--steer-damp-kmh", type=float, default=STEER_DAMP_REF_MS * 3.6,
         help="Por encima de esta velocidad el volante del BC se reduce ∝ 1/v (0 = desactivado)",
     )
@@ -423,6 +427,7 @@ def run(args: argparse.Namespace) -> int:
     effective_speed = resolve_learn_speed(stage_id, speed_band, args.speed_target)
     teacher = TeachingController(ref, TeacherConfig(
         speed_target_kmh=effective_speed, lat_accel_limit=args.lat_accel_limit or None,
+        ff_speed_gain=float(getattr(args, "steer_ff_gain", 0.0) or 0.0),
     ))
     safety = SafetyMonitor(ref=ref, surface_profile=ns_str(args, "safety_profile"))
     session = DriveSession()

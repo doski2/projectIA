@@ -250,3 +250,10 @@ def test_arc_speed_limit_is_shared_with_the_ramp():
     from ident_arc import MAX_ARC_KMH
 
     assert aislado.IDENT_MAX_ARC_KMH == MAX_ARC_KMH <= aislado.IDENT_MAX_CAP_KMH
+
+
+def test_steer_ff_gain_goes_to_learn_driver_only_when_set():
+    base = aislado.build_argv(Path("python"), "a1_arco_60", 60.0, 6, teacher_only=True)
+    assert "--steer-ff-gain" not in base
+    argv = aislado.build_argv(Path("python"), "a1_arco_ff_60", 60.0, 6, teacher_only=True, steer_ff_gain=0.003)
+    assert argv[argv.index("--steer-ff-gain") + 1] == "0.003"
