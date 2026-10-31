@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from obs_builder import wheelspin_norm
 from pcars2_gear import (
@@ -122,7 +122,7 @@ class TeachingController:
         self._prev_throttle = 0.0
         self._prev_brake = 0.0
         self._gear_engagement_frames = 0
-        self._vlim: Optional[List[float]] = None  # límite lateral por metro de vuelta, se calcula la primera vez
+        self._vlim_cache: Dict[float, List[float]] = {}  # límite lateral por metro de vuelta, uno por cada `lat_accel_limit` usado
         self._speed_i = self.config.pi_ff  # integral del PI de velocidad (solo modo físico)
         self._pi_axis: Optional[float] = None  # eje de pedal pedido por el PI en este tick (None = no pasó por el PI)
 
@@ -142,13 +142,16 @@ class TeachingController:
 
     def physical_curve_target(self, lap_distance: float) -> float:
         """Velocidad máxima ahora para poder bajar, con `brake_decel`, a la `v_lim` de cada punto que viene."""
-        if self._vlim is None:
-            self._vlim = self._lateral_speed_limits()
-        n = len(self._vlim)
+        a_lat = self.config.lat_accel_limit
+        assert a_lat is not None, "el modelo físico de curva necesita lat_accel_limit"
+        vlim = self._vlim_cache.get(a_lat)  # la rampa de A1.3 cambia el límite en marcha: no reutilizar el de otro valor
+        if vlim is None:
+            vlim = self._vlim_cache[a_lat] = self._lateral_speed_limits()
+        n = len(vlim)
         best = MAX_CURVE_SPEED_MS
         s = 0.0
         while s <= self.config.curve_lookahead_m:
-            v_lim = self._vlim[int(lap_distance + s) % n]
+            v_lim = vlim[int(lap_distance + s) % n]
             best = min(best, math.sqrt(v_lim * v_lim + 2.0 * self.config.brake_decel * s))
             s += CURVE_SAMPLE_M
         return best

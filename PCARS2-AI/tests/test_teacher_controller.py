@@ -439,6 +439,18 @@ def test_free_straight_physical_mode_on_sugo():
     assert 0.3 < share < 0.95  # a 80 hay rectas libres y tramos donde ya pide bajar
 
 
+def test_physical_curve_target_follows_a_lat_accel_limit_changed_on_the_fly():
+    """A1.3 sube `lat_accel_limit` en marcha: los límites en curva no pueden quedarse con los del valor anterior (H53)."""
+    teacher = TeachingController(_sugo(), TeacherConfig(speed_target_kmh=90.0, lat_accel_limit=6.5))
+    ds = [float(d) for d in range(228, 600, 10)]
+    base = [teacher.physical_curve_target(d) for d in ds]
+    teacher.config.lat_accel_limit = 60.0
+    free = [teacher.physical_curve_target(d) for d in ds]
+    assert min(free) > min(base) * 1.5 and min(free) >= 90.0 / 3.6
+    teacher.config.lat_accel_limit = 6.5
+    assert [teacher.physical_curve_target(d) for d in ds] == base
+
+
 def test_free_straight_without_physical_model_uses_curvature():
     straight = TeachingController(_straight_ref(), TeacherConfig(speed_target_kmh=40.0))
     assert straight.free_straight(10.0)
