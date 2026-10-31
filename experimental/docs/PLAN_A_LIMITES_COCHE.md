@@ -1,7 +1,7 @@
 # Plan A: límites del coche (profesor físico)
 
 Contexto: sección 2 y 5 de [ESTUDIO_SIMULADOR_Y_LIMITES.md](ESTUDIO_SIMULADOR_Y_LIMITES.md).
-Código: `experimental/identificacion/` · Estado: **sin empezar** · Depende de: C0 (log ampliado)
+Código: `experimental/identificacion/` · Estado: **A1.1 en código** · Depende de: C0 (log ampliado)
 
 ## Hipótesis
 
@@ -13,7 +13,7 @@ máxima de cualquier pista y predecir tiempos de vuelta con error < 3 %.
 | # | Paso | Éxito si… | Estado |
 | --- | --- | --- | --- |
 | A0 | Analizar los logs actuales | Hecho: solo cubren ≤ 0,7 g y ≤ 61 km/h | Hecho |
-| A1 | Sesiones de identificación (dejar rodar, frenadas, aceleraciones, círculos, barridos) | Curvas `a(v)` limpias | Pendiente |
+| A1 | Sesiones de identificación (dejar rodar, frenadas, aceleraciones, círculos, barridos), por fases: A1.1 rodar + aceleración, A1.2 frenadas, A1.3 arcos, A1.4 barridos (fuera hasta B) | Curvas `a(v)` limpias | En curso: A1.1 hecho con datos limpios de 0 a 120 km/h (H47-H50); A1.2 en código, sin probar en el juego |
 | A2 | Ajustar el perfil y predecir tiempos de vueltas conocidas | Error < 3 % | Pendiente |
 | A3 | Validar en una segunda pista | Mismos parámetros, mismo error | Pendiente |
 | A4 | Usar el perfil como objetivo del profesor | Vuelta limpia a mayor ritmo | Pendiente |

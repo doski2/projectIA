@@ -21,6 +21,7 @@ APP = REPO / "PCARS2-AI"
 DATA = REPO / "experimental" / "data"
 
 sys.path.insert(0, str(APP / "src"))
+from ident_maneuver import MAX_CAP_KMH as IDENT_MAX_CAP_KMH  # noqa: E402
 from learn_progress import progress_file  # noqa: E402
 
 # Aceleración lateral que el profesor supone en curva (P16). Provisional: ~0,66 g, del orden de lo que la
@@ -28,8 +29,17 @@ from learn_progress import progress_file  # noqa: E402
 LAT_ACCEL_LIMIT = 6.5
 
 
-def experiment_name(speed_band: float, teacher_only: bool, name: str = "") -> str:
-    """Con el teacher al volante cada banda tiene su experimento (`teacher_40`), así no se pisan log ni buffer."""
+IDENT_PREFIX = "a1_"  # los experimentos de identificación no pueden llamarse como los buffers de entrenamiento (`teacher_40`, ...)
+
+
+def experiment_name(speed_band: float, teacher_only: bool, name: str = "", ident: str = "") -> str:
+    """Con el teacher al volante cada banda tiene su experimento (`teacher_40`), así no se pisan log ni buffer.
+    La identificación (A1) usa `a1_<maniobra>_<banda>`, y cualquier nombre suyo debe empezar por `a1_`: `run_isolated`
+    borra el buffer del experimento al empezar y `teacher_*` son datos que no se pueden recuperar."""
+    if ident:
+        if name and not name.startswith(IDENT_PREFIX):
+            raise ValueError(f"con --ident el experimento debe empezar por {IDENT_PREFIX!r} (recibido {name!r})")
+        return name or f"{IDENT_PREFIX}{ident}_{speed_band:g}"
     if name:
         return name
     return f"teacher_{speed_band:g}" if teacher_only else "c0_log"
@@ -64,6 +74,8 @@ def build_argv(
     python: Path, experiment: str, speed_band: float, laps: int, stage: str = "l1_linea", teacher_only: bool = False,
     learn_every: int = 99, base_dataset: Optional[Path] = None, perturb_every: float = 0.0,
     ramp: bool = False, ramp_ceiling: float = 80.0, ramp_step: float = 5.0, steer_damp_kmh: Optional[float] = None,
+    ident: str = "", ident_cap_kmh: float = 0.0, ident_floor_kmh: float = 30.0, ident_end_margin_m: float = 150.0,
+    ident_straights: str = "", ident_caps: str = "",
 ) -> List[str]:
     argv = [
         str(python), str(APP / "src" / "learn_driver.py"),
@@ -83,6 +95,13 @@ def build_argv(
         argv += ["--ramp", "--ramp-ceiling", f"{ramp_ceiling:g}", "--ramp-step", f"{ramp_step:g}"]
     if steer_damp_kmh is not None:  # None = el valor de producción (45 km/h); 0 = sin reducir el volante del BC
         argv += ["--steer-damp-kmh", f"{steer_damp_kmh:g}"]
+    if ident:  # A1: maniobras en las rectas largas; la sesión solo vale en seco, así que cualquier lluvia la cierra
+        argv += ["--ident", ident, "--ident-cap-kmh", f"{ident_cap_kmh:g}", "--ident-floor-kmh", f"{ident_floor_kmh:g}",
+                 "--ident-end-margin-m", f"{ident_end_margin_m:g}", "--rain-limit", "1"]
+        if ident_straights:
+            argv += ["--ident-straights", ident_straights]
+        if ident_caps:
+            argv += ["--ident-caps", ident_caps]
     return argv + (["--teacher-only"] if teacher_only else [])
 
 
@@ -91,6 +110,8 @@ def run_isolated(
     model_src: Optional[Path] = None, finetune_every: int = 0, perturb_every: float = 0.0,
     ramp: bool = False, ramp_ceiling: float = 80.0, ramp_step: float = 5.0, resume: bool = False,
     steer_damp_kmh: Optional[float] = None,
+    ident: str = "", ident_cap_kmh: float = 0.0, ident_floor_kmh: float = 30.0, ident_end_margin_m: float = 150.0,
+    ident_straights: str = "", ident_caps: str = "",
 ) -> int:
     DATA.mkdir(parents=True, exist_ok=True)
     model = DATA / f"{experiment}_model.pt"
@@ -117,9 +138,14 @@ def run_isolated(
                 python or Path(sys.executable), experiment, speed_band, laps, teacher_only=teacher_only,
                 learn_every=finetune_every or 99, base_dataset=base, perturb_every=perturb_every,
                 ramp=ramp, ramp_ceiling=ramp_ceiling, ramp_step=ramp_step, steer_damp_kmh=steer_damp_kmh,
+                ident=ident, ident_cap_kmh=ident_cap_kmh, ident_floor_kmh=ident_floor_kmh,
+                ident_end_margin_m=ident_end_margin_m, ident_straights=ident_straights, ident_caps=ident_caps,
             ),
             cwd=APP, env=env,
         ).returncode
+    except KeyboardInterrupt:  # Ctrl+C llega también a la prueba, que cierra el log y el informe por su cuenta
+        print("[experimental] Ctrl+C: prueba interrumpida")
+        return 130
     finally:
         if backup is None:
             progress.unlink(missing_ok=True)
@@ -161,15 +187,50 @@ if __name__ == "__main__":
     ap.add_argument("--ramp-step", type=float, default=5.0)
     ap.add_argument("--steer-damp-kmh", type=float, default=None,
                     help="Velocidad desde la que se reduce el volante del BC ∝ 1/v (producción: 45; 0 = desactivado)")
+    ap.add_argument("--ident", choices=("acel", "rodar", "acelrodar", "frenar"), default="",
+                    help="Identificación del coche (A1): en las rectas largas acelera a fondo hasta --ident-cap-kmh (acel), "
+                         "rueda sin pedales hasta --ident-floor-kmh (rodar), las dos cosas seguidas (acelrodar) o frena a fondo desde "
+                         "cada velocidad de --ident-caps (frenar); "
+                         "conduce el teacher en todo lo demás")
+    ap.add_argument("--ident-cap-kmh", type=float, default=0.0, help="Techo de velocidad de acel (km/h)")
+    ap.add_argument("--ident-floor-kmh", type=float, default=30.0, help="Suelo de velocidad de rodar (km/h)")
+    ap.add_argument("--ident-end-margin-m", type=float, default=150.0,
+                    help="Metros antes de la curva en que termina la maniobra (sin validar por encima de 100 km/h)")
+    ap.add_argument("--ident-caps", default="",
+                    help="frenar: velocidades de entrada de las frenadas, de menor a mayor (60,80,100); cada una acelera a fondo "
+                         "hasta ella y frena a fondo hasta --ident-floor-kmh")
+    ap.add_argument("--ident-straights", default="",
+                    help="Rectas donde se hace la maniobra, por posición (la sesión imprime la lista): 1 o 0,1; vacío = todas")
     ap.add_argument("--resume", action="store_true",
                     help="Conserva el modelo, el buffer y el estado de la rampa del experimento (siguiente bloque)")
     a = ap.parse_args()
+    if a.ident in ("acel", "acelrodar") and a.ident_cap_kmh <= a.speed_band:
+        ap.error(f"--ident {a.ident} necesita --ident-cap-kmh mayor que --speed-band (la maniobra acelera desde la banda hasta el techo)")
+    if a.ident == "frenar":
+        try:
+            caps = [float(c) for c in a.ident_caps.split(",") if c.strip()]
+        except ValueError:
+            caps = []
+        if not caps:
+            ap.error("--ident frenar necesita --ident-caps con las velocidades de entrada, p. ej. 60,80,100")
+        if max(caps) > IDENT_MAX_CAP_KMH:
+            ap.error(f"--ident-caps {a.ident_caps}: la mayor ({max(caps):g}) supera el máximo permitido ({IDENT_MAX_CAP_KMH:g}), H50")
+    if a.ident and a.ident_cap_kmh > IDENT_MAX_CAP_KMH:
+        ap.error(f"--ident-cap-kmh {a.ident_cap_kmh:g} supera el máximo permitido ({IDENT_MAX_CAP_KMH:g}): el cambio automático solo "
+                 "llega a 2ª y a ≈ 120 km/h el coche se descontrola (H50)")
+    if a.ident:
+        a.teacher_only = True  # el BC no conduce en A1
     t0 = time.time() - 5
-    experiment = experiment_name(a.speed_band, a.teacher_only, a.experiment)
+    try:
+        experiment = experiment_name(a.speed_band, a.teacher_only, a.experiment, a.ident)
+    except ValueError as exc:
+        ap.error(str(exc))
     code = run_isolated(experiment, a.speed_band, a.laps, teacher_only=a.teacher_only, model_src=a.model_src,
                        finetune_every=a.finetune_every, perturb_every=a.perturb_every,
                        ramp=a.ramp, ramp_ceiling=a.ramp_ceiling, ramp_step=a.ramp_step, resume=a.resume,
-                       steer_damp_kmh=a.steer_damp_kmh)
+                       steer_damp_kmh=a.steer_damp_kmh, ident=a.ident, ident_cap_kmh=a.ident_cap_kmh,
+                       ident_floor_kmh=a.ident_floor_kmh, ident_end_margin_m=a.ident_end_margin_m,
+                       ident_straights=a.ident_straights, ident_caps=a.ident_caps)
     log = latest_log(experiment, t0)
     if log is None:
         print("[experimental] no se encontró el log de la prueba; sin informe")

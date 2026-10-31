@@ -169,3 +169,67 @@ def test_argv_steer_damp_only_when_given():
     assert "--steer-damp-kmh" not in aislado.build_argv(Path("py"), "e", 55, 2)
     argv = aislado.build_argv(Path("py"), "e", 55, 2, steer_damp_kmh=0)
     assert argv[argv.index("--steer-damp-kmh") + 1] == "0"
+
+
+def test_argv_ident_adds_maneuver_and_rain_limit():
+    argv = aislado.build_argv(Path("py"), "a1_acel_30", 30, 2, ident="acel", ident_cap_kmh=60, teacher_only=True)
+    assert argv[argv.index("--ident") + 1] == "acel"
+    assert argv[argv.index("--ident-cap-kmh") + 1] == "60"
+    assert argv[argv.index("--ident-end-margin-m") + 1] == "150"
+    assert argv[argv.index("--rain-limit") + 1] == "1"  # cualquier lluvia cierra la sesión
+    assert "--ident" not in aislado.build_argv(Path("py"), "e", 30, 2)
+    assert "--rain-limit" not in aislado.build_argv(Path("py"), "e", 30, 2)
+
+
+def test_ident_experiment_name_never_collides_with_training_buffers():
+    assert aislado.experiment_name(30, True, "", "acel") == "a1_acel_30"
+    assert aislado.experiment_name(80, True, "a1_rodar_prueba", "rodar") == "a1_rodar_prueba"
+    with pytest.raises(ValueError):
+        aislado.experiment_name(30, True, "teacher_30", "acel")  # run_isolated borraría ese buffer
+    assert aislado.experiment_name(30, True) == "teacher_30"  # sin --ident todo igual que antes
+
+
+def test_ctrl_c_returns_130_and_restores_progress(tmp_path, monkeypatch):
+    prog = tmp_path / "prog.json"
+    prog.write_text("original")
+    monkeypatch.setattr(aislado, "progress_file", lambda: prog)
+    monkeypatch.setattr(aislado, "DATA", tmp_path / "data")
+    monkeypatch.setattr(aislado, "APP", tmp_path)
+
+    def boom(*a, **k):
+        prog.write_text("cambiado por la prueba")
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(aislado.subprocess, "run", boom)
+    (tmp_path / "models").mkdir()
+    (tmp_path / "models" / "universal_bc.pt").write_text("bc")
+    assert aislado.run_isolated("e", 30, 1, python=Path("py")) == 130
+    assert prog.read_text() == "original"
+
+
+def test_ident_acelrodar_is_accepted_by_argv():
+    argv = aislado.build_argv(Path("py"), "a1_acelrodar_60", 60, 2, ident="acelrodar", ident_cap_kmh=120, ident_floor_kmh=60)
+    assert argv[argv.index("--ident") + 1] == "acelrodar"
+    assert aislado.experiment_name(60, True, "", "acelrodar") == "a1_acelrodar_60"
+
+
+def test_argv_ident_straights_only_when_given():
+    argv = aislado.build_argv(Path("py"), "a1_acelrodar_60", 60, 2, ident="acelrodar", ident_cap_kmh=130, ident_floor_kmh=60,
+                              ident_straights="1")
+    assert argv[argv.index("--ident-straights") + 1] == "1"
+    assert "--ident-straights" not in aislado.build_argv(Path("py"), "a1_acelrodar_60", 60, 2, ident="acelrodar", ident_cap_kmh=130)
+
+
+def test_ident_cap_limit_is_shared_with_the_maneuver():
+    from ident_maneuver import MAX_CAP_KMH
+
+    assert aislado.IDENT_MAX_CAP_KMH == MAX_CAP_KMH
+
+
+def test_argv_ident_frenar_carries_the_entry_speeds():
+    argv = aislado.build_argv(Path("py"), "a1_frenar_60", 60, 2, ident="frenar", ident_floor_kmh=30, ident_straights="1",
+                              ident_caps="60,80,100")
+    assert argv[argv.index("--ident") + 1] == "frenar"
+    assert argv[argv.index("--ident-caps") + 1] == "60,80,100"
+    assert "--ident-caps" not in aislado.build_argv(Path("py"), "e", 60, 2, ident="acel", ident_cap_kmh=100)
+    assert aislado.experiment_name(60, True, "", "frenar") == "a1_frenar_60"

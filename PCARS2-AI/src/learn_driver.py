@@ -49,6 +49,7 @@ from lap_transition import LapTransitionGuard
 from lap_tracker import format_lap_time
 from ramp_gate import DROP, END_EVENTS, RISE, RampGate, bands_from
 from speed_perturbation import SpeedPerturber
+from ident_maneuver import KINDS as IDENT_KINDS, IdentManeuver, find_straights, select_straights
 from learn_guards import StuckOffTrackAbort, SustainedCteGuard, is_poor_demo
 from learn_progress import read_saved_speed_band, read_saved_stage, save_learn_progress
 from learning_curriculum import (
@@ -153,6 +154,27 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--perturb-drop-kmh", type=float, default=4.5,
         help="Velocidad que se deja perder en cada perturbación (4,5 km/h cruza con holgura el umbral de accel_straight).",
+    )
+    parser.add_argument(
+        "--ident", choices=IDENT_KINDS, default="",
+        help="Maniobra de identificación del coche (A1): en las rectas largas, `acel` acelera a fondo hasta --ident-cap-kmh y "
+             "`rodar` rueda sin pedales hasta --ident-floor-kmh; el resto lo conduce el teacher. Ticks con drive_source=ident:*; "
+             "no se graban en el buffer.",
+    )
+    parser.add_argument("--ident-cap-kmh", type=float, default=0.0, help="Techo de velocidad de `acel` y `acelrodar` (km/h).")
+    parser.add_argument(
+        "--ident-caps", default="",
+        help="`frenar`: velocidades de entrada de las frenadas, de menor a mayor y separadas por comas (p. ej. 60,80,100); "
+             "cada una acelera a fondo hasta ella y frena a fondo hasta --ident-floor-kmh.",
+    )
+    parser.add_argument("--ident-floor-kmh", type=float, default=30.0, help="Suelo de velocidad de `rodar` y de las frenadas (km/h).")
+    parser.add_argument(
+        "--ident-straights", default="",
+        help="Rectas donde se hace la maniobra, por posición en la lista que imprime la sesión (`1`, `0,1`); vacío = todas.",
+    )
+    parser.add_argument(
+        "--ident-end-margin-m", type=float, default=150.0,
+        help="Metros antes de la curva en que la maniobra termina para que el teacher frene; sin validar por encima de 100 km/h.",
     )
     parser.add_argument(
         "--ramp", action="store_true",
@@ -401,6 +423,32 @@ def run(args: argparse.Namespace) -> int:
         SpeedPerturber(perturb_every, float(getattr(args, "perturb_drop_kmh", 4.5)))
         if perturb_every > 0 else None
     )
+    ident_kind = str(getattr(args, "ident", "") or "")
+    ident: Optional[IdentManeuver] = None
+    if ident_kind:
+        all_straights = find_straights(ref.curvature, ref.track_length)
+        print("[Learn] Rectas de la pista: " + ", ".join(
+            f"{i}: {a:.0f}-{b:.0f} m" for i, (a, b) in enumerate(all_straights)))
+        try:
+            chosen = select_straights(all_straights, str(getattr(args, "ident_straights", "") or ""))
+        except ValueError as exc:
+            print(f"[Learn] --ident-straights: {exc}")
+            return 1
+        try:
+            ident = IdentManeuver(
+                ident_kind, chosen, ref.track_length,
+                cap_kmh=float(args.ident_cap_kmh), floor_kmh=float(args.ident_floor_kmh),
+                end_margin_m=float(args.ident_end_margin_m),
+                caps_kmh=[float(c) for c in str(args.ident_caps).split(",") if c.strip()] if args.ident_caps else None,
+            )
+        except ValueError as exc:
+            print(f"[Learn] --ident: {exc}")
+            return 1
+        if not ident.windows:
+            print("[Learn] --ident: la pista no tiene rectas largas para la maniobra")
+            return 1
+        print(f"[Learn] Identificación A1 ({ident_kind}): {len(ident.windows)} recta(s) de "
+              f"{', '.join(f'{span:.0f} m' for _, span in ident.windows)}")
 
     model: Optional[UniversalPolicy] = None
     if os.path.isfile(args.model):
@@ -590,6 +638,16 @@ def run(args: argparse.Namespace) -> int:
             ):
                 proposed, drive_source = (0.0, 0.0, proposed[2]), "perturb:coast"
 
+            if ident is not None:
+                imposed = ident.update(
+                    timings.lap_distance, telem.speed, decision.cte, session_rec.elapsed_s(),
+                    allowed=not (lap_guard.active or override or cte_takeover or ovr_inc)
+                    and (telem.gear == 0 or is_forward_gear(telem)),  # marcha atrás = 15 en el UDP
+                    neutral=telem.gear == 0,  # el AutoShifter pasa ≈ 0,2 s por punto muerto en cada cambio
+                )
+                if imposed is not None:
+                    proposed, drive_source = (imposed[0], imposed[1], proposed[2]), ident.drive_source
+
             settle = lap_guard.apply(
                 teacher_tuple, proposed, speed_ms=telem.speed, gear=telem.gear,
             )
@@ -599,7 +657,7 @@ def run(args: argparse.Namespace) -> int:
             else:
                 final = proposed
 
-            if drive_source in ("bc", "teacher:speed", "perturb:coast"):
+            if drive_source in ("bc", "teacher:speed", "perturb:coast") or drive_source.startswith("ident:"):
                 teacher.track_applied_pedals(final[0], final[1])  # anti-windup: el PI no integra lo que el BC no sigue
 
             controller.apply_action(*final)
@@ -607,7 +665,7 @@ def run(args: argparse.Namespace) -> int:
             if args.auto_shift:
                 shift_event = auto_shift(controller, telem, final[0], final[1], shifter)
 
-            if not lap_guard.active and not is_poor_demo(reason):
+            if not lap_guard.active and not is_poor_demo(reason) and not drive_source.startswith("ident:"):
                 buffer_rec.maybe_record(
                     obs=obs_record,
                     action=encoded_action_tuple(*teacher_tuple),
