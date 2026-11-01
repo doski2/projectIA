@@ -156,3 +156,73 @@ def test_el_coche_del_teacher_es_el_de_a1_con_limite_lateral_fijo():
     mapa = _rectangulo_redondeado()
     perfil = pv.solve(lo.track_de_n(mapa, np.zeros(mapa.n_puntos))[0], c)
     assert perfil.v_ms.max() * 3.6 <= 125.0 + 1e-6
+
+
+def test_pasillo_estricto_respeta_el_margen_donde_el_eje_no_cabe():
+    """V35, 759-771 m: borde izquierdo de la rueda a −1,0 m; el centro necesita n ≥ 0,15 m y el eje dejaba la rueda a 0,15 m del borde."""
+    mapa = _rectangulo_redondeado()
+    obs = Observaciones.vacia(mapa)
+    obs.izq_dentro[:] = -1.0
+    obs.dcha_dentro[:] = 5.0
+    lo_c, hi_c = lo.pasillo_centro(mapa, obs, margen_m=0.3)
+    assert np.all(lo_c == 0.0)  # como siempre: el eje entra
+    lo_e, hi_e = lo.pasillo_centro(mapa, obs, margen_m=0.3, incluir_eje=False)
+    assert np.allclose(lo_e, 0.15) and np.allclose(hi_e, 5.0 - obs.semivia_m - 0.3)
+    izq, dcha = lo.holgura_rueda(obs, np.zeros(mapa.n_puntos))
+    assert np.allclose(izq, 0.15) and np.allclose(dcha, 4.15)  # la holgura de la rueda con el eje es la que se vio en el juego
+    izq, _ = lo.holgura_rueda(obs, lo_e)
+    assert np.allclose(izq, 0.3)
+
+
+def test_pasillo_estricto_mas_estrecho_que_el_coche_queda_en_el_punto_medio_y_sin_dato_en_el_eje():
+    mapa = _rectangulo_redondeado()
+    obs = Observaciones.vacia(mapa)
+    obs.izq_dentro[:] = -0.2  # lo = 0,95
+    obs.dcha_dentro[:] = 1.0  # hi = −0,15
+    lo_e, hi_e = lo.pasillo_centro(mapa, obs, margen_m=0.3, incluir_eje=False)
+    assert np.allclose(lo_e, 0.4) and np.allclose(hi_e, 0.4)
+    obs2 = Observaciones.vacia(mapa)
+    obs2.dcha_dentro[:] = 4.0  # sin ninguna cota a la izquierda: ese lado se queda en el eje
+    lo_e, hi_e = lo.pasillo_centro(mapa, obs2, margen_m=0.3, incluir_eje=False)
+    assert np.all(lo_e == 0.0) and np.allclose(hi_e, 4.0 - obs2.semivia_m - 0.3)
+
+
+def test_punto_inicial_cabe_en_el_pasillo_y_es_cero_si_el_eje_cabe():
+    mapa = _rectangulo_redondeado()
+    b, _ = lo.base_spline(mapa.longitud_m, mapa.s, 25.0)
+    lo_c, hi_c = _pasillo(mapa, 2.0)
+    assert np.all(lo.punto_inicial(b, lo_c, hi_c) == 0.0)
+    lo_e = np.full(mapa.n_puntos, 0.15)
+    lo_e[300:340] = 0.6  # un tramo estrecho: todos los puntos de control que lo sostienen suben a 0,6
+    hi_e = np.full(mapa.n_puntos, 3.0)
+    n = b @ lo.punto_inicial(b, lo_e, hi_e)
+    assert np.all(n >= lo_e - 1e-9) and np.all(n <= hi_e + 1e-9)
+
+
+def test_el_optimizador_parte_de_un_pasillo_sin_eje_y_no_sale_de_el():
+    mapa = _rectangulo_redondeado()
+    lo_e = np.full(mapa.n_puntos, 0.5)
+    hi_e = np.full(mapa.n_puntos, 4.0)
+    res = lo.optimizar(mapa, lo_e, hi_e, CAR, paso_nudos_m=25.0, max_barridos=20)
+    assert np.all(res.n >= lo_e - 1e-6) and np.all(res.n <= hi_e + 1e-6)
+    assert res.tiempo_s <= lo.tiempo_vuelta(mapa, np.full(mapa.n_puntos, 0.5), CAR) + 1e-9  # nunca peor que la línea de partida
+    assert res.tiempo_base_s == pytest.approx(lo.tiempo_vuelta(mapa, np.zeros(mapa.n_puntos), CAR), rel=1e-9)  # la referencia sigue siendo el eje
+
+
+def test_los_topes_de_pendiente_y_de_salto_de_curvatura_se_cumplen_y_la_linea_sigue_ganando():
+    mapa = _rectangulo_redondeado()
+    lo_c, hi_c = _pasillo(mapa, 4.0)
+    libre = lo.optimizar(mapa, lo_c, hi_c, CAR, paso_nudos_m=25.0, max_barridos=40)
+    suave = lo.optimizar(mapa, lo_c, hi_c, CAR, paso_nudos_m=25.0, max_barridos=40, pendiente_max=0.5 * libre.pendiente_max)
+    assert suave.pendiente_max <= 0.5 * libre.pendiente_max + 1e-9
+    assert suave.tiempo_s < suave.tiempo_base_s  # con el tope sigue ganando al eje (el descenso es local: no se compara con la ejecución libre)
+    sin_salto = lo.optimizar(mapa, lo_c, hi_c, CAR, paso_nudos_m=25.0, max_barridos=40, salto_max=0.5 * libre.salto_max)
+    assert sin_salto.salto_max <= max(0.5 * libre.salto_max, lo.curvatura_continua(lo.track_de_n(mapa, np.zeros(mapa.n_puntos))[0])["salto_max"]) + 1e-9
+    assert sin_salto.tiempo_s < sin_salto.tiempo_base_s
+
+
+def test_si_el_tope_ya_lo_pasa_la_linea_de_partida_el_tope_es_el_de_la_partida():
+    mapa = _rectangulo_redondeado()
+    lo_c, hi_c = _pasillo(mapa, 4.0)
+    res = lo.optimizar(mapa, lo_c, hi_c, CAR, paso_nudos_m=25.0, max_barridos=5, salto_max=0.0, pendiente_max=0.0)
+    assert np.all(res.n == 0.0) and res.tiempo_s == res.tiempo_base_s

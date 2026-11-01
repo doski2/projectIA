@@ -55,16 +55,36 @@ RITMOS = (0.697, 0.85, 1.0)  # la IA (V13), un punto intermedio y la envolvente 
 
 
 # ---- pasillo -----------------------------------------------------------------------------------------------------------------
-def pasillo_centro(mapa: Mapa, obs: Observaciones, margen_m: float = MARGEN_M) -> Tuple[np.ndarray, np.ndarray]:
+def bordes_rueda(obs: Observaciones) -> Tuple[np.ndarray, np.ndarray]:
+    """(izquierdo, derecho) de la **rueda** en cada punto del mapa: el borde medido o, si no, la cota «asfalto hasta». NaN donde no hay ninguno."""
+    b = obs.bordes()
+    return np.where(np.isfinite(b["izq"]), b["izq"], obs.izq_dentro), np.where(np.isfinite(b["dcha"]), b["dcha"], obs.dcha_dentro)
+
+
+def pasillo_centro(mapa: Mapa, obs: Observaciones, margen_m: float = MARGEN_M, incluir_eje: bool = True) -> Tuple[np.ndarray, np.ndarray]:
     """(n mínima, n máxima) permitidas para el **centro** del coche en cada punto del mapa.
 
-    Rueda: el borde medido, o si no la cota «asfalto hasta» (hasta ahí se comprobó que llega). Centro: esa cota a la semivía y al margen del borde. El eje siempre cabe."""
-    b = obs.bordes()
-    rueda_izq = np.where(np.isfinite(b["izq"]), b["izq"], obs.izq_dentro)
-    rueda_dcha = np.where(np.isfinite(b["dcha"]), b["dcha"], obs.dcha_dentro)
+    Rueda: el borde medido, o si no la cota «asfalto hasta» (hasta ahí se comprobó que llega). Centro: esa cota a la semivía y al margen del borde.
+
+    `incluir_eje=True` (como siempre): el eje (n = 0) siempre cabe, aunque el pasillo comprobado sea más estrecho que el coche más el margen; ahí la rueda queda a menos de `margen_m`
+    del borde (V35: 759-771 m, ≈ 0,2 m). `incluir_eje=False` (pasillo estricto): el margen se respeta en todas partes; si el pasillo es más estrecho que el coche más el doble del margen
+    (cota izquierda > derecha) queda en el punto medio, y donde falta una de las dos cotas el lado desconocido se queda en el eje."""
+    rueda_izq, rueda_dcha = bordes_rueda(obs)
     lo = np.nan_to_num(rueda_izq, nan=0.0) + obs.semivia_m + margen_m
     hi = np.nan_to_num(rueda_dcha, nan=0.0) - obs.semivia_m - margen_m
-    return np.minimum(lo, 0.0), np.maximum(hi, 0.0)
+    if incluir_eje:
+        return np.minimum(lo, 0.0), np.maximum(hi, 0.0)
+    lo = np.where(np.isfinite(rueda_izq), lo, np.minimum(lo, 0.0))
+    hi = np.where(np.isfinite(rueda_dcha), hi, np.maximum(hi, 0.0))
+    estrecho = lo > hi
+    medio = (lo + hi) / 2.0
+    return np.where(estrecho, medio, lo), np.where(estrecho, medio, hi)
+
+
+def holgura_rueda(obs: Observaciones, n: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """Distancia (m) de la rueda izquierda y de la derecha de un coche que va por `n` a su borde (medido o comprobado). Negativa = la rueda ya está fuera; NaN sin dato."""
+    rueda_izq, rueda_dcha = bordes_rueda(obs)
+    return n - obs.semivia_m - rueda_izq, rueda_dcha - (n + obs.semivia_m)
 
 
 # ---- línea como B-spline ------------------------------------------------------------------------------------------------------
@@ -128,23 +148,54 @@ class Resultado:
     barridos: int
     evaluaciones: int
     historial: List[Tuple[int, float, float]] = field(default_factory=list)  # (barrido, paso, tiempo)
+    salto_max: float = 0.0  # salto máx. de |κ| entre metros contiguos de la línea final
+    pendiente_max: float = 0.0  # |dn/ds| máx. de la línea final
+
+
+def punto_inicial(b: np.ndarray, lo: np.ndarray, hi: np.ndarray) -> np.ndarray:
+    """Puntos de control más cercanos al eje (0) cuya spline cabe en el pasillo.
+
+    `n` es una combinación convexa de los 4 puntos de control que la sostienen: si cada punto de control está entre la mayor cota inferior y la menor cota superior de todos
+    los puntos que sostiene, `n` cabe en todos. Si el pasillo es de verdad más estrecho que eso (cota inferior > superior) se queda en el punto medio y puede no caber.
+    Con un pasillo que incluye el eje (`lo <= 0 <= hi`) devuelve ceros."""
+    sostiene = b > 0.0
+    cota_inf = np.array([lo[sostiene[:, j]].max() for j in range(b.shape[1])])
+    cota_sup = np.array([hi[sostiene[:, j]].min() for j in range(b.shape[1])])
+    return np.where(cota_inf > cota_sup, (cota_inf + cota_sup) / 2.0, np.clip(0.0, cota_inf, cota_sup))
+
+
+def medir_linea(mapa: Mapa, n: np.ndarray, coche: pv.CarParams) -> Tuple[float, float, float]:
+    """(tiempo de vuelta, salto máx. de |κ|, |dn/ds| máx.) de la línea `n`; se calcula la pista una sola vez."""
+    track = track_de_n(mapa, n)[0]
+    pendiente = np.abs(np.roll(n, -1) - np.roll(n, 1)) / 2.0  # un punto por metro de s
+    return pv.solve(track, coche).time_s, curvatura_continua(track)["salto_max"], float(pendiente.max())
 
 
 def optimizar(mapa: Mapa, lo: np.ndarray, hi: np.ndarray, coche: pv.CarParams, paso_nudos_m: float = PASO_NUDOS_M,
               paso_inicial_m: float = PASO_INICIAL_M, paso_final_m: float = PASO_FINAL_M, max_barridos: int = 60,
-              progreso: Optional[Callable[[int, float, float], None]] = None) -> Resultado:
-    """Descenso por coordenadas sobre los nudos. Parte del eje (n = 0, siempre dentro del pasillo)."""
+              progreso: Optional[Callable[[int, float, float], None]] = None,
+              salto_max: Optional[float] = None, pendiente_max: Optional[float] = None) -> Resultado:
+    """Descenso por coordenadas sobre los nudos. Parte del punto más cercano al eje que cabe en el pasillo (el eje mismo si cabe).
+
+    `salto_max` y `pendiente_max` (opcionales) topan el salto de |κ| entre metros contiguos y |dn/ds| de toda la línea: un movimiento que los pase se descarta aunque gane tiempo.
+    Si la línea de partida ya los pasa, el tope es el de la línea de partida (no empeora)."""
     b, s_nudos = base_spline(mapa.longitud_m, mapa.s, paso_nudos_m)
-    k = np.zeros(len(s_nudos))
-    n = np.zeros(mapa.n_puntos)
+    k = punto_inicial(b, lo, hi)
+    n = b @ k
+    lo, hi = np.minimum(lo, n), np.maximum(hi, n)  # si el pasillo es más estrecho que el coche, la línea de partida no puede empeorar
     evals = 0
 
-    def tiempo(cand: np.ndarray) -> float:
+    def medir(cand: np.ndarray) -> Tuple[float, bool]:
         nonlocal evals
         evals += 1
-        return tiempo_vuelta(mapa, cand, coche)
+        t, salto, pend = medir_linea(mapa, cand, coche)
+        return t, salto <= tope_salto and pend <= tope_pend
 
-    base = best = tiempo(n)
+    base = tiempo_vuelta(mapa, np.zeros(mapa.n_puntos), coche) if np.any(n) else None
+    best, salto0, pend0 = medir_linea(mapa, n, coche)
+    base = best if base is None else base
+    tope_salto = max(salto_max, salto0) if salto_max is not None else np.inf
+    tope_pend = max(pendiente_max, pend0) if pendiente_max is not None else np.inf
     paso = paso_inicial_m
     historial: List[Tuple[int, float, float]] = []
     barridos = 0
@@ -159,8 +210,8 @@ def optimizar(mapa: Mapa, lo: np.ndarray, hi: np.ndarray, coche: pv.CarParams, p
                     cand = n + col * (signo * paso)
                     if np.any(cand < lo - TOLERANCIA_M) or np.any(cand > hi + TOLERANCIA_M):
                         break
-                    t = tiempo(cand)
-                    if t < best - 1e-9:
+                    t, admitida = medir(cand)
+                    if admitida and t < best - 1e-9:
                         best, n, k[j] = t, cand, k[j] + signo * paso
                         avanzo = True
                     else:
@@ -173,7 +224,8 @@ def optimizar(mapa: Mapa, lo: np.ndarray, hi: np.ndarray, coche: pv.CarParams, p
             progreso(barridos, paso, best)
         if antes - best < MEJORA_MIN_S:
             paso /= 2.0
-    return Resultado(n, k, s_nudos, best, base, barridos, evals, historial)
+    _, salto_f, pend_f = medir_linea(mapa, n, coche)
+    return Resultado(n, k, s_nudos, best, base, barridos, evals, historial, salto_f, pend_f)
 
 
 # ---- salida --------------------------------------------------------------------------------------------------------------------
@@ -231,28 +283,44 @@ def main(argv: Optional[list] = None) -> int:
     ap.add_argument("--margen", type=float, default=MARGEN_M)
     ap.add_argument("--max-barridos", type=int, default=60)
     ap.add_argument("--salida-dir", type=Path, default=PISTA)
+    ap.add_argument("--pasillo-estricto", action="store_true",
+                    help="no obliga a que el eje quepa: el margen al borde se respeta también donde el pasillo comprobado es más estrecho que el coche (V35, 759-771 m)")
+    ap.add_argument("--salto-max-rel", type=float, default=None,
+                    help="tope del salto de |κ| entre metros contiguos, como múltiplo del de la línea suavizada (1 = no peor que ella; V35)")
+    ap.add_argument("--pendiente-max", type=float, default=None, help="tope de |dn/ds| (m de desplazamiento lateral por m de recorrido) de la línea")
+    ap.add_argument("--nombre", default=None, help="nombre del archivo de salida sin extensión (por defecto sugo_optima_a1mu<MU> o sugo_optima_f<ritmo>)")
     args = ap.parse_args(argv)
     mapa = Mapa.cargar(args.salida_dir / "mapa.json")
     obs = Observaciones.de_dict(json.loads((args.salida_dir / "observaciones_logs.json").read_text(encoding="utf-8")))
     suavizada = json.loads((args.salida_dir / "sugo_smooth.json").read_text(encoding="utf-8"))
-    lo, hi = pasillo_centro(mapa, obs, args.margen)
+    lo, hi = pasillo_centro(mapa, obs, args.margen, incluir_eje=not args.pasillo_estricto)
     if args.coche_a1_mu is not None:
-        _optimizar_y_escribir(mapa, obs, suavizada, lo, hi, coche_a1(args.coche_a1_mu), f"sugo_optima_a1mu{args.coche_a1_mu:g}", {"modelo": f"coche A1, mu {args.coche_a1_mu:g}, k 0, tope 125"}, args)
+        _optimizar_y_escribir(mapa, obs, suavizada, lo, hi, coche_a1(args.coche_a1_mu), args.nombre or f"sugo_optima_a1mu{args.coche_a1_mu:g}",
+                              {"modelo": f"coche A1, mu {args.coche_a1_mu:g}, k 0, tope 125"}, args)
         return 0
     coche = coche_ia()
     print(f"pasillo del centro: ancho mediano {np.median(hi - lo):.2f} m, mínimo {np.min(hi - lo):.2f} m; {len(base_spline(mapa.longitud_m, mapa.s, args.paso_nudos)[1])} puntos de control", flush=True)
     for f in args.ritmos:
         print(f"\n== ritmo f = {f:g} ==", flush=True)
-        _optimizar_y_escribir(mapa, obs, suavizada, lo, hi, ajuste_ia.escalar(coche, f), f"sugo_optima_f{round(f * 1000)}", {"ritmo_f": f}, args)
+        _optimizar_y_escribir(mapa, obs, suavizada, lo, hi, ajuste_ia.escalar(coche, f), args.nombre or f"sugo_optima_f{round(f * 1000)}", {"ritmo_f": f}, args)
     return 0
 
 
 def _optimizar_y_escribir(mapa, obs, suavizada, lo, hi, coche, nombre, meta_extra, args) -> None:
     t0 = time.time()
+    cero = curvatura_continua(track_de_n(mapa, np.zeros(mapa.n_puntos))[0])
+    salto_max = args.salto_max_rel * cero["salto_max"] if args.salto_max_rel is not None else None
     res = optimizar(mapa, lo, hi, coche, args.paso_nudos, max_barridos=args.max_barridos,
-                    progreso=lambda b, p, t: print(f"  barrido {b:2d}  paso {p:.3f} m  tiempo {t:.3f} s", flush=True))
+                    progreso=lambda b, p, t: print(f"  barrido {b:2d}  paso {p:.3f} m  tiempo {t:.3f} s", flush=True),
+                    salto_max=salto_max, pendiente_max=args.pendiente_max)
+    hizq, hdcha = holgura_rueda(obs, res.n)
+    holgura = np.fmin(hizq, hdcha)
     meta = {**meta_extra, "margen_m": args.margen, "paso_nudos_m": args.paso_nudos, "tiempo_previsto_s": round(res.tiempo_s, 3),
-            "tiempo_suavizada_s": round(res.tiempo_base_s, 3), "semivia_m": obs.semivia_m}
+            "tiempo_suavizada_s": round(res.tiempo_base_s, 3), "semivia_m": obs.semivia_m, "pasillo_estricto": bool(args.pasillo_estricto),
+            "salto_max_kappa": round(res.salto_max, 6), "salto_max_suavizada": round(cero["salto_max"], 6), "pendiente_max": round(res.pendiente_max, 4),
+            "holgura_min_rueda_m": round(float(np.nanmin(holgura)), 3)}
+    print(f"  salto de |κ| máx. {res.salto_max:.5f} (suavizada {cero['salto_max']:.5f}); |dn/ds| máx. {res.pendiente_max:.3f}; holgura mínima de la rueda al borde "
+          f"{np.nanmin(holgura):.2f} m, {int(np.sum(holgura < args.margen - 1e-3))} m con menos de {args.margen:g} m", flush=True)
     salida = args.salida_dir / f"{nombre}.json"
     salida.write_text(json.dumps(escribir_linea(mapa, res.n, suavizada, meta)), encoding="utf-8")
     np.save(args.salida_dir / f"{nombre}_n.npy", res.n)

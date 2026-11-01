@@ -4,8 +4,11 @@ Contexto: H56 (el seguimiento de la línea limita a 90 km/h), H59 (el eje delant
 km/h), H61 (la referencia grabada lleva micro-quiebros) y
 las observaciones del usuario del 2026-11-01. Depende de: A1 (modelo del coche) y del solver de A2
 (`perfil_velocidad.py`).
-Estado: **aprobado como carpeta propia (D25, 2026-11-01); diseño D0-D5 pendiente de visto bueno del
-usuario**. Código existente: `src/perfil_velocidad.py` y `src/linea_suave.py`.
+Estado (2026-11-01): **carpeta aprobada (D25); D0, D1a y D2 hechos; D3 en curso** (la línea óptima ya
+se ha rodado en el juego: gana tiempo pero el seguidor aún no cumple el criterio de volante); D1b, D4 y
+D5 pendientes. Código: `src/perfil_velocidad.py`, `mapa.py`, `linea_suave.py`, `bordes_logs.py`,
+`linea_optima.py`, `ajuste_ia.py`, `extraer_ia.py` y los informes (ver `README.md`). Qué falta y los
+comandos vigentes: `PENDIENTE.md`.
 
 ## Por qué
 
@@ -38,14 +41,14 @@ no un seguimiento estricto.
 
 ## Pasos
 
-| #   | Paso                                                                                                                                                                                                                                          | Éxito si…                                                                                  | Estado                                                                                     |     |                                            |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ | --- | ------------------------------------------ |
-| D0  | Sistema de coordenadas (s, n) sobre el eje de la pista, a partir de la referencia suavizada; formato del mapa en `circuito_virtual/pistas/sugo_gp/mapa.json` (versionado)                                                                     | Ida y vuelta (x, z) ↔ (s, n) con error < 5 cm                                              | **Hecho (2026-11-01):** `src/mapa.py`; ida y vuelta con error de s ≤ 0,3 cm y de n ≈ 0 con | n   | ≤ 6 m; `pistas/sugo_gp/mapa.json` (164 KB) |
-| D1  | **Mapeo de bordes:** sesión lenta (30 km/h) en la que el teacher recorre desplazamientos laterales crecientes por vueltas hasta que una rueda toca césped o franja ilegal; se anota `n` del borde por metro y lado                            | Bordes de las 3567 m con una incertidumbre ≤ 0,25 m                                        | **D1a hecho** (logs, V9, V10: borde izq. 15,4 %, dcha. 6,8 %); D1b diseño en la sección siguiente, pendiente de visto bueno     |     |                                            |
-| D2  | **Línea óptima sin juego:** con el mapa y el solver, minimizar el tiempo de vuelta variando `n(s)` dentro del pasillo, con margen a los bordes y penalización de curvatura                                                                    | Tiempo predicho menor que el de la línea suavizada; curvatura continua                     | Hecho (V15)                                                                           |     |                                            |
-| D3  | Convertir la línea óptima en un `ReferenceLine` (mismo formato JSON) y rodarla con el teacher a velocidades crecientes                                                                                                                        | Vuelta limpia a ritmo > actual; tiempo medido dentro del 3 % del predicho (criterio de A2) | Pendiente                                                                                  |     |                                            |
-| D4  | **Exploración en bucle cerrado:** margen a los bordes menor por escalones, μ y k reajustados con cada vuelta real                                                                                                                             | La línea mejora o se queda; ninguna salida de pista                                        | Pendiente                                                                                  |     |                                            |
-| D5  | **Selección aprendida:** el planificador pasa a ser una política (PPO u otra) entrenada en el simulador (solver + mapa), con estado (`n`, `v`, márgenes, κ por delante) y acción (`Δn`, velocidad); rivales como obstáculos móviles en (s, n) | Iguala o mejora la línea óptima de D2; adelanta sin salirse del pasillo                    | Pendiente                                                                                  |     |                                            |
+| # | Paso | Éxito si… | Estado |
+| --- | --- | --- | --- |
+| D0 | Sistema de coordenadas (s, n) sobre el eje de la pista, a partir de la referencia suavizada; formato del mapa en `pistas/sugo_gp/mapa.json` (versionado) | Ida y vuelta (x, z) ↔ (s, n) con error < 5 cm | **Hecho (V7):** `src/mapa.py`; ida y vuelta con error de s ≤ 0,3 cm y de n ≈ 0 con \|n\| ≤ 6 m; `mapa.json` de 164 KB |
+| D1 | **Mapeo de bordes:** sesión lenta (30 km/h) en la que el teacher recorre desplazamientos laterales crecientes por vueltas hasta que una rueda toca césped o franja ilegal; se anota `n` del borde por metro y lado | Bordes de las 3567 m con una incertidumbre ≤ 0,25 m | **D1a hecho** (logs, V9, V10, V33, V36: bordes medidos 15,5 % izq. y 7,3 % dcha., asfalto comprobado en el 100 %); **D1b pendiente** de visto bueno (sección siguiente) |
+| D2 | **Línea óptima sin juego:** con el mapa y el solver, minimizar el tiempo de vuelta variando `n(s)` dentro del pasillo, con margen a los bordes y penalización de curvatura | Tiempo predicho menor que el de la línea suavizada; curvatura continua | **Hecho (V15, V32, V36):** para las envolventes de la IA y para el coche del teacher (A1, μ = 9); pasillo estricto, salto de curvatura limitado y margen configurable |
+| D3 | Convertir la línea óptima en un `ReferenceLine` (mismo formato JSON) y rodarla con el teacher a velocidades crecientes | Vuelta limpia a ritmo > actual; tiempo medido dentro del 3 % del predicho (criterio de A2) | **En curso (V33-V44):** rodada a 125 km/h, 118,7 s medidos frente a 117,6 previstos (+1,0 %) y 1,7 s menos que con la línea suavizada; **no cumple el criterio de volante** (|CTE| 2,2-2,5 m, deriva hasta 4,4°, ruedas fuera): falla el seguidor a más de 100 km/h, no la línea |
+| D4 | **Exploración en bucle cerrado:** margen a los bordes menor por escalones, μ y k reajustados con cada vuelta real | La línea mejora o se queda; ninguna salida de pista | Pendiente |
+| D5 | **Selección aprendida:** el planificador pasa a ser una política (PPO u otra) entrenada en el simulador (solver + mapa), con estado (`n`, `v`, márgenes, κ por delante) y acción (`Δn`, velocidad); rivales como obstáculos móviles en (s, n) | Iguala o mejora la línea óptima de D2; adelanta sin salirse del pasillo | Pendiente |
 
 ## Notas de diseño
 
@@ -73,6 +76,18 @@ ilegal, nunca al llegar a un muro. Siempre `--stop-on-damage`.
 - **El seguidor:** si el teacher no sigue bien una línea optimizada, se arregla el seguidor (volante
 
   con anticipación, X23), no la línea.
+
+- **Lo medido sobre el seguidor (V33-V44):** con la línea óptima el teacher falla en dos tramos que se
+  repiten en todas las líneas probadas. La anticipación de volante (1 + 0,003 · v²) se pasa de lo que
+  pide el coche a más de 100 km/h, pero bajarla estropea las curvas cerradas de 80-105 km/h; la hipótesis
+  vigente es un tope de velocidad en ese factor. Sin la ganancia de CTE programada por velocidad el lazo
+  oscila a más de 135 km/h. El modelo del volante (`experimental/common/modelo_volante.py`) permite
+  comprobar ganancias sin juego a más de 108 km/h y no ve las entradas en curva cerrada.
+
+- **El modelo del coche:** `perfil_velocidad.py` usa las tablas de A1 y un límite lateral fijo (`coche_a1`);
+  con μ = 9 acierta el tiempo de vuelta del teacher en cada banda (−0,2 % a +1,0 %). La frenada medida
+  en A1 es con las ruedas delanteras bloqueadas (pedal 1,0): sin bloqueo se frena ≈ 8 % más (V43), y el
+  limitador por deslizamiento (V44) permitirá medirla bien por encima de 123 km/h.
 
 - **El simulador de D5:** el solver de A2 no simula la dinámica (volante, deslizamiento), solo el
 
@@ -107,15 +122,38 @@ ilegal, nunca al llegar a un muro. Siempre `--stop-on-damage`.
 
    promedian.
 
+5. El pedal a fondo bloquea las ruedas delanteras (V42, V43): el coche pierde la dirección y se sale de
+   la línea. La frenada de la línea óptima y de las identificaciones de A1 debe ir con el limitador por
+   deslizamiento (V44), que se adapta al agarre en lugar de fijar un pedal máximo.
+6. El pasillo comprobado es una cota inferior de la pista real (V33): el coche pasó el 16,7 % del tiempo
+   fuera de él sin pisar nunca fuera del asfalto. Un margen demasiado ajustado deja la rueda en el
+   borde cuando el seguimiento falla 1 m; por eso `a1mu9b` usa 0,6 m (V36).
+
 ## Orden con el resto del trabajo
 
-1. Validar G1b (línea suavizada, `--reference`) y cerrar A2.0 con la línea suavizada: el solver de
-
-   A2 sirve para cualquier línea, así que no se pierde nada.
-
-2. D0 y D1 (mapa), D2 (óptimo sin juego), D3 (rodarlo): cierran A2 con una línea mejor.
-3. D4, y A1.3b (arcos en 3ª) para fijar `k`.
+1. ~~Validar G1b (línea suavizada, `--reference`) y cerrar A2.0 con la línea suavizada~~ **Hecho (V14,
+   V32):** 125 km/h con 3.ª cumple el criterio de volante; el solver de A2 sirve para cualquier línea.
+2. ~~D0, D1a, D2~~ **Hechos.** D3 (rodar la línea óptima) **en curso**: falta que el seguidor cumpla el
+   criterio a más de 100 km/h (tope de velocidad en la anticipación, V41) y, para subir de banda,
+   el techo y las frenadas por encima de 115 km/h (limitador por deslizamiento, V44).
+3. D1b (bordes reales), D4 y A1.3b (arcos en 3.ª) para fijar `k`.
 4. D5 y el PPO (C4) con el mapa, el modelo y un BC v2.
+
+## D3: la línea óptima rodada (V33-V44, 2026-11-01)
+
+Resumen; las cifras y el detalle están en `DECISIONES.md` (V33-V44) y el estado vivo en `PENDIENTE.md`.
+
+- **Líneas:** `sugo_optima_a1mu9.json` (óptima para el coche del teacher, pasillo de los logs) y
+  `sugo_optima_a1mu9b.json` (pasillo estricto, salto de curvatura como el de la suavizada y margen de
+  0,6 m al borde).
+- **Resultado en el juego (125 km/h, 3.ª):** 118,7-118,8 s frente a 120,4 s con la línea suavizada
+  (previsto 117,6-117,8 s). El criterio de volante no se cumple: |CTE| máx. 2,2-2,5 m (criterio 1,8 m),
+  deriva hasta 4,4° (criterio 4°) y ticks con ruedas fuera de la superficie de carrera.
+- **Qué falla y qué no:** la línea resolvió los puntos que eran suyos (el margen en 759-771 y
+  1444-1454 m); quedan dos tramos del seguidor (rebasamiento al salir de la S de 2400-2500 m y desvío
+  hacia el interior en las curvas de 2690-2860 m), que se repiten con todas las líneas.
+- **Qué sigue:** tope de velocidad en la anticipación de volante (hipótesis V41) y sesión con la línea
+  `a1mu9b`; juzgar solo contra el criterio, no contra la sesión anterior.
 
 ## D1b: mapeo de bordes con sesiones (diseño propuesto, pendiente de visto bueno del usuario, 2026-11-01)
 
