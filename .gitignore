@@ -43,4 +43,5 @@ experimental/logs/*
 !experimental/data/.gitkeep
 !experimental/logs/.gitkeep
 circuito_virtual/pistas/*/*_smooth.json
+circuito_virtual/pistas/*/*_optima_f*.json
 circuito_virtual/pistas/*/informes/

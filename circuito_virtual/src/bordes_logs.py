@@ -134,7 +134,7 @@ class Observaciones:
                     sin_pos["t"].append(terr[:4])
                     sin_pos["v"].append(d.get("speed_kmh", 0.0) / 3.6)
         usados = self.agregar(mapa, s_l, x_l, z_l, t_l, v_l) if s_l else 0
-        if sin_pos["s"]:
+        if sin_pos["s"] and n_referencia is not None:
             usados += self.agregar_cte(mapa, sin_pos["s"], sin_pos["cte"], sin_pos["t"], sin_pos["v"], n_referencia)
         if usados:
             self.logs.append(Path(ruta).name)
@@ -233,7 +233,7 @@ def logs_esquema_2(carpeta: Path) -> Iterable[Path]:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap = argparse.ArgumentParser(description=(__doc__ or "").split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     e = sub.add_parser("escanear", help="recorre los logs y guarda las cotas por metro")
     e.add_argument("--logs-dir", type=Path, default=REPO / "PCARS2-AI" / "logs" / "learning")

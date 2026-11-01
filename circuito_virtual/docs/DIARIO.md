@@ -2,6 +2,8 @@
 
 Lo más reciente arriba. Historia anterior en `experimental/docs/DIARIO.md`.
 
+- **2026-11-01 — D2 hecho, sin juego (V15).** `src/linea_optima.py` busca la `n(s)` de menor tiempo previsto (B-spline de 20 m, descenso por coordenadas) dentro del pasillo comprobado: 98,96 → 95,46 s con el ritmo de la IA (−3,5 %), −2,8 % con f = 0,85 y −3,3 % con f = 1; la forma casi no cambia con el ritmo. Es modesta porque el pasillo es estrecho (con ±3 m hipotéticos saldría −6,5 %) y parte de la ganancia viene del suavizado de κ (con κ casi sin suavizar, −2 %). Un primer intento con spline interpolante no se movía nunca (soporte global: las colas rozaban tramos de 0,26 m de pasillo); con B-spline local funciona. `solve` va 5 veces más rápido (listas de Python en lugar de `np.interp` escalar). Informe en `pistas/sugo_gp/informes/informe_linea_optima.html`. 51 tests en `circuito_virtual`.
+
 - **2026-11-01 — G1b validado en el juego (V14).** Con la línea suavizada el coche acelera en 3ª hasta 134,9 km/h (techo) en las 3 vueltas, sin cortes: |CTE| máx. 0,2 m y volante ±0,025 en la recta que antes cortaba a 125 km/h. Cambios 1ª→2ª→3ª en 0,14-0,16 s. Aceleración a 110-130 km/h (2,75 → 2,27 m/s²) igual que la de la IA y la de A1. Sin daño de motor.
 
 - **2026-11-01 — A2 con la IA a ritmo real hecho (V12, V13).** Las `lacc` del archivo de la IA valen 0,46 de lo real: se usan la guiñada y la derivada de la velocidad. Con ellas el solver predice 82,4 s sin calibrar (−15,8 %: la IA va a ≈ 70 % de su envolvente) y **97,90 s con un factor de ritmo f = 0,697** frente a 98,06 s (−0,2 %), correlación de v(s) 0,94. La aceleración y la frenada de la IA coinciden con las de A1. El lateral de la IA a 85 km/h (≈ 19,5 m/s²) supera la cota de D21. 43 tests en `circuito_virtual`.

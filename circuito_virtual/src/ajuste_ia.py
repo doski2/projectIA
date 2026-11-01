@@ -182,7 +182,7 @@ def _resumen(r: Dict) -> None:
 
 
 def main(argv: Optional[list] = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap = argparse.ArgumentParser(description=(__doc__ or "").split("\n")[0])
     ap.add_argument("--json", type=Path, default=None)
     ap.add_argument("--vueltas-ajuste", type=int, default=10)
     args = ap.parse_args(argv)

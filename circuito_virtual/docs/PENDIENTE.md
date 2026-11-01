@@ -7,8 +7,8 @@ en `docs/PLAN.md` y la historia en `docs/DIARIO.md`.
 
 ## Dónde estamos (para retomar sin releer nada)
 
-- **Último commit:** `31cef08` (V14, G1b). Antes: `eb8ad33` y `f6b60b5` (A2 con la IA, V12-V13).
-- **Tests en verde:** `circuito_virtual` 43, `experimental` 61, `PCARS2-AI` 471. Se lanzan con
+- **Último commit:** `04208ac` (docs). D2 (V15) está hecho pero **sin commit** al cierre de esta sesión: `src/linea_optima.py`, `src/informe_linea_optima.py`, `tests/test_linea_optima.py`, los tres `_n.npy`, cambios en `perfil_velocidad.py` (solver 5 veces más rápido, `kappa_half_m`) y en `.gitignore`.
+- **Tests en verde:** `circuito_virtual` 51, `experimental` 61, `PCARS2-AI` 471. Se lanzan con
   `pytest` dentro de cada carpeta.
 - **Sin commit y no son míos:** 6 archivos de `experimental/` (`README.md`, `docs/DECISIONES.md`,
   `DIARIO.md`, `ESTUDIO_SIMULADOR_Y_LIMITES.md`, `PENDIENTE.md`, `PLAN_A_LIMITES_COCHE.md`)
@@ -22,6 +22,7 @@ en `docs/PLAN.md` y la historia en `docs/DIARIO.md`.
     98,06 s reales (−0,2 %) con un factor de ritmo f = 0,697 (A2, V13).
   - Línea suavizada `pistas/sugo_gp/sugo_smooth.json` válida en el juego: 3ª hasta 134,9 km/h
     sin cortes, CTE ≤ 0,2 m y volante ±0,025 en la recta 1 (G1b, V14).
+- **Línea óptima (D2, V15):** prevista, no probada en el juego.
 - **Qué NO está probado:** nada por encima de 135 km/h ni en 4ª; ninguna vuelta completa del agente
   a más de 60 km/h sobre la línea suavizada; ningún borde de pista medido a propósito (D1b); una
   sola pista y una sola IA.
@@ -46,51 +47,22 @@ en `docs/PLAN.md` y la historia en `docs/DIARIO.md`.
 
 ## Orden de trabajo propuesto
 
-### 1. D2: línea óptima con el solver (sin juego, siguiente paso recomendado)
+### 1. D2 hecho (V15): queda probar la línea en el juego
 
-Es necesaria en cualquier caso y no depende de nada pendiente en el juego.
+Las tres líneas están en `pistas/sugo_gp/sugo_optima_f{697,850,1000}.json` (regenerables con
+`src/linea_optima.py`; el informe, con `src/informe_linea_optima.py`). La de f = 0,697 prevé −3,5 %
+(98,96 → 95,46 s) con el mismo modelo; con |κ| casi sin suavizar, −2 %. Es la cifra prudente.
 
-**Entradas que ya existen:**
-
-- Eje y curvatura: `src/mapa.py` (`Mapa.cargar("pistas/sugo_gp/mapa.json")`; `sn_a_xz`,
-  `xz_a_sn`; n positivo a la derecha, curvatura positiva a la izquierda, válida con |n·κ| < 0,5).
-- Pasillo: `Observaciones` de `src/bordes_logs.py` (`pistas/sugo_gp/observaciones_logs.json`):
-  `izq_dentro` y `dcha_dentro` (hasta dónde llegó una rueda en superficie de carrera),
-  `izq_fuera` y `dcha_fuera` (dónde se vio ya fuera) y `bordes()` (medidos, NaN si no hay). Son
-  posiciones de **rueda**; el centro del coche va a esa cota ± la semivía supuesta de **0,85 m**
-  (sin medir, ver punto 3).
-- Modelo del coche: `coches/formula_rookie/parametros_a1.json` (hasta 125 km/h, A1) y las
-  envolventes de la IA de `src/ajuste_ia.py` (aceleración hasta 187 km/h, frenada 127-172 km/h y
-  lateral `μ + k·v²` con μ = 14,75 m/s² y k = 0,00845 1/m, V13).
-- Solver: `src/perfil_velocidad.py` (`Track.from_arrays`, `solve`, `CarParams`).
-
-**Qué hacer:**
-
-- Parametrizar la línea como desplazamiento lateral n(s) con una curva suave (spline o puntos de
-  control cada 20-40 m) dentro del pasillo con margen de seguridad (≥ 0,3 m a la cota comprobada).
-- Minimizar el tiempo de vuelta del solver con restricción de curvatura continua. Probar primero un
-  método sencillo y robusto (descenso por coordenadas o `scipy.optimize`) antes de uno más fino.
-- Hacerlo para **tres niveles de ritmo** (f = 0,697 como la IA, 0,85 y 1,0): la forma de la línea
-  casi no debería cambiar y así se ve cuánto depende del modelo.
-- Donde no hay bordes medidos, el pasillo es solo lo comprobado (estrecho, ≈ 2 m): la línea óptima
-  saldrá conservadora hasta que D1b amplíe el pasillo. Eso es lo esperado, no un fallo.
-- Salida: línea en el **mismo formato que `sugo_smooth.json`** (lo escribe `src/linea_suave.py`),
-  para poder pasarla a `aislado.py --reference` sin cambios, más un informe en
-  `pistas/sugo_gp/informes/` (planta con pasillo y línea, n(s), v(s) y tiempo de vuelta de la línea
-  suavizada frente a la óptima).
-
-**Criterios de éxito:** tiempo previsto menor que el de la línea suavizada con el mismo modelo;
-línea siempre dentro del pasillo comprobado con margen; curvatura continua (sin saltos que el
-teacher no pueda seguir: comparar con la κ máxima de la línea suavizada); tests nuevos en
-`circuito_virtual/tests/` (óvalo sintético donde la línea óptima conocida corta la curva).
-
-**Cuidados:**
-
-- El solver extrapola por encima de 125 km/h con datos de la IA. Marcar en el informe qué tramos
-  superan la velocidad medida por el propio coche.
-- El 16 % de margen respecto a la IA (82 s frente a 98 s) es una cota del modelo con f = 1, no una
-  promesa: el límite lateral real por encima de 85 km/h aún no se midió con el coche.
-- Las vueltas de la IA son casi idénticas (V13): no usar su línea como verdad del óptimo.
+- **No probada en el juego.** La línea se separa hasta 1,3 m de la suavizada, también en la recta 1
+  (validada a 135 km/h en V14). Primer uso: A2.0 (punto 4) con la de f = 0,697 y `--reference` a
+  esa línea, a poca velocidad, para ver que el teacher la sigue (CTE, volante, rumbo).
+- **Ampliar el pasillo vale más que afinar el optimizador:** con ±3 m hipotéticos sale −6,5 %. D1b
+  (punto 3) es lo que lo mide.
+- **Más puntos de control:** `--paso-nudos 15` da −5,3 % frente a −3,5 % con 20 m (κ ±7 m), pero es
+  una línea con más movimiento lateral (hasta 0,12 m por metro) y más ajustada al modelo. Probar
+  solo cuando la de 20 m esté rodada.
+- **Óptimo local:** el descenso por coordenadas parte del eje. Si hiciera falta, probar otros
+  puntos de partida o movimientos de varios puntos a la vez.
 
 ### 2. Sesión en el juego: subir el techo y frenadas (la lanza el usuario)
 
@@ -138,7 +110,7 @@ vuelta con incertidumbre ≤ 0,3 m.
 ### 4. A2.0: el agente rueda vueltas completas rápidas
 
 Teacher en modo físico (límite lateral ≈ 12,5 m/s², techo 125 km/h, luego el que se mida en el
-punto 2) sobre la línea suavizada o la de D2, para comparar el tiempo previsto con el medido
+punto 2) sobre la línea suavizada y después sobre la de D2 (`sugo_optima_f697.json`), para comparar el tiempo previsto con el medido
 (criterio < 3 %). Es la primera prueba del solver con el propio coche y no con la IA. Con la
 línea óptima de D2 sirve también para ver si de verdad se gana tiempo.
 
@@ -172,6 +144,7 @@ participante propio), antes de D5 (adelantar y defender).
 
 - ~~G1b~~ **Hecho (V14):** 134,9 km/h en 3ª, 3 vueltas, sin cortes, sin daño.
 - ~~A2 con la IA a ritmo real~~ **Hecho (V12, V13).**
+- ~~D2~~ **Hecho (V15), sin juego:** línea óptima por ritmo, informe y 8 tests.
 - ~~D0~~ **Hecho (V7):** coordenadas (s, n), `src/mapa.py`, `pistas/sugo_gp/mapa.json`; ida y vuelta
   con error < 0,3 cm.
 - ~~D1a~~ **Hecho (V9, V10):** bordes de 106 logs, izquierdo 15,4 % y derecho 6,8 %.

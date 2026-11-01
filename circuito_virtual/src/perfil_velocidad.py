@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import math
+from bisect import bisect_right
 import re
 import sys
 from dataclasses import dataclass
@@ -48,6 +49,17 @@ def table_points(rows: Sequence[dict], min_kmh: float = 0.0) -> List[Tuple[float
     return [p for p in pts if p[0] - 5.0 >= min_kmh]
 
 
+def _interp(x: float, xs: List[float], ys: List[float]) -> float:
+    """Interpolación lineal con los extremos constantes (igual que `np.interp` con un valor escalar, sin su coste)."""
+    i = bisect_right(xs, x)
+    if i == 0:
+        return ys[0]
+    if i == len(xs):
+        return ys[-1]
+    x0, x1 = xs[i - 1], xs[i]
+    return ys[i - 1] + (ys[i] - ys[i - 1]) * (x - x0) / (x1 - x0)
+
+
 @dataclass
 class CarParams:
     accel: List[Tuple[float, float]]  # (km/h, m/s² en llano a gas a fondo)
@@ -57,11 +69,17 @@ class CarParams:
     v_known_kmh: float = 120.0
     brake_delay_s: float = 0.0  # del pedal a la deceleración plena (ABS, presión de frenos): H51 deja ≈ 0,04 s
 
+    def __post_init__(self) -> None:
+        # Copias en listas de Python: `solve` interpola unas 30 000 veces por vuelta y `np.interp` escalar es lo más caro del bucle (D2 lo llama miles de veces).
+        # Si se cambian `accel` o `brake` después de crear el objeto, hay que crear otro `CarParams`.
+        self._acc = ([float(p[0]) for p in self.accel], [float(p[1]) for p in self.accel])
+        self._brk = ([float(p[0]) for p in self.brake], [float(p[1]) for p in self.brake])
+
     def a_acel(self, v_ms: float) -> float:
-        return float(np.interp(v_ms * 3.6, [p[0] for p in self.accel], [p[1] for p in self.accel]))
+        return _interp(v_ms * 3.6, *self._acc)
 
     def a_freno(self, v_ms: float) -> float:
-        return float(np.interp(v_ms * 3.6, [p[0] for p in self.brake], [p[1] for p in self.brake]))
+        return _interp(v_ms * 3.6, *self._brk)
 
     def to_dict(self) -> dict:
         return {"accel": self.accel, "brake": self.brake, "mu": self.mu, "k": self.k, "v_known_kmh": self.v_known_kmh,
@@ -88,8 +106,8 @@ class Track:
         return float(self.grade[int(d) % self.n])
 
     @staticmethod
-    def from_arrays(x: np.ndarray, z: np.ndarray, y: np.ndarray, length_m: float) -> "Track":
-        """Pista a partir de una línea muestreada a un punto por metro (cerrada): |κ| suavizada ±7 m como el teacher y pendiente ±15 m."""
+    def from_arrays(x: np.ndarray, z: np.ndarray, y: np.ndarray, length_m: float, kappa_half_m: int = KAPPA_HALF_M) -> "Track":
+        """Pista a partir de una línea muestreada a un punto por metro (cerrada): |κ| suavizada ±7 m como el teacher (`kappa_half_m`) y pendiente ±15 m."""
         n = len(x)
 
         def suave(a: np.ndarray, sigma: float = 3.0) -> np.ndarray:  # el ruido de posición (centímetros) se dispara al derivar dos veces
@@ -101,8 +119,9 @@ class Track:
         dx, dz = np.gradient(x), np.gradient(z)
         ddx, ddz = np.gradient(dx), np.gradient(dz)
         kap = np.abs((dx * ddz - dz * ddx) / np.maximum((dx * dx + dz * dz) ** 1.5, 1e-9))
-        kernel = np.ones(2 * KAPPA_HALF_M + 1) / (2 * KAPPA_HALF_M + 1)
-        kap = np.convolve(np.concatenate([kap[-KAPPA_HALF_M:], kap, kap[:KAPPA_HALF_M]]), kernel, mode="valid")
+        h_k = kappa_half_m
+        kernel = np.ones(2 * h_k + 1) / (2 * h_k + 1)
+        kap = np.convolve(np.concatenate([kap[-h_k:], kap, kap[:h_k]]), kernel, mode="valid")
         h = GRADE_HALF_M
         grade = (np.roll(y, -h) - np.roll(y, h)) / (2.0 * h)
         return Track(float(length_m), kap, grade)
@@ -176,22 +195,27 @@ def solve(track: Track, car: CarParams, cap_kmh: Optional[float] = None) -> Prof
     ds = track.length_m / n
     vmax = min(cap_kmh if cap_kmh else math.inf, car.v_known_kmh) / 3.6
     lim = lateral_limit_ms(track, car, vmax)
-    v_b = lim.copy()
+    grade = track.grade.tolist()  # listas de Python en los bucles: más rápido que indexar arrays de NumPy
+    vb = lim.tolist()
     for step in range(2 * n):
         i = (n - 1 - step) % n
         j = (i + 1) % n
-        decel = max(car.a_freno(v_b[j]) + G * track.grade[i], 0.5)
-        v_b[i] = min(v_b[i], math.sqrt(v_b[j] ** 2 + 2.0 * decel * ds))
+        decel = max(car.a_freno(vb[j]) + G * grade[i], 0.5)
+        vb[i] = min(vb[i], math.sqrt(vb[j] ** 2 + 2.0 * decel * ds))
+    v_b = np.array(vb)
     if car.brake_delay_s > 0:  # el freno llega `brake_delay_s` más tarde: hay que frenar antes, a la velocidad de ese punto
         v_b0 = v_b.copy()
         shift = np.round(v_b0 * car.brake_delay_s / ds).astype(int)
         v_b = np.minimum(v_b0, v_b0[(np.arange(n) + shift) % n])
-    v = v_b.copy()
+        vb = v_b.tolist()
+    vl = list(vb)
+    min_sq = MIN_SPEED_MS ** 2
     for step in range(2 * n):
         i = step % n
         j = (i + 1) % n
-        acc = car.a_acel(v[i]) - G * track.grade[i]
-        v[j] = min(v_b[j], math.sqrt(max(v[i] ** 2 + 2.0 * acc * ds, MIN_SPEED_MS ** 2)))
+        acc = car.a_acel(vl[i]) - G * grade[i]
+        vl[j] = min(vb[j], math.sqrt(max(vl[i] ** 2 + 2.0 * acc * ds, min_sq)))
+    v = np.array(vl)
     nxt = np.roll(v, -1)
     time_s = float(np.sum(ds / ((v + nxt) / 2.0)))
     d_v = nxt - v

@@ -45,7 +45,7 @@ def extraer(datos: Dict, max_vuelta_s: float = MAX_VUELTA_S) -> Dict:
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap = argparse.ArgumentParser(description=(__doc__ or "").split("\n")[0])
     ap.add_argument("--commit", default="2c972a4")
     ap.add_argument("--archivo", type=Path, default=None, help="usar este JSON en vez del historial de git")
     ap.add_argument("--salida", type=Path, default=SALIDA)

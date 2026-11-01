@@ -195,7 +195,7 @@ def construir(referencia: Path = DEFAULT_REF, sigma_m: Optional[float] = None) -
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap = argparse.ArgumentParser(description=(__doc__ or "").split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     b = sub.add_parser("construir", help="construye el mapa (eje) desde la referencia")
     b.add_argument("--referencia", type=Path, default=DEFAULT_REF)

@@ -91,7 +91,7 @@ def smooth_reference(data: Dict, sigma: float = SIGMA_M, max_displacement: float
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap = argparse.ArgumentParser(description=(__doc__ or "").split("\n")[0])
     ap.add_argument("--entrada", type=Path, default=DEFAULT_IN)
     ap.add_argument("--salida", type=Path, default=DEFAULT_OUT)
     ap.add_argument("--sigma", type=float, default=SIGMA_M)

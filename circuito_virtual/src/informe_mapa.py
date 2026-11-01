@@ -128,7 +128,7 @@ td,th{{border:1px solid #ccc;padding:4px 10px;text-align:left}}img{{max-width:10
 
 
 def main(argv: Optional[list] = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap = argparse.ArgumentParser(description=(__doc__ or "").split("\n")[0])
     ap.add_argument("--mapa", type=Path, default=PISTA / "mapa.json")
     ap.add_argument("--obs", type=Path, default=PISTA / "observaciones_logs.json")
     ap.add_argument("--salida", type=Path, default=PISTA / "informes" / "informe_mapa.html")

@@ -46,6 +46,8 @@ k·v²`).
 | `src/bordes_logs.py`                              | D1a: cotas de borde por metro a partir de los logs ya grabados (terreno de las ruedas y posición)                |
 | `src/extraer_ia.py` | Extrae del historial de git las 14 vueltas de la IA a ritmo real (97,7 s) a `pistas/sugo_gp/ia_ritmo_real.json` |
 | `src/ajuste_ia.py` | Ajusta el solver a las vueltas de la IA (envolventes de aceleración, frenada y lateral) y predice las vueltas apartadas (A2, V13) |
+| `src/linea_optima.py` | D2: línea de menor tiempo previsto dentro del pasillo comprobado (B-spline, descenso por coordenadas) y su escritura en el formato de `sugo_smooth.json` |
+| `src/informe_linea_optima.py` | Informe HTML de D2: tiempos, planta con el pasillo, `n(s)` y velocidad por nivel de ritmo |
 | `src/informe_mapa.py`                             | Informe HTML del mapa: cobertura, planta, anchura comprobada (distinto del de `experimental`)                    |
 | `src/mapa.py`                                     | Mapa en coordenadas (s, n): eje, curvatura, pendiente, bordes, `sn_a_xz` / `xz_a_sn` (D0)                        |
 | `tests/`                                          | Pruebas con pistas sintéticas y con Sugo                                                                         |
