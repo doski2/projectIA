@@ -211,9 +211,22 @@ def coche_ia(n_ajuste: int = 10) -> pv.CarParams:
     return ajuste_ia.ajustar(ajuste_ia.cargar()[:n_ajuste])
 
 
+COCHE_A1 = REPO / "circuito_virtual" / "coches" / "formula_rookie" / "parametros_a1.json"
+
+
+def coche_a1(mu: float, k: float = 0.0, ruta: Path = COCHE_A1) -> pv.CarParams:
+    """El coche **que conduce el teacher**: tablas de aceleración y frenada de A1 (tope de velocidad `v_known_kmh` = 125) y un límite lateral fijo `μ` (sin `k·v²`).
+
+    Es el modelo con el que `aislado.py --lat-accel-limit μ` ha medido el tiempo de vuelta (V26-V31); la línea de V15 se optimizó con las envolventes de la IA, que no son las mismas."""
+    base = pv.load_params(ruta)
+    return pv.CarParams(base.accel, base.brake, mu, k, base.v_known_kmh, base.brake_delay_s)
+
+
 def main(argv: Optional[list] = None) -> int:
     ap = argparse.ArgumentParser(description=(__doc__ or "").split("\n")[0])
     ap.add_argument("--ritmos", type=float, nargs="+", default=list(RITMOS))
+    ap.add_argument("--coche-a1-mu", type=float, default=None,
+                    help="optimiza para el coche del teacher (A1 con límite lateral fijo MU, p. ej. 9) y escribe sugo_optima_a1mu<MU>.json; sin esto, las envolventes de la IA por ritmo")
     ap.add_argument("--paso-nudos", type=float, default=PASO_NUDOS_M)
     ap.add_argument("--margen", type=float, default=MARGEN_M)
     ap.add_argument("--max-barridos", type=int, default=60)
@@ -223,23 +236,28 @@ def main(argv: Optional[list] = None) -> int:
     obs = Observaciones.de_dict(json.loads((args.salida_dir / "observaciones_logs.json").read_text(encoding="utf-8")))
     suavizada = json.loads((args.salida_dir / "sugo_smooth.json").read_text(encoding="utf-8"))
     lo, hi = pasillo_centro(mapa, obs, args.margen)
+    if args.coche_a1_mu is not None:
+        _optimizar_y_escribir(mapa, obs, suavizada, lo, hi, coche_a1(args.coche_a1_mu), f"sugo_optima_a1mu{args.coche_a1_mu:g}", {"modelo": f"coche A1, mu {args.coche_a1_mu:g}, k 0, tope 125"}, args)
+        return 0
     coche = coche_ia()
     print(f"pasillo del centro: ancho mediano {np.median(hi - lo):.2f} m, mínimo {np.min(hi - lo):.2f} m; {len(base_spline(mapa.longitud_m, mapa.s, args.paso_nudos)[1])} puntos de control", flush=True)
     for f in args.ritmos:
-        c = ajuste_ia.escalar(coche, f)
-        t0 = time.time()
         print(f"\n== ritmo f = {f:g} ==", flush=True)
-        res = optimizar(mapa, lo, hi, c, args.paso_nudos, max_barridos=args.max_barridos,
-                        progreso=lambda b, p, t: print(f"  barrido {b:2d}  paso {p:.3f} m  tiempo {t:.3f} s", flush=True))
-        nombre = f"sugo_optima_f{round(f * 1000)}"
-        meta = {"ritmo_f": f, "margen_m": args.margen, "paso_nudos_m": args.paso_nudos, "tiempo_previsto_s": round(res.tiempo_s, 3),
-                "tiempo_suavizada_s": round(res.tiempo_base_s, 3), "semivia_m": obs.semivia_m}
-        salida = args.salida_dir / f"{nombre}.json"
-        salida.write_text(json.dumps(escribir_linea(mapa, res.n, suavizada, meta)), encoding="utf-8")
-        np.save(args.salida_dir / f"{nombre}_n.npy", res.n)
-        print(f"  {res.tiempo_base_s:.3f} s -> {res.tiempo_s:.3f} s ({100 * (res.tiempo_s / res.tiempo_base_s - 1):+.2f} %) en {res.barridos} barridos, "
-              f"{res.evaluaciones} evaluaciones, {time.time() - t0:.0f} s -> {salida}", flush=True)
+        _optimizar_y_escribir(mapa, obs, suavizada, lo, hi, ajuste_ia.escalar(coche, f), f"sugo_optima_f{round(f * 1000)}", {"ritmo_f": f}, args)
     return 0
+
+
+def _optimizar_y_escribir(mapa, obs, suavizada, lo, hi, coche, nombre, meta_extra, args) -> None:
+    t0 = time.time()
+    res = optimizar(mapa, lo, hi, coche, args.paso_nudos, max_barridos=args.max_barridos,
+                    progreso=lambda b, p, t: print(f"  barrido {b:2d}  paso {p:.3f} m  tiempo {t:.3f} s", flush=True))
+    meta = {**meta_extra, "margen_m": args.margen, "paso_nudos_m": args.paso_nudos, "tiempo_previsto_s": round(res.tiempo_s, 3),
+            "tiempo_suavizada_s": round(res.tiempo_base_s, 3), "semivia_m": obs.semivia_m}
+    salida = args.salida_dir / f"{nombre}.json"
+    salida.write_text(json.dumps(escribir_linea(mapa, res.n, suavizada, meta)), encoding="utf-8")
+    np.save(args.salida_dir / f"{nombre}_n.npy", res.n)
+    print(f"  {res.tiempo_base_s:.3f} s -> {res.tiempo_s:.3f} s ({100 * (res.tiempo_s / res.tiempo_base_s - 1):+.2f} %) en {res.barridos} barridos, "
+          f"{res.evaluaciones} evaluaciones, {time.time() - t0:.0f} s -> {salida}", flush=True)
 
 
 if __name__ == "__main__":

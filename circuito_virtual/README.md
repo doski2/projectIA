@@ -48,6 +48,7 @@ k·v²`).
 | `src/ajuste_ia.py` | Ajusta el solver a las vueltas de la IA (envolventes de aceleración, frenada y lateral) y predice las vueltas apartadas (A2, V13) |
 | `src/linea_optima.py` | D2: línea de menor tiempo previsto dentro del pasillo comprobado (B-spline, descenso por coordenadas) y su escritura en el formato de `sugo_smooth.json` |
 | `src/informe_linea_optima.py` | Informe HTML de D2: tiempos, planta con el pasillo, `n(s)` y velocidad por nivel de ritmo |
+| `src/bordes_logs.py actualizar` | Añade a las observaciones los logs nuevos (el pasillo comprobado crece con cada sesión) |
 | `src/informe_mapa.py`                             | Informe HTML del mapa: cobertura, planta, anchura comprobada (distinto del de `experimental`)                    |
 | `src/mapa.py`                                     | Mapa en coordenadas (s, n): eje, curvatura, pendiente, bordes, `sn_a_xz` / `xz_a_sn` (D0)                        |
 | `tests/`                                          | Pruebas con pistas sintéticas y con Sugo                                                                         |
@@ -61,3 +62,5 @@ k·v²`).
 
 `experimental/identificacion/analisis_a2.py` ajusta los parámetros del coche leyendo los logs de A1
 con `experimental/common/analisis_a1.py`, por eso se queda en `experimental/`.
+
+Las sesiones del teacher de A2.0 se analizan con `experimental/common/resumen_sesion.py <log> --previsto <s>` (criterio de volante de V19, tramos fuera de criterio, frenos, cambios de marcha, ruedas fuera) y, por partes, con `analisis_volante.py` y `analisis_a1.py`.

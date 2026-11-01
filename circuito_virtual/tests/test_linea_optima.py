@@ -145,3 +145,14 @@ def test_escribir_linea_con_n_cero_reproduce_la_referencia_y_un_desplazamiento_l
     assert datos["points"][0]["pos"][0] == pytest.approx(mapa.x[0])  # no toca la entrada
     with pytest.raises(ValueError):
         lo.escribir_linea(mapa, np.zeros(mapa.n_puntos), {"points": puntos[:-1]})
+
+
+def test_el_coche_del_teacher_es_el_de_a1_con_limite_lateral_fijo():
+    c = lo.coche_a1(9.0)
+    base = pv.load_params(lo.COCHE_A1)
+    assert c.mu == 9.0 and c.k == 0.0 and c.v_known_kmh == base.v_known_kmh == 125.0
+    assert c.accel == base.accel and c.brake == base.brake
+    # y su vuelta no pasa de 125 km/h en ningún punto (el tope viene de las tablas de A1)
+    mapa = _rectangulo_redondeado()
+    perfil = pv.solve(lo.track_de_n(mapa, np.zeros(mapa.n_puntos))[0], c)
+    assert perfil.v_ms.max() * 3.6 <= 125.0 + 1e-6

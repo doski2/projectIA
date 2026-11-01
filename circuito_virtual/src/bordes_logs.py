@@ -232,9 +232,31 @@ def logs_esquema_2(carpeta: Path) -> Iterable[Path]:
             continue
 
 
+def actualizar(obs: Observaciones, mapa: Mapa, carpetas: Iterable[Path], n_referencia: Optional[np.ndarray] = None) -> List[str]:
+    """Añade a `obs` los logs de `carpetas` que aún no están en `obs.logs` (con terreno y de la referencia vigente). Devuelve los nombres añadidos.
+
+    Cada sesión nueva amplía lo que se sabe de la pista: el pasillo de la línea óptima (D2) es lo recorrido hasta ahora, y una línea que se sale de él lo agranda (V33)."""
+    ya = set(obs.logs)
+    nuevos: List[str] = []
+    for carpeta in carpetas:
+        for ruta in logs_con_terreno(carpeta):
+            if ruta.name in ya:
+                continue
+            if obs.agregar_log(mapa, ruta, n_referencia):
+                nuevos.append(ruta.name)
+                ya.add(ruta.name)
+    return nuevos
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=(__doc__ or "").split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
+    u = sub.add_parser("actualizar", help="añade a las observaciones ya guardadas los logs que faltan")
+    u.add_argument("--logs-dir", type=Path, default=REPO / "PCARS2-AI" / "logs" / "learning")
+    u.add_argument("--mapa", type=Path, default=REPO / "circuito_virtual" / "pistas" / "sugo_gp" / "mapa.json")
+    u.add_argument("--obs", type=Path, default=OUT)
+    u.add_argument("--referencia", type=Path, default=REPO / "PCARS2-AI" / "src" / "refs" / "sugo_ai.json")
+    u.add_argument("--carpetas", nargs="*", default=["learning", "teaching", "imitation"])
     e = sub.add_parser("escanear", help="recorre los logs y guarda las cotas por metro")
     e.add_argument("--logs-dir", type=Path, default=REPO / "PCARS2-AI" / "logs" / "learning")
     e.add_argument("--mapa", type=Path, default=REPO / "circuito_virtual" / "pistas" / "sugo_gp" / "mapa.json")
@@ -245,6 +267,18 @@ def main(argv=None) -> int:
     e.add_argument("--carpetas", nargs="*", default=["learning", "teaching", "imitation"],
                    help="subcarpetas de PCARS2-AI/logs; --logs-dir apunta a la de learning y las demás se buscan a su lado")
     args = ap.parse_args(argv)
+    if args.cmd == "actualizar":
+        mapa = Mapa.cargar(args.mapa)
+        obs = Observaciones.de_dict(json.loads(args.obs.read_text(encoding="utf-8")))
+        antes = obs.cobertura()
+        nuevos = actualizar(obs, mapa, [args.logs_dir.parent / c for c in args.carpetas], n_de_la_referencia(mapa, args.referencia))
+        args.obs.write_text(json.dumps(obs.a_dict(), separators=(",", ":")), encoding="utf-8")
+        for nombre in nuevos:
+            print(f"+ {nombre}")
+        print(f"{len(nuevos)} logs nuevos ({len(obs.logs)} en total)")
+        for k, v in obs.cobertura().items():
+            print(f"  {k}: {100 * antes[k]:.1f} % -> {100 * v:.1f} %")
+        return 0
     mapa = Mapa.cargar(args.mapa)
     obs = Observaciones.vacia(mapa, args.semivia)
     n_ref = n_de_la_referencia(mapa, args.referencia)

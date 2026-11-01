@@ -134,3 +134,24 @@ def test_log_reader_uses_the_cte_when_there_is_no_position_and_a_reference_offse
     otra = tmp_path / "otra_ref.jsonl"
     otra.write_text(json.dumps({"type": "session", "reference_lap_s": 97.746}) + "\n" + json.dumps(ticks[0]), encoding="utf-8")
     assert "otra_ref.jsonl" not in [p.name for p in bl.logs_con_terreno(tmp_path)]  # otra línea de referencia
+
+
+def test_actualizar_anade_solo_los_logs_nuevos_y_amplia_el_asfalto_comprobado(tmp_path):
+    m = _mapa_recta()
+    carpeta = tmp_path / "learning"
+    carpeta.mkdir()
+    cab = {"type": "session", "log_schema": 2}
+
+    def log(nombre, n):
+        ticks = [{"type": "tick", "lap_distance": 300.0 + i, "speed_kmh": 54.0, "vehicle": {"position": [300.0 + i, 0.0, -n], "terrain": [0, 0, 0, 0]}} for i in range(50)]
+        (carpeta / nombre).write_text("\n".join(json.dumps(x) for x in [cab] + ticks), encoding="utf-8")
+
+    log("a.jsonl", 0.0)
+    obs = bl.Observaciones.vacia(m)
+    assert bl.actualizar(obs, m, [carpeta]) == ["a.jsonl"]
+    centro = np.nanmax(obs.dcha_dentro[300:350])
+    log("b.jsonl", 1.5)  # esta sesión pasó 1,5 m más a la derecha por el asfalto
+    assert bl.actualizar(obs, m, [carpeta]) == ["b.jsonl"]  # a.jsonl ya estaba
+    assert obs.logs == ["a.jsonl", "b.jsonl"]
+    assert np.nanmax(obs.dcha_dentro[300:350]) == pytest.approx(centro + 1.5, abs=0.05)
+    assert bl.actualizar(obs, m, [carpeta]) == []  # idempotente
