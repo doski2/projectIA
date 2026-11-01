@@ -3,7 +3,7 @@
 Orden de trabajo. Lo que no es del circuito (rampa del BC, PPO, daño de motor P26, controles de
 seco, reentreno v2) sigue en `experimental/docs/PENDIENTE.md`.
 
-1. **G1b en el juego (con el usuario delante, en seco):** G1 otra vez con la línea suavizada.
+1. ~~**G1b en el juego**~~ **Hecho (V14):** 134,9 km/h en 3ª sin cortes. Siguiente en el juego: subir el techo (150-170 km/h, 3ª y 4ª) y G3 (frenadas en 3ª).
 
 `C:\Users\doski\projectIA\.venv\Scripts\python.exe
 C:\Users\doski\projectIA\experimental\common\aislado.py --ident acel --speed-band 60 --ident-cap-kmh
