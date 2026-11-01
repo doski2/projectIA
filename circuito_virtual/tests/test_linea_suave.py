@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from experimental.identificacion import linea_suave as ls
+from circuito_virtual.src import linea_suave as ls
 
 STRAIGHT = 400
 RADIUS = 50.0
@@ -95,12 +95,3 @@ def test_sugo_reference_loses_its_straight_kinks_with_less_than_a_metre_of_shift
     assert kink and kink[0]["kappa_antes"] > 0.005 and kink[0]["kappa_despues"] < 0.002  # el quiebro de 3300 m de H60
     real = np.array([p["pos"][2] for p in data["points"]]), np.array([p["pos"][2] for p in out["points"]])
     assert np.abs(real[0] - real[1])[912:955].max() < 0.01  # la curva real de 50 m no se toca
-
-
-def test_aislado_passes_the_reference_to_learn_driver():
-    from experimental.common import aislado
-
-    assert aislado.build_argv(Path("python"), "a1_acel_60", 60.0, 3, teacher_only=True)[
-        aislado.build_argv(Path("python"), "a1_acel_60", 60.0, 3, teacher_only=True).index("--reference") + 1] == "src/refs/sugo_ai.json"
-    argv = aislado.build_argv(Path("python"), "a1_acel_60", 60.0, 3, teacher_only=True, reference="C:/x/sugo_smooth.json")
-    assert argv[argv.index("--reference") + 1] == "C:/x/sugo_smooth.json"

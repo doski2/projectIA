@@ -5,7 +5,7 @@ import math
 import numpy as np
 import pytest
 
-from experimental.identificacion import perfil_velocidad as pv
+from circuito_virtual.src import perfil_velocidad as pv
 
 N = 1000
 

@@ -1,8 +1,8 @@
-# Plan D: mapa virtual de la pista y línea óptima
+# Plan de circuito_virtual: mapa virtual de la pista y línea óptima (antes Plan D)
 
 Contexto: H56 (el seguimiento de la línea limita a 90 km/h), H59 (el eje delantero satura a ≈ 88 km/h), H61 (la referencia grabada lleva micro-quiebros) y
 las observaciones del usuario del 2026-11-01. Depende de: A1 (modelo del coche) y del solver de A2 (`perfil_velocidad.py`).
-Estado: **diseño propuesto, pendiente de visto bueno del usuario**. Sin código.
+Estado: **aprobado como carpeta propia (D25, 2026-11-01); diseño D0-D5 pendiente de visto bueno del usuario**. Código existente: `src/perfil_velocidad.py` y `src/linea_suave.py`.
 
 ## Por qué
 
@@ -23,7 +23,7 @@ no un seguimiento estricto.
 
 | # | Paso | Éxito si… | Estado |
 | --- | --- | --- | --- |
-| D0 | Sistema de coordenadas (s, n) sobre el eje de la pista, a partir de la referencia suavizada; formato del mapa en `experimental/data/mapa_sugo.json` | Ida y vuelta (x, z) ↔ (s, n) con error < 5 cm | Pendiente |
+| D0 | Sistema de coordenadas (s, n) sobre el eje de la pista, a partir de la referencia suavizada; formato del mapa en `circuito_virtual/pistas/sugo_gp/mapa.json` (versionado) | Ida y vuelta (x, z) ↔ (s, n) con error < 5 cm | Pendiente |
 | D1 | **Mapeo de bordes:** sesión lenta (30 km/h) en la que el teacher recorre desplazamientos laterales crecientes por vueltas hasta que una rueda toca césped o franja ilegal; se anota `n` del borde por metro y lado | Bordes de las 3567 m con una incertidumbre ≤ 0,25 m | Pendiente |
 | D2 | **Línea óptima sin juego:** con el mapa y el solver, minimizar el tiempo de vuelta variando `n(s)` dentro del pasillo, con margen a los bordes y penalización de curvatura | Tiempo predicho menor que el de la línea suavizada; curvatura continua | Pendiente |
 | D3 | Convertir la línea óptima en un `ReferenceLine` (mismo formato JSON) y rodarla con el teacher a velocidades crecientes | Vuelta limpia a ritmo > actual; tiempo medido dentro del 3 % del predicho (criterio de A2) | Pendiente |

@@ -204,7 +204,7 @@ if __name__ == "__main__":
     ap.add_argument("--steer-damp-kmh", type=float, default=None,
                     help="Velocidad desde la que se reduce el volante del BC ∝ 1/v (producción: 45; 0 = desactivado)")
     ap.add_argument("--reference", default=DEFAULT_REFERENCE,
-                    help="Línea de referencia del teacher (por defecto src/refs/sugo_ai.json). Para alta velocidad: experimental/data/sugo_smooth.json, "
+                    help="Línea de referencia del teacher (por defecto src/refs/sugo_ai.json). Para alta velocidad: circuito_virtual/pistas/sugo_gp/sugo_smooth.json, "
                          "de identificacion/linea_suave.py (H61)")
     ap.add_argument("--max-gear", type=int, default=2,
                     help="Marcha más alta que sube el cambio automático (producción: 2). Con 3 o 4 sube el techo de las maniobras de A1 (X24); solo con --ident")

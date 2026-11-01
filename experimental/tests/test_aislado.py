@@ -263,3 +263,12 @@ def test_max_gear_goes_to_learn_driver_only_when_not_production():
     assert "--max-gear" not in aislado.build_argv(Path("python"), "a1_acel_60", 60.0, 3, teacher_only=True, ident="acel")
     argv = aislado.build_argv(Path("python"), "a1_acel_g3_60", 60.0, 3, teacher_only=True, ident="acel", max_gear=3)
     assert argv[argv.index("--max-gear") + 1] == "3"
+
+
+def test_aislado_passes_the_reference_to_learn_driver():
+    from experimental.common import aislado
+
+    assert aislado.build_argv(Path("python"), "a1_acel_60", 60.0, 3, teacher_only=True)[
+        aislado.build_argv(Path("python"), "a1_acel_60", 60.0, 3, teacher_only=True).index("--reference") + 1] == "src/refs/sugo_ai.json"
+    argv = aislado.build_argv(Path("python"), "a1_acel_60", 60.0, 3, teacher_only=True, reference="C:/x/sugo_smooth.json")
+    assert argv[argv.index("--reference") + 1] == "C:/x/sugo_smooth.json"

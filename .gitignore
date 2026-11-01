@@ -42,3 +42,4 @@ experimental/data/*
 experimental/logs/*
 !experimental/data/.gitkeep
 !experimental/logs/.gitkeep
+circuito_virtual/pistas/*/*_smooth.json

@@ -8,7 +8,7 @@ Esta herramienta escribe una copia con las posiciones suavizadas (gaussiana σ =
 punto (velocidad, marcha, orientación...) queda como estaba. No toca el archivo de entrada.
 
 Uso:
-    python experimental/identificacion/linea_suave.py [--entrada src/refs/sugo_ai.json] [--salida experimental/data/sugo_smooth.json] [--sigma 15]
+    python circuito_virtual/src/linea_suave.py [--entrada PCARS2-AI/src/refs/sugo_ai.json] [--salida circuito_virtual/pistas/sugo_gp/sugo_smooth.json] [--sigma 15]
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ import numpy as np
 
 REPO = Path(__file__).resolve().parents[2]
 DEFAULT_IN = REPO / "PCARS2-AI" / "src" / "refs" / "sugo_ai.json"
-DEFAULT_OUT = REPO / "experimental" / "data" / "sugo_smooth.json"
+DEFAULT_OUT = REPO / "circuito_virtual" / "pistas" / "sugo_gp" / "sugo_smooth.json"
 SIGMA_M = 15.0
 MAX_KAPPA = 0.003  # por debajo de esto la línea suavizada se considera recta
 ERODE_M = 15  # la zona se acorta esto por cada lado, para no acercarse a una curva real

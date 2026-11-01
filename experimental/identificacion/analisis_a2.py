@@ -11,7 +11,7 @@ No es la prueba de la hipótesis de A2 (error de tiempo de vuelta < 3 % con vuel
 tablas llegan a 120 km/h. Además imprime la vuelta potencial del modelo con ese tope, solo como información.
 
 Uso:
-    python experimental/identificacion/analisis_a2.py [--json salida.json] [--guardar experimental/data/a2_params.json]
+    python experimental/identificacion/analisis_a2.py [--json salida.json] [--guardar circuito_virtual/coches/formula_rookie/parametros_a1.json]
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ for _p in (_REPO, _REPO / "PCARS2-AI" / "src"):
         sys.path.insert(0, str(_p))
 
 from experimental.common import analisis_a1 as a1  # noqa: E402
-from experimental.identificacion import perfil_velocidad as pv  # noqa: E402
+from circuito_virtual.src import perfil_velocidad as pv  # noqa: E402
 
 LOGS = _REPO / "PCARS2-AI" / "logs" / "learning"
 ACEL_LOGS = ("20261031T172531Z", "20261031T173744Z", "20261031T175152Z", "20261031T180907Z", "20261101T000938Z")
