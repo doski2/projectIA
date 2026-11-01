@@ -257,3 +257,9 @@ def test_steer_ff_gain_goes_to_learn_driver_only_when_set():
     assert "--steer-ff-gain" not in base
     argv = aislado.build_argv(Path("python"), "a1_arco_ff_60", 60.0, 6, teacher_only=True, steer_ff_gain=0.003)
     assert argv[argv.index("--steer-ff-gain") + 1] == "0.003"
+
+
+def test_max_gear_goes_to_learn_driver_only_when_not_production():
+    assert "--max-gear" not in aislado.build_argv(Path("python"), "a1_acel_60", 60.0, 3, teacher_only=True, ident="acel")
+    argv = aislado.build_argv(Path("python"), "a1_acel_g3_60", 60.0, 3, teacher_only=True, ident="acel", max_gear=3)
+    assert argv[argv.index("--max-gear") + 1] == "3"

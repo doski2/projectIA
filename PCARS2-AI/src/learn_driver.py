@@ -23,6 +23,7 @@ from auto_shift import (
 )
 from pcars2_gear import (
     STEER_DAMP_REF_MS,
+    TEACHING_MAX_GEAR,
     cap_bc_to_speed_target,
     choose_bc_drive_pedals,
     damp_bc_steering,
@@ -102,6 +103,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--steer-comp", action="store_true",
         help="Compensa la curva de respuesta del volante del juego (steering_curve.py)",
+    )
+    parser.add_argument(
+        "--max-gear", type=int, default=TEACHING_MAX_GEAR,
+        help="Marcha más alta que sube el cambio automático (producción: 2). Más alta solo en sesiones de identificación A2.0 (X24).",
     )
     parser.add_argument(
         "--steer-ff-gain", type=float, default=0.0,
@@ -428,6 +433,7 @@ def run(args: argparse.Namespace) -> int:
     teacher = TeachingController(ref, TeacherConfig(
         speed_target_kmh=effective_speed, lat_accel_limit=args.lat_accel_limit or None,
         ff_speed_gain=float(getattr(args, "steer_ff_gain", 0.0) or 0.0),
+        max_gear=int(getattr(args, "max_gear", TEACHING_MAX_GEAR) or TEACHING_MAX_GEAR),
     ))
     safety = SafetyMonitor(ref=ref, surface_profile=ns_str(args, "safety_profile"))
     session = DriveSession()
@@ -468,6 +474,7 @@ def run(args: argparse.Namespace) -> int:
                 cap_kmh=float(args.ident_cap_kmh), floor_kmh=float(args.ident_floor_kmh),
                 end_margin_m=float(args.ident_end_margin_m),
                 caps_kmh=[float(c) for c in str(args.ident_caps).split(",") if c.strip()] if args.ident_caps else None,
+                max_gear=teacher.config.max_gear,
             )
         except ValueError as exc:
             print(f"[Learn] --ident: {exc}")
@@ -531,7 +538,7 @@ def run(args: argparse.Namespace) -> int:
         return 1
 
     controller = DS4Controller(mode=args.gamepad, steer_comp=args.steer_comp)
-    shifter = AutoShifter(neutral_retry_s=NEUTRAL_RETRY_COOLDOWN_S)
+    shifter = AutoShifter(neutral_retry_s=NEUTRAL_RETRY_COOLDOWN_S, max_gear=teacher.config.max_gear)
     start_lap = session.last_timings.current_lap if session.last_timings else 0
     lap_completion = LapCompletionTracker()
     laps_done = 0

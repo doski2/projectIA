@@ -32,9 +32,9 @@ from experimental.common import analisis_a1 as a1  # noqa: E402
 from experimental.identificacion import perfil_velocidad as pv  # noqa: E402
 
 LOGS = _REPO / "PCARS2-AI" / "logs" / "learning"
-ACEL_LOGS = ("20261031T172531Z", "20261031T173744Z", "20261031T175152Z", "20261031T180907Z")
+ACEL_LOGS = ("20261031T172531Z", "20261031T173744Z", "20261031T175152Z", "20261031T180907Z", "20261101T000938Z")
 BRAKE_LOGS = ("20261031T183302Z", "20261031T185936Z")
-V_KNOWN_KMH = 120.0  # por encima de esto la 2ª está en el corte de encendido (H50)
+V_KNOWN_KMH = 125.0  # hasta 120 en 1ª y 2ª (el corte de la 2ª, H50) y hasta 125 con la 3ª (G1, H60)
 MIN_PASS_S = 1.0
 MIN_PASS_KMH = 8.0
 MIN_V0_KMH = 20.0  # la salida parada (embrague, arranque) no está en el modelo

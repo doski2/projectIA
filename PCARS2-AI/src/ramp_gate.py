@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 
 CYCLE_CLEAN, CYCLE_DIRTY, RISE, DROP, TOP, STOP = "cycle_clean", "cycle_dirty", "rise", "drop", "top", "stop"
 END_EVENTS = (TOP, STOP)
@@ -114,13 +114,13 @@ class RampGate:
     def from_dict(cls, d: dict) -> "RampGate":
         return cls(**{k: v for k, v in d.items() if k != "message"})
 
-    def save(self, path: Path) -> None:
+    def save(self, path: Union[str, Path]) -> None:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")
 
     @classmethod
-    def load(cls, path: Path) -> Optional["RampGate"]:
+    def load(cls, path: Union[str, Path]) -> Optional["RampGate"]:
         """Estado guardado, o None si no hay o no se puede leer."""
         try:
             return cls.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))

@@ -38,6 +38,9 @@ SHIFT_COOLDOWN_S = 0.18
 NEUTRAL_BLIP_FRAMES = 4
 # Reintento de RB en punto muerto durante el settle (opt-in: learn/imitation).
 NEUTRAL_RETRY_COOLDOWN_S = 0.6
+# En el corte de encendido de la 2ª (H50) el UDP marca `gear` 1 con el motor a tope y el coche a más de 29 km/h: no es una bajada, es un fallo.
+GEAR1_GLITCH_MIN_SPEED_MS = 8.0
+GEAR1_GLITCH_MIN_RPM_RATIO = 0.90
 
 
 class ShiftController(Protocol):
@@ -61,6 +64,8 @@ class AutoShifter:
     neutral_frames: int = 0
     last_action: Optional[str] = None
     neutral_retry_s: float = 0.0
+    max_gear: int = TEACHING_MAX_GEAR  # tope de marcha que sube el cambio (A2.0-b, X24; 2 = producción)
+    gear1_glitch: bool = False
 
     def ready(self) -> bool:
         cooldown = self.cooldown_s
@@ -69,6 +74,12 @@ class AutoShifter:
         return time.monotonic() - self.last_shift_t >= cooldown
 
     def _observe_gear(self, telem: TelemetryFrame) -> None:
+        self.gear1_glitch = (
+            telem.gear == 1 and self.last_forward_gear >= 2 and telem.speed > GEAR1_GLITCH_MIN_SPEED_MS
+            and rpm_ratio(telem) > GEAR1_GLITCH_MIN_RPM_RATIO
+        )
+        if self.gear1_glitch:  # no se toma como marcha: sigue valiendo la última real
+            return
         if is_forward_gear(telem):
             self.last_forward_gear = telem.gear
             self.neutral_frames = 0
@@ -107,7 +118,7 @@ class AutoShifter:
                 return True, None
             self._press(controller, "rb")
             return True, "to_first"
-        if should_downshift_toward_first(telem):
+        if should_downshift_toward_first(telem, self.max_gear):
             self._press(controller, "lb")
             return True, "down_to_first"
         return False, None
@@ -155,6 +166,9 @@ class AutoShifter:
             self._press(controller, "rb")
             return "from_reverse"
 
+        if self.gear1_glitch:
+            return None
+
         shift_throttle = throttle_for_shift(telem, throttle)
 
         if shift_throttle > THROTTLE_ACTIVE:
@@ -166,7 +180,7 @@ class AutoShifter:
             shift_throttle > THROTTLE_ACTIVE
             and ratio > UPSHIFT_RPM_RATIO
             and gear < num_gears
-            and gear < TEACHING_MAX_GEAR
+            and gear < self.max_gear
         ):
             self._press(controller, "rb")
             return "up"

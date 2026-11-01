@@ -190,3 +190,43 @@ def test_reverse_gear_uses_rb_not_lb():
     assert auto_shift(ctrl, telem, 0.0, 0.5, shifter) is None
     assert ctrl.pressed == []
 
+
+def test_default_max_gear_is_production_and_never_goes_above_second():
+    assert AutoShifter().max_gear == 2
+    ctrl = FakeController()
+    assert auto_shift(ctrl, _telem(gear=2, rpm=7300), 0.8, 0.0, AutoShifter(cooldown_s=0.0)) is None
+    assert ctrl.pressed == []
+
+
+def test_max_gear_3_upshifts_second_to_third_and_stops_there():
+    ctrl = FakeController()
+    shifter = AutoShifter(cooldown_s=0.0, max_gear=3)
+    assert auto_shift(ctrl, _telem(gear=2, rpm=7000, max_rpm=7700, speed=30.0), 0.8, 0.0, shifter) == "up"
+    assert auto_shift(ctrl, _telem(gear=3, rpm=7000, max_rpm=7700, speed=40.0), 0.8, 0.0, shifter) is None
+    assert ctrl.pressed == ["rb"]
+
+
+def test_third_gear_is_not_sent_back_to_first_when_allowed():
+    """Con tope 2 una 3ª a 40 km/h se baja con LB (H50); con tope 3 se deja."""
+    low = FakeController()
+    assert auto_shift(low, _telem(gear=3, rpm=4000, speed=11.0), 0.8, 0.0, AutoShifter(cooldown_s=0.0)) == "down_to_first"
+    ok = FakeController()
+    assert auto_shift(ok, _telem(gear=3, rpm=4000, speed=11.0), 0.8, 0.0, AutoShifter(cooldown_s=0.0, max_gear=3)) is None
+    assert ok.pressed == []
+
+
+def test_gear_1_reading_at_the_rev_limit_is_a_udp_glitch_not_a_shift():
+    """H50: a 120 km/h y 7442 rpm el UDP marca 1ª tras ir en 2ª; no se debe pulsar RB ni tomarlo como marcha."""
+    ctrl = FakeController()
+    shifter = AutoShifter(cooldown_s=0.0, max_gear=3)
+    auto_shift(ctrl, _telem(gear=2, rpm=6000, max_rpm=7700, speed=30.0), 0.8, 0.0, shifter)
+    assert auto_shift(ctrl, _telem(gear=1, rpm=7442, max_rpm=7700, speed=33.4), 0.8, 0.0, shifter) is None
+    assert shifter.last_forward_gear == 2 and shifter.gear1_glitch
+    assert ctrl.pressed == []
+
+
+def test_real_downshift_to_first_under_braking_is_not_taken_as_a_glitch():
+    shifter = AutoShifter(cooldown_s=0.0, max_gear=3)
+    auto_shift(FakeController(), _telem(gear=2, rpm=3000, max_rpm=7700, speed=12.0), 0.0, 0.5, shifter)
+    auto_shift(FakeController(), _telem(gear=1, rpm=3000, max_rpm=7700, speed=11.0), 0.0, 0.5, shifter)
+    assert not shifter.gear1_glitch and shifter.last_forward_gear == 1

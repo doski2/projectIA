@@ -26,6 +26,15 @@ IDLE, ACTIVE = "idle", "active"
 # encendido a ≈ 120 km/h; ahí el coche y el cambio entran en un bucle (RB, LB, punto muerto, gas a trompicones) que excita el
 # yaw: H50, casi un trompo a 130 km/h. No se sube de aquí hasta que haya cambio de 3ª y 4ª probado.
 MAX_CAP_KMH = 115.0
+# Con el cambio automático permitido hasta una marcha mayor (`--max-gear`, X24) el techo sube por escalones; solo tras validar el anterior en el juego.
+MAX_CAP_BY_MAX_GEAR = {2: MAX_CAP_KMH, 3: 150.0, 4: 170.0}
+
+
+def max_cap_kmh(max_gear: int) -> float:
+    """Techo de velocidad permitido para esa marcha máxima del cambio automático."""
+    if max_gear not in MAX_CAP_BY_MAX_GEAR:
+        raise ValueError(f"--max-gear {max_gear}: los valores validados son {sorted(MAX_CAP_BY_MAX_GEAR)}")
+    return MAX_CAP_BY_MAX_GEAR[max_gear]
 MAX_CTE_M = 1.0  # más lejos de la línea que esto: no arranca y, si está en marcha, se corta
 MAX_NEUTRAL_S = 0.6  # un cambio de marcha pasa ≈ 0,2 s por punto muerto; más que esto no es un cambio y se corta
 MAX_ACTIVE_S = 40.0  # tope de una maniobra: una secuencia de cuatro frenadas con sus aceleraciones dura ≈ 30 s
@@ -86,15 +95,16 @@ class IdentManeuver:
     def __init__(
         self, kind: str, straights: List[Tuple[float, float]], length_m: float, cap_kmh: float = 0.0,
         floor_kmh: float = 30.0, start_margin_m: float = 20.0, end_margin_m: float = 150.0,
-        caps_kmh: Optional[Sequence[float]] = None,
+        caps_kmh: Optional[Sequence[float]] = None, max_gear: int = 2,
     ):
+        limit = max_cap_kmh(max_gear)
         if kind not in KINDS:
             raise ValueError(f"maniobra desconocida {kind!r}; las válidas son {KINDS}")
         if kind in (KIND_ACCEL, KIND_BOTH) and cap_kmh <= 0:
             raise ValueError(f"`{kind}` necesita un techo de velocidad (cap_kmh > 0)")
-        if cap_kmh > MAX_CAP_KMH:
-            raise ValueError(f"techo de {cap_kmh:g} km/h por encima del máximo permitido ({MAX_CAP_KMH:g}): el cambio automático "
-                             "solo llega a 2ª y a ≈ 120 km/h se descontrola (H50)")
+        if cap_kmh > limit:
+            raise ValueError(f"techo de {cap_kmh:g} km/h por encima del máximo permitido ({limit:g}) con el cambio hasta {max_gear}ª: "
+                             "a ≈ 120 km/h la 2ª llega al corte y se descontrola (H50)")
         if kind in (KIND_COAST, KIND_BOTH, KIND_BRAKE) and floor_kmh <= 0:
             raise ValueError(f"`{kind}` necesita un suelo de velocidad (floor_kmh > 0)")
         self.caps_ms: List[float] = []
@@ -106,8 +116,8 @@ class IdentManeuver:
                 raise ValueError("las velocidades de entrada de `frenar` deben ir de menor a mayor")
             if min(caps) < floor_kmh + MIN_ENTRY_ABOVE_FLOOR_KMH:
                 raise ValueError(f"cada velocidad de entrada debe superar el suelo ({floor_kmh:g}) en {MIN_ENTRY_ABOVE_FLOOR_KMH:g} km/h o más")
-            if max(caps) > MAX_CAP_KMH:
-                raise ValueError(f"entrada de {max(caps):g} km/h por encima del máximo permitido ({MAX_CAP_KMH:g}): H50")
+            if max(caps) > limit:
+                raise ValueError(f"entrada de {max(caps):g} km/h por encima del máximo permitido ({limit:g}) con el cambio hasta {max_gear}ª: H50")
             self.caps_ms = [c / 3.6 for c in caps]
         self.kind = kind
         self.length_m = float(length_m)

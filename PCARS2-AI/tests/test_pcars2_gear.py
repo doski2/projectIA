@@ -158,3 +158,12 @@ def test_backward_uses_longitudinal_axis_not_lateral():
     reversing.local_velocity = (0.0, 0.0, 2.0)
     assert is_driving_backward(reversing)
     assert backward_speed_ms(reversing) == 2.0
+
+
+def test_max_gear_parameter_moves_the_downshift_cap():
+    from pcars2_gear import needs_gear_engagement, should_downshift_toward_first
+
+    third = _telem(gear=3, speed=20.0)
+    assert should_downshift_toward_first(third) and needs_gear_engagement(third)  # producción: tope 2
+    assert not should_downshift_toward_first(third, 3) and not needs_gear_engagement(third, 3)
+    assert should_downshift_toward_first(_telem(gear=4, speed=20.0), 3)

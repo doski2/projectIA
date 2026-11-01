@@ -23,6 +23,7 @@ DATA = REPO / "experimental" / "data"
 sys.path.insert(0, str(APP / "src"))
 from ident_arc import MAX_ARC_KMH as IDENT_MAX_ARC_KMH  # noqa: E402
 from ident_maneuver import MAX_CAP_KMH as IDENT_MAX_CAP_KMH  # noqa: E402
+from ident_maneuver import max_cap_kmh as ident_max_cap_kmh  # noqa: E402
 from learn_progress import progress_file  # noqa: E402
 
 # Aceleración lateral que el profesor supone en curva (P16). Provisional: ~0,66 g, del orden de lo que la
@@ -78,6 +79,7 @@ def build_argv(
     ident: str = "", ident_cap_kmh: float = 0.0, ident_floor_kmh: float = 30.0, ident_end_margin_m: float = 150.0,
     ident_straights: str = "", ident_caps: str = "",
     ident_arc_speeds: str = "", ident_arc_window: str = "3200,600", ident_arc_cte: float = 2.5, steer_ff_gain: float = 0.0,
+    max_gear: int = 2,
 ) -> List[str]:
     argv = [
         str(python), str(APP / "src" / "learn_driver.py"),
@@ -107,6 +109,8 @@ def build_argv(
         if ident == "arco":  # A1.3: la rampa de velocidades por vueltas y sus límites
             argv += ["--ident-arc-speeds", ident_arc_speeds, "--ident-arc-window", ident_arc_window,
                      "--ident-arc-cte", f"{ident_arc_cte:g}"]
+    if max_gear != 2:  # X24: el cambio automático sube hasta esa marcha (producción: 2)
+        argv += ["--max-gear", str(max_gear)]
     if steer_ff_gain:  # H58: anticipación de volante escalada con la velocidad; 0 = la de producción
         argv += ["--steer-ff-gain", f"{steer_ff_gain:g}"]
     return argv + (["--teacher-only"] if teacher_only else [])
@@ -120,6 +124,7 @@ def run_isolated(
     ident: str = "", ident_cap_kmh: float = 0.0, ident_floor_kmh: float = 30.0, ident_end_margin_m: float = 150.0,
     ident_straights: str = "", ident_caps: str = "",
     ident_arc_speeds: str = "", ident_arc_window: str = "3200,600", ident_arc_cte: float = 2.5, steer_ff_gain: float = 0.0,
+    max_gear: int = 2,
 ) -> int:
     DATA.mkdir(parents=True, exist_ok=True)
     model = DATA / f"{experiment}_model.pt"
@@ -149,7 +154,7 @@ def run_isolated(
                 ident=ident, ident_cap_kmh=ident_cap_kmh, ident_floor_kmh=ident_floor_kmh,
                 ident_end_margin_m=ident_end_margin_m, ident_straights=ident_straights, ident_caps=ident_caps,
                 ident_arc_speeds=ident_arc_speeds, ident_arc_window=ident_arc_window, ident_arc_cte=ident_arc_cte,
-                steer_ff_gain=steer_ff_gain,
+                steer_ff_gain=steer_ff_gain, max_gear=max_gear,
             ),
             cwd=APP, env=env,
         ).returncode
@@ -197,6 +202,8 @@ if __name__ == "__main__":
     ap.add_argument("--ramp-step", type=float, default=5.0)
     ap.add_argument("--steer-damp-kmh", type=float, default=None,
                     help="Velocidad desde la que se reduce el volante del BC ∝ 1/v (producción: 45; 0 = desactivado)")
+    ap.add_argument("--max-gear", type=int, default=2,
+                    help="Marcha más alta que sube el cambio automático (producción: 2). Con 3 o 4 sube el techo de las maniobras de A1 (X24); solo con --ident")
     ap.add_argument("--steer-ff-gain", type=float, default=0.0,
                     help="Anticipación de volante del teacher escalada con la velocidad (H58): factor 1 + G · (v² − 60²) por encima de 60 km/h; 0 = producción")
     ap.add_argument("--ident", choices=("acel", "rodar", "acelrodar", "frenar", "arco"), default="",
@@ -223,6 +230,12 @@ if __name__ == "__main__":
     ap.add_argument("--resume", action="store_true",
                     help="Conserva el modelo, el buffer y el estado de la rampa del experimento (siguiente bloque)")
     a = ap.parse_args()
+    try:
+        cap_limit = ident_max_cap_kmh(a.max_gear)
+    except ValueError as exc:
+        ap.error(str(exc))
+    if a.max_gear != 2 and not a.ident:
+        ap.error("--max-gear distinto de 2 solo se usa con --ident (X24)")
     if a.ident in ("acel", "acelrodar") and a.ident_cap_kmh <= a.speed_band:
         ap.error(f"--ident {a.ident} necesita --ident-cap-kmh mayor que --speed-band (la maniobra acelera desde la banda hasta el techo)")
     if a.ident == "arco":
@@ -244,11 +257,11 @@ if __name__ == "__main__":
             caps = []
         if not caps:
             ap.error("--ident frenar necesita --ident-caps con las velocidades de entrada, p. ej. 60,80,100")
-        if max(caps) > IDENT_MAX_CAP_KMH:
-            ap.error(f"--ident-caps {a.ident_caps}: la mayor ({max(caps):g}) supera el máximo permitido ({IDENT_MAX_CAP_KMH:g}), H50")
-    if a.ident and a.ident_cap_kmh > IDENT_MAX_CAP_KMH:
-        ap.error(f"--ident-cap-kmh {a.ident_cap_kmh:g} supera el máximo permitido ({IDENT_MAX_CAP_KMH:g}): el cambio automático solo "
-                 "llega a 2ª y a ≈ 120 km/h el coche se descontrola (H50)")
+        if max(caps) > cap_limit:
+            ap.error(f"--ident-caps {a.ident_caps}: la mayor ({max(caps):g}) supera el máximo permitido ({cap_limit:g}) con --max-gear {a.max_gear}, H50")
+    if a.ident and a.ident_cap_kmh > cap_limit:
+        ap.error(f"--ident-cap-kmh {a.ident_cap_kmh:g} supera el máximo permitido ({cap_limit:g}) con --max-gear {a.max_gear}: "
+                 "a ≈ 120 km/h la 2ª llega al corte de encendido y el coche se descontrola (H50)")
     if a.steer_ff_gain < 0:
         ap.error("--steer-ff-gain no puede ser negativo")
     if a.ident:
@@ -265,7 +278,7 @@ if __name__ == "__main__":
                        ident_floor_kmh=a.ident_floor_kmh, ident_end_margin_m=a.ident_end_margin_m,
                        ident_straights=a.ident_straights, ident_caps=a.ident_caps,
                        ident_arc_speeds=a.ident_arc_speeds, ident_arc_window=a.ident_arc_window, ident_arc_cte=a.ident_arc_cte,
-                       steer_ff_gain=a.steer_ff_gain)
+                       steer_ff_gain=a.steer_ff_gain, max_gear=a.max_gear)
     log = latest_log(experiment, t0)
     if log is None:
         print("[experimental] no se encontró el log de la prueba; sin informe")

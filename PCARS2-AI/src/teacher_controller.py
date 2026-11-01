@@ -16,6 +16,7 @@ from obs_builder import wheelspin_norm
 from pcars2_gear import (
     ENGAGE_FIRST_STUCK_MAX_FRAMES,
     ENGAGE_FIRST_THROTTLE,
+    TEACHING_MAX_GEAR,
     backward_speed_ms,
     is_driving_backward,
     is_forward_gear,
@@ -91,6 +92,7 @@ class TeacherConfig:
     # Anticipación de volante escalada con la velocidad (H58): la curva pide ≈ 2,77 + 0,0183 · v² unidades de volante por unidad de κ
     # y la anticipación fija da ≈ 4,3. Factor f(v) = 1 + ff_speed_gain · max(0, v² − v0²). 0 = como siempre (producción).
     ff_speed_gain: float = 0.0  # (m/s)⁻²
+    max_gear: int = TEACHING_MAX_GEAR  # marcha más alta que se acepta sin pedir 1ª (A2.0-b, X24; 2 = producción)
     ff_speed_v0_kmh: float = 60.0
     steer_smooth: float = 0.35
     throttle_rate: float = 0.08
@@ -235,7 +237,7 @@ class TeachingController:
         ):
             self._gear_engagement_frames = 0
             return False
-        if not needs_gear_engagement(telem):
+        if not needs_gear_engagement(telem, self.config.max_gear):
             self._gear_engagement_frames = 0
             return False
         self._gear_engagement_frames += 1

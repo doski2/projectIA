@@ -267,3 +267,18 @@ def test_short_windows_are_ignored():
     m = IdentManeuver("acel", [(100.0, 250.0)], LENGTH, cap_kmh=80)  # 150 m < margen de salida + margen de llegada
     assert m.windows == []
     assert _u(m, 150.0, 30.0) is None
+
+
+def test_speed_ceiling_depends_on_the_automatic_gearbox_max_gear():
+    from ident_maneuver import MAX_CAP_KMH, IdentManeuver, max_cap_kmh
+
+    assert max_cap_kmh(2) == MAX_CAP_KMH == 115.0
+    assert max_cap_kmh(3) > MAX_CAP_KMH and max_cap_kmh(4) > max_cap_kmh(3)
+    with pytest.raises(ValueError):
+        max_cap_kmh(5)
+    straights = [(100.0, 700.0)]
+    with pytest.raises(ValueError):
+        IdentManeuver("acel", straights, 3567.0, cap_kmh=135.0)  # con 2ª el techo sigue en 115
+    IdentManeuver("acel", straights, 3567.0, cap_kmh=135.0, max_gear=3)
+    with pytest.raises(ValueError):
+        IdentManeuver("acel", straights, 3567.0, cap_kmh=160.0, max_gear=3)

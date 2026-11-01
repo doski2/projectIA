@@ -96,21 +96,21 @@ def should_rb_to_first(telem: TelemetryFrame) -> bool:
     return False
 
 
-def should_downshift_toward_first(telem: TelemetryFrame) -> bool:
-    """Marcha >1ª a velocidad teaching: LB (RB desde 2ª subiría de marcha)."""
+def should_downshift_toward_first(telem: TelemetryFrame, max_gear: int = TEACHING_MAX_GEAR) -> bool:
+    """Marcha >1ª a velocidad teaching: LB (RB desde 2ª subiría de marcha). `max_gear`: tope permitido (A2.0-b; 2 en producción)."""
     if not is_forward_gear(telem) or telem.gear <= 1:
         return False
-    if telem.gear > TEACHING_MAX_GEAR:
+    if telem.gear > max_gear:
         return True
     return telem.speed < ENGAGE_FIRST_MAX_SPEED_MS
 
 
-def needs_gear_engagement(telem: TelemetryFrame) -> bool:
+def needs_gear_engagement(telem: TelemetryFrame, max_gear: int = TEACHING_MAX_GEAR) -> bool:
     """Teacher: priorizar 1ª antes de cruise (neutro o marcha alta a crawl)."""
     if telem.gear == 1 or is_udp_gear_glitch(telem):
         return False
     if telem.gear > 1:
-        return should_downshift_toward_first(telem)
+        return should_downshift_toward_first(telem, max_gear)
     return True
 
 
