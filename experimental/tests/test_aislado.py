@@ -287,8 +287,10 @@ def test_a2_error_exige_teacher_prefijo_a2_y_limites_validados():
     ok: Dict[str, Any] = dict(ident="", max_gear=3, lat_accel_limit=12.5, teacher_only=True, experiment="a2_suave_100", speed_band=100.0, cap_limit=150.0)
     assert aislado.a2_error(**ok) is None
     assert aislado.a2_error(**{**ok, "teacher_only": False})  # el BC no conduce con marchas sin validar
-    assert "a2_" in aislado.a2_error(**{**ok, "experiment": ""})  # el nombre por defecto borraría `teacher_<banda>`
-    assert "a2_" in aislado.a2_error(**{**ok, "experiment": "teacher_100"})
+    sin_nombre = aislado.a2_error(**{**ok, "experiment": ""})  # el nombre por defecto borraría `teacher_<banda>`
+    assert sin_nombre is not None and "a2_" in sin_nombre
+    nombre_de_teacher = aislado.a2_error(**{**ok, "experiment": "teacher_100"})
+    assert nombre_de_teacher is not None and "a2_" in nombre_de_teacher
     assert aislado.a2_error(**{**ok, "speed_band": 160.0})  # por encima del techo de la 3ª
     assert aislado.a2_error(**{**ok, "lat_accel_limit": 15.0})  # por encima de la cota de D21
     assert aislado.a2_error(**{**ok, "lat_accel_limit": 0.0})
@@ -340,3 +342,20 @@ def test_straight_braking_options_go_to_learn_driver_only_when_set():
     assert "--brake-decel-straight" not in argv0 and "--brake-overspeed-straight-ms" not in argv0
     argv = aislado.build_argv(Path("python"), "a2_x", 125.0, 3, teacher_only=True, brake_decel_straight=8.0, brake_overspeed_straight_ms=2.5)
     assert argv[argv.index("--brake-decel-straight") + 1] == "8" and argv[argv.index("--brake-overspeed-straight-ms") + 1] == "2.5"
+
+
+def test_brake_slip_limit_goes_to_learn_driver_only_when_set_and_also_with_ident_frenar():
+    assert "--brake-slip-limit" not in aislado.build_argv(Path("python"), "a2_x", 125.0, 3, teacher_only=True)
+    argv = aislado.build_argv(Path("python"), "a2_x", 125.0, 3, teacher_only=True, brake_slip_limit=0.2)
+    assert argv[argv.index("--brake-slip-limit") + 1] == "0.2"
+    argv = aislado.build_argv(Path("python"), "a1_frenar", 60.0, 3, teacher_only=True, ident="frenar", ident_caps="130,140", max_gear=3, brake_slip_limit=0.2)
+    assert argv[argv.index("--brake-slip-limit") + 1] == "0.2" and argv[argv.index("--ident") + 1] == "frenar"
+
+
+def test_brake_slip_limit_counts_as_a_teacher_option_for_the_a2_name_rule():
+    cap = aislado.ident_max_cap_kmh(3)
+    # sin --ident, una opción propia del teacher exige el prefijo a2_ en el nombre del experimento
+    assert aislado.a2_error("", 3, aislado.LAT_ACCEL_LIMIT, True, "teacher_125", 125.0, cap, True) is not None
+    assert aislado.a2_error("", 3, aislado.LAT_ACCEL_LIMIT, True, "a2_frena_slip02", 125.0, cap, True) is None
+    # con --ident la opción se acepta con cualquier nombre
+    assert aislado.a2_error("frenar", 3, aislado.LAT_ACCEL_LIMIT, True, "a1_frenar_g3_slip02", 60.0, cap, True) is None
