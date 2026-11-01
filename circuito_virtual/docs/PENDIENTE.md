@@ -1,0 +1,14 @@
+# Pendiente de circuito_virtual
+
+Orden de trabajo. Lo que no es del circuito (rampa del BC, PPO, daño de motor P26, controles de seco, reentreno v2) sigue en `experimental/docs/PENDIENTE.md`.
+
+1. **G1b en el juego (con el usuario delante, en seco):** G1 otra vez con la línea suavizada.
+   `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --ident acel --speed-band 60 --ident-cap-kmh 135 --max-gear 3 --ident-straights 1 --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_smooth.json --experiment a1_acel_g3_suave_60 --laps 3`
+   Éxito: llega a 135 km/h sin corte por CTE en 3300-3345 m y el volante en ±0,05 en la recta. Si no basta: `--steer-ff-gain 0.003`, y después un corte de CTE más ancho solo en recta.
+2. **D0:** coordenadas (s, n) sobre el eje, formato del mapa (`pistas/sugo_gp/mapa.json`, versionado) e ida y vuelta (x, z) ↔ (s, n) con error < 5 cm.
+3. **D1:** lanzador del mapeo de bordes (copias de la referencia desplazadas ±0,5, ±1, ±1,5... m, rodadas a 30 km/h con `--reference`) y extractor de bordes desde el terreno de las ruedas. Antes, revisar que la guardia de superficie no aborte la sesión al primer toque de césped.
+4. **D2:** línea óptima con el solver (`src/perfil_velocidad.py`) dentro del pasillo, con margen a los bordes y curvatura continua; gráfico en planta, desplazamiento lateral y perfil de velocidad.
+5. **A2.0:** el agente ruedando vueltas completas sobre la línea suavizada (teacher en modo físico, límite lateral ≈ 12,5 m/s², tope de 125 km/h) para comparar el tiempo predicho con el medido (criterio: < 3 %).
+6. **G3:** frenadas en 3ª desde 100, 110 y 115 km/h (`aislado.py --ident frenar --ident-caps 100,110,115 --max-gear 3 --ident-straights 1`), para la bajada de marcha y la distancia.
+7. **A1.3b:** arcos en 3ª y 4ª, para ver cuánto cambia el límite lateral con la marcha (D23) y fijar `k`.
+8. **Comprobar** si el paquete de tiempos del juego trae la posición de los rivales (hoy solo se lee al participante propio), antes de D5.

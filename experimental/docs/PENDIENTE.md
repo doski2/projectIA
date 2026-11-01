@@ -1,5 +1,7 @@
 # Pendiente para la próxima sesión
 
+> **Desde el 2026-11-01 (V4):** el trabajo de mapa, línea óptima, modelo del coche (A2, G1b, G3, A1.3b) se sigue en `circuito_virtual/docs/PENDIENTE.md`. Aquí queda la historia de A1-A2 y lo que no es del circuito (rampa del BC C1, PPO, daño de motor P26, controles de seco, reentreno v2).
+
 > Escrito el 2026-10-28, actualizado el 2026-10-30. Detalle completo en
 > [DECISIONES.md](DECISIONES.md) (D19, pasos 7b y 7c, H25-H33, X7-X18, P23-P24).
 

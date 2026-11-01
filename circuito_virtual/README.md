@@ -12,7 +12,7 @@ Nace de las conclusiones de A1-A2 (`experimental/docs/DECISIONES.md`, H56, H59, 
    `coches/<coche>/` lleva los parámetros que se miden en A1 (aceleración, frenada, límite lateral `μ + k·v²`).
 3. **Los datos pequeños y de resultado se versionan** (mapa, parámetros del coche); los archivos grandes derivados (`sugo_smooth.json`, 4,5 MB, copia de la
    referencia) se regeneran con el script y no se versionan.
-4. **Las sesiones en el juego no están aquí:** se lanzan desde `experimental/common/aislado.py` (mapeo de bordes con `--reference` sobre copias desplazadas de la línea).
+4. **Logs y sesiones:** los logs de sesión se quedan en `PCARS2-AI/logs/` (los escribe producción). Las sesiones de identificación del coche (A1) se lanzan con `experimental/common/aislado.py`; el lanzador del mapeo de bordes (D1), con copias desplazadas de la línea y `--reference`, irá en `src/` (V6). Aquí se guardan las salidas por pista.
 5. **Tests propios** en `circuito_virtual/tests/`, fuera de las suites de `PCARS2-AI` y `experimental`.
 
 ## Estructura
@@ -20,6 +20,7 @@ Nace de las conclusiones de A1-A2 (`experimental/docs/DECISIONES.md`, H56, H59, 
 | Carpeta | Contenido |
 | --- | --- |
 | `docs/PLAN.md` | Plan D0-D5: coordenadas (s, n), mapeo de bordes, línea óptima, exploración y selección aprendida |
+| `docs/DECISIONES.md`, `DIARIO.md`, `PENDIENTE.md` | Decisiones (V1...), diario y orden de trabajo de esta carpeta; la historia anterior está en `experimental/docs/` |
 | `src/perfil_velocidad.py` | Modelo del coche y de la pista: solver de perfil de velocidad de adelante y atrás (A2) |
 | `src/linea_suave.py` | Suavizado de la referencia en las rectas (H61) |
 | `tests/` | Pruebas con pistas sintéticas y con Sugo |
