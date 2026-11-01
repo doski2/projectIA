@@ -109,3 +109,28 @@ def test_the_html_report_is_generated_with_the_three_figures_and_the_coverage(tm
     texto = salida.read_text(encoding="utf-8")
     assert "Mapa de recta" in texto and texto.count("data:image/png;base64,") == 3 and "borde izq medido" in texto
     assert informe_mapa.tramos(np.array([False, True, True, True, False]), 5.0, minimo_m=3.0) == [(1.0, 4.0)]
+
+
+def test_logs_without_position_use_the_signed_cte_plus_the_reference_offset():
+    m = _mapa_recta()
+    obs = bl.Observaciones.vacia(m)
+    s, x, z, terr, v = _barrido(m, lambda s: 2.0 * np.sin(s / 20.0) + 0.3)
+    n_real = 2.0 * np.sin(s / 20.0) + 0.3
+    n_ref = np.full(m.n_puntos, 0.4)  # la referencia de la sesión va 0,4 m a la derecha del eje del mapa
+    assert obs.agregar_cte(m, s, n_real - 0.4, terr, v, n_ref) == len(s)  # el CTE es contra esa referencia
+    b = obs.bordes()
+    assert np.nanmedian(b["izq"]) == pytest.approx(BORDE_IZQ, abs=0.25) and np.nanmedian(b["dcha"]) == pytest.approx(BORDE_DCHA, abs=0.25)
+
+
+def test_log_reader_uses_the_cte_when_there_is_no_position_and_a_reference_offset(tmp_path):
+    m = _mapa_recta()
+    ticks = [{"type": "tick", "lap_distance": 300.0 + i, "speed_kmh": 54.0, "signed_cte": 0.1, "vehicle": {"terrain": [0, 0, 0, 0]}} for i in range(40)]
+    ruta = tmp_path / "sinpos.jsonl"
+    ruta.write_text("\n".join(json.dumps(x) for x in [{"type": "session", "log_schema": 1, "reference_lap_s": 213.875}] + ticks), encoding="utf-8")
+    assert bl.Observaciones.vacia(m).agregar_log(m, ruta) == 0  # sin referencia no se puede usar
+    obs = bl.Observaciones.vacia(m)
+    assert obs.agregar_log(m, ruta, np.zeros(m.n_puntos)) == 40
+    assert [p.name for p in bl.logs_con_terreno(tmp_path)] == ["sinpos.jsonl"]
+    otra = tmp_path / "otra_ref.jsonl"
+    otra.write_text(json.dumps({"type": "session", "reference_lap_s": 97.746}) + "\n" + json.dumps(ticks[0]), encoding="utf-8")
+    assert "otra_ref.jsonl" not in [p.name for p in bl.logs_con_terreno(tmp_path)]  # otra línea de referencia

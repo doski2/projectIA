@@ -72,7 +72,21 @@ class Observaciones:
         if not ok.any():
             return 0
         s, n = mapa.xz_a_sn(x[ok], z[ok], s_hint=s_juego[ok])
-        terr = terreno[ok]
+        self._acumular(s, n, terreno[ok])
+        return int(ok.sum())
+
+    def agregar_cte(self, mapa: Mapa, s_juego, cte, terreno, velocidad_ms, n_referencia: np.ndarray) -> int:
+        """Como `agregar`, para logs sin posición: la `n` del coche es el CTE firmado más la `n` que tiene en el mapa la línea de referencia de esa sesión."""
+        s_juego, cte = np.asarray(s_juego, dtype=float), np.asarray(cte, dtype=float)
+        terreno = np.asarray(terreno, dtype=int).reshape(-1, 4)
+        ok = np.asarray(velocidad_ms, dtype=float) > MIN_SPEED_MS
+        if not ok.any():
+            return 0
+        s = np.mod(s_juego[ok], self.longitud_m)
+        self._acumular(s, cte[ok] + mapa.interpola(n_referencia, s), terreno[ok])
+        return int(ok.sum())
+
+    def _acumular(self, s: np.ndarray, n: np.ndarray, terr: np.ndarray) -> None:
         racing = np.isin(terr, list(RACING_TERRAIN_IDS))
         b = self._bin(s)
         np.add.at(self.ticks, b, 1)
@@ -89,14 +103,16 @@ class Observaciones:
             # "fuera": la rueda más cercana al eje que ya estaba fuera -> máximo en la izquierda, mínimo en la derecha
             if f.any():
                 (np.fmax if signo < 0 else np.fmin).at(fuera, b[f], n_rueda[f])
-        return int(ok.sum())
 
-    def agregar_log(self, mapa: Mapa, ruta: Path) -> int:
+    def agregar_log(self, mapa: Mapa, ruta: Path, n_referencia: Optional[np.ndarray] = None) -> int:
+        """Lee un log. Con posición por tick usa la proyección al mapa; sin ella, y si se da `n_referencia`, usa el CTE firmado."""
         s_l: List[float] = []
         x_l: List[float] = []
         z_l: List[float] = []
         t_l: List[List[int]] = []
         v_l: List[float] = []
+        c_l: List[float] = []
+        sin_pos = {"s": [], "cte": [], "t": [], "v": []}
         with open(ruta, encoding="utf-8") as fh:
             for linea in fh:
                 if '"type": "tick"' not in linea:
@@ -104,14 +120,22 @@ class Observaciones:
                 d = json.loads(linea)
                 veh = d.get("vehicle") or {}
                 pos, terr = veh.get("position"), veh.get("terrain")
-                if not pos or not terr or len(terr) < 4:
+                if not terr or len(terr) < 4:
                     continue
-                s_l.append(d["lap_distance"])
-                x_l.append(pos[0])
-                z_l.append(pos[2])
-                t_l.append(terr[:4])
-                v_l.append(d.get("speed_kmh", 0.0) / 3.6)
+                if pos:
+                    s_l.append(d["lap_distance"])
+                    x_l.append(pos[0])
+                    z_l.append(pos[2])
+                    t_l.append(terr[:4])
+                    v_l.append(d.get("speed_kmh", 0.0) / 3.6)
+                elif n_referencia is not None and d.get("signed_cte") is not None:
+                    sin_pos["s"].append(d["lap_distance"])
+                    sin_pos["cte"].append(d["signed_cte"])
+                    sin_pos["t"].append(terr[:4])
+                    sin_pos["v"].append(d.get("speed_kmh", 0.0) / 3.6)
         usados = self.agregar(mapa, s_l, x_l, z_l, t_l, v_l) if s_l else 0
+        if sin_pos["s"]:
+            usados += self.agregar_cte(mapa, sin_pos["s"], sin_pos["cte"], sin_pos["t"], sin_pos["v"], n_referencia)
         if usados:
             self.logs.append(Path(ruta).name)
         return usados
@@ -165,6 +189,38 @@ class Observaciones:
                              np.array(d["ticks"], dtype=int), list(d["logs"]), d.get("semivia_m", SEMIVIA_M))
 
 
+def n_de_la_referencia(mapa: Mapa, ruta_referencia: Path) -> np.ndarray:
+    """`n` que tiene en el mapa cada punto del eje de la línea de referencia de producción (el CTE de los logs se mide contra ella, no contra el eje suavizado)."""
+    datos = json.loads(Path(ruta_referencia).read_text(encoding="utf-8"))
+    pts = datos["points"]
+    d = np.array([p["d"] for p in pts], dtype=float)
+    pos = np.array([p["pos"] for p in pts], dtype=float)
+    _, n = mapa.xz_a_sn(pos[:, 0], pos[:, 2], s_hint=d)
+    return np.interp(mapa.s, d, n, period=mapa.longitud_m)
+
+
+REFERENCIA_ACTUAL_S = 213.875  # `reference_lap_s` de la cabecera de los logs hechos con la referencia vigente (desde 2026-10-10)
+
+
+def logs_con_terreno(carpeta: Path, vuelta_referencia_s: float = REFERENCIA_ACTUAL_S) -> Iterable[Path]:
+    """Logs que traen el terreno de las ruedas y se hicieron con la referencia vigente (cabecera con esa vuelta o sin ella, de después del cambio)."""
+    for ruta in sorted(Path(carpeta).glob("*.jsonl")):
+        try:
+            with open(ruta, encoding="utf-8") as fh:
+                cab = json.loads(fh.readline())
+                ref_s = cab.get("reference_lap_s")
+                if ref_s is not None and abs(float(ref_s) - vuelta_referencia_s) > 0.01:
+                    continue  # otra línea de referencia: el CTE no vale contra esta
+                for linea in fh:
+                    if '"type": "tick"' in linea:
+                        veh = json.loads(linea).get("vehicle") or {}
+                        if veh.get("terrain"):
+                            yield ruta
+                        break
+        except (OSError, ValueError):
+            continue
+
+
 def logs_esquema_2(carpeta: Path) -> Iterable[Path]:
     """Logs con posición y terreno por rueda (esquema 2), por orden de nombre."""
     for ruta in sorted(Path(carpeta).glob("*.jsonl")):
@@ -184,12 +240,18 @@ def main(argv=None) -> int:
     e.add_argument("--mapa", type=Path, default=REPO / "circuito_virtual" / "pistas" / "sugo_gp" / "mapa.json")
     e.add_argument("--salida", type=Path, default=OUT)
     e.add_argument("--semivia", type=float, default=SEMIVIA_M)
+    e.add_argument("--referencia", type=Path, default=REPO / "PCARS2-AI" / "src" / "refs" / "sugo_ai.json",
+                   help="línea de referencia contra la que se midió el CTE de los logs sin posición")
+    e.add_argument("--carpetas", nargs="*", default=["learning", "teaching", "imitation"],
+                   help="subcarpetas de PCARS2-AI/logs; --logs-dir apunta a la de learning y las demás se buscan a su lado")
     args = ap.parse_args(argv)
     mapa = Mapa.cargar(args.mapa)
     obs = Observaciones.vacia(mapa, args.semivia)
-    for ruta in logs_esquema_2(args.logs_dir):
-        usados = obs.agregar_log(mapa, ruta)
-        print(f"{ruta.name}: {usados} ticks", flush=True)
+    n_ref = n_de_la_referencia(mapa, args.referencia)
+    for carpeta in args.carpetas:
+        for ruta in logs_con_terreno(args.logs_dir.parent / carpeta):
+            usados = obs.agregar_log(mapa, ruta, n_ref)
+            print(f"{carpeta}/{ruta.name}: {usados} ticks", flush=True)
     args.salida.parent.mkdir(parents=True, exist_ok=True)
     args.salida.write_text(json.dumps(obs.a_dict(), separators=(",", ":")), encoding="utf-8")
     print(json.dumps(obs.cobertura(), indent=2))
