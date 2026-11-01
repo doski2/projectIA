@@ -3,6 +3,8 @@
 Lo más reciente arriba. Historia anterior en `experimental/docs/DIARIO.md`. Las «V» son entradas del
 registro de decisiones (`DECISIONES.md`), no versiones del software.
 
+- **2026-11-01 — Cuarta sesión del limitador, objetivo 0,3 (V49).** Sin bloqueo, deslizamiento máx. 0,45, CTE ≤ 0,19 m y 10,9-11,3 m/s² (media 11,08; 0,2 → 10,53, 0,25 → 10,86): el objetivo se agota y el pedal sigue oscilando. En el simulador un limitador que recuerda el pedal con el que se pasó del objetivo y recupera despacio desde ≈ 0,85-0,9 de él sube ≈ 0,5-0,7 m/s² y bloquea menos con poco agarre, aunque el simulador no reproduce la tendencia real con el objetivo. Propongo añadirlo como opción apagada por defecto; pendiente del visto bueno del usuario.
+
 - **2026-11-01 — Tercera sesión del limitador (V48).** Objetivo 0,25: sin bloqueo, deslizamiento máx. 0,37, CTE ≤ 0,17 m y 10,7-11,1 m/s² (V47: 10,2-11,0; objetivo ≥ 11,5). El tiempo con deslizamiento < 0,10 baja de 33 a 11 % y el de 0,20-0,40 sube de 37 a 46 %, pero el pedal sigue oscilando entre 1,0 y 0,2 cada ≈ 0,2 s. Siguiente: objetivo 0,3 y, en paralelo, diseñar en el simulador un limitador que recuerde el pedal límite en lugar de volver a 1,0.
 
 - **2026-11-01 — Segunda sesión del limitador (V47).** Con bajada 1,0 y subida 0,05: sin bloqueo, CTE ≤ 0,16 m, pero 10,2-11,0 m/s² (V45: 9,9-10,5; objetivo ≥ 11,5). El pedal oscila cada ≈ 0,2 s entre 1,0 y 0,2 y un tercio del tiempo el deslizamiento está por debajo de 0,10, donde se frena a 9-10 m/s²; entre 0,20 y 0,34 se frena a 12,1-12,4. El simulador prevé 11,6 y no discrimina ganancias. Siguiente, una sola variable: objetivo 0,25.
