@@ -30,6 +30,12 @@ class BrakeSlipConfig:
     down_gain: float = 1.0  # bajada de la escala del pedal por tick y por unidad de exceso de deslizamiento
     up_rate: float = 0.05  # subida de la escala por tick cuando no hay exceso (1,0 en ≈ 0,3 s a 60 Hz)
     min_scale: float = 0.15  # la escala no baja de aquí, para no soltar del todo el pedal
+    # Memoria del pedal límite (V49, opt-in): sin ella la escala vuelve siempre a 1,0 y el pedal oscila cada ≈ 0,2 s entre 1,0 y 0,2 (valles de 7-9 m/s²). Con `hold_frac` > 0 se anota el pedal
+    # aplicado al pasar del objetivo (`p_lim`) y la escala sube deprisa (`up_rate`) solo hasta `hold_frac` · `p_lim`; desde ahí sube despacio (`hold_rate`), de modo que el pedal se queda cerca del
+    # que sostiene el deslizamiento en lugar de pasarse en cada ciclo. En el simulador (V49) sube ≈ 0,5-0,7 m/s² y bloquea menos con poco agarre; en el juego sin probar.
+    hold_frac: float = 0.0  # fracción del pedal límite hasta la que se recupera deprisa (0 = sin memoria; típico 0,85)
+    hold_rate: float = 0.003  # subida de la escala por tick por encima de esa fracción
+    hold_learn: float = 0.5  # peso del último cruce en el pedal límite (media móvil exponencial)
 
 
 class BrakeSlipLimiter:
@@ -37,6 +43,8 @@ class BrakeSlipLimiter:
         self.config = config or BrakeSlipConfig()
         self.scale = 1.0
         self.last_slip: Optional[float] = None
+        self.p_lim: Optional[float] = None  # pedal aplicado cuando el deslizamiento pasó del objetivo (solo con `hold_frac` > 0)
+        self._over = False  # el tick anterior había exceso
 
     @property
     def active(self) -> bool:
@@ -45,6 +53,8 @@ class BrakeSlipLimiter:
     def reset(self) -> None:
         self.scale = 1.0
         self.last_slip = None
+        self.p_lim = None
+        self._over = False
 
     @staticmethod
     def relative_slip(tyre_rps: Sequence[float]) -> Optional[float]:
@@ -63,18 +73,36 @@ class BrakeSlipLimiter:
         slip = self.relative_slip(tyre_rps)
         self.last_slip = slip
         if brake < MIN_BRAKE or slip is None:
+            if brake < MIN_BRAKE:  # fin de la frenada: el pedal límite era de esa frenada
+                self.p_lim = None
+                self._over = False
             self.scale = min(1.0, self.scale + cfg.up_rate)
             return brake * self.scale if brake >= MIN_BRAKE else brake
         excess = slip - cfg.limit
         if excess > 0.0:
+            if cfg.hold_frac > 0.0 and not self._over:  # primer tick del exceso: el pedal aplicado ahora es un techo
+                applied = brake * self.scale
+                self.p_lim = applied if self.p_lim is None else (1.0 - cfg.hold_learn) * self.p_lim + cfg.hold_learn * applied
+            self._over = True
             self.scale = max(cfg.min_scale, self.scale - cfg.down_gain * excess)
         else:
-            self.scale = min(1.0, self.scale + cfg.up_rate)
+            self._over = False
+            if cfg.hold_frac > 0.0 and self.p_lim is not None:
+                ceiling = min(1.0, cfg.hold_frac * self.p_lim / brake)
+                if self.scale < ceiling:
+                    self.scale = min(ceiling, self.scale + cfg.up_rate)
+                else:
+                    self.scale = min(1.0, self.scale + cfg.hold_rate)
+            else:
+                self.scale = min(1.0, self.scale + cfg.up_rate)
         return brake * self.scale
 
     def diag(self) -> Dict[str, float]:
         """Campos para el log del tick (solo con el limitador encendido)."""
-        return {
+        d = {
             "brake_slip": round(self.last_slip, 3) if self.last_slip is not None else -1.0,
             "brake_scale": round(self.scale, 3),
         }
+        if self.config.hold_frac > 0.0:
+            d["brake_plim"] = round(self.p_lim, 3) if self.p_lim is not None else -1.0
+        return d

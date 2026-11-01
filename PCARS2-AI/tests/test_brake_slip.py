@@ -136,3 +136,78 @@ def test_los_valores_por_defecto_recuperan_el_pedal_en_unos_0_3_s():
         lim.apply(1.0, (95.0, 95.0, 100.0, 100.0))  # agarre recuperado
         ticks += 1
     assert ticks <= 18
+
+
+# ---- memoria del pedal límite (V49) ---------------------------------------------------------------------------------------------------------------
+def _ciclos(limiter, ticks=240, v0=40.0, mu=1.6):
+    """Frenada a fondo con la rueda simulada; devuelve (deceleración media, % de ticks bloqueados, desviación típica del pedal aplicado)."""
+    dt, m, g = 1.0 / 60.0, 700.0, 9.81
+    n_f = n_r = 0.5 * m * g
+    inercia, tb_max = 1.5, 2500.0
+    v, w_f = v0, v0 / R
+    pedales, bloqueados, n = [], 0, 0
+    for _ in range(ticks):
+        if v < 8.0:
+            break
+        w_r = 0.95 * v / R
+        rel = max(0.0, 1.0 - w_f / w_r)
+        ped = limiter.apply(1.0, (w_f, w_f, w_r, w_r))
+        w_f = max(0.0, w_f + dt * (-ped * tb_max + mu * n_f * _fx(1.0 - w_f * R / v) * R) / inercia)
+        v -= dt * (mu * n_f * _fx(1.0 - w_f * R / v) + mu * n_r * _fx(0.05)) / m
+        pedales.append(ped)
+        bloqueados += rel > 0.9
+        n += 1
+    return (v0 - v) / (n * dt), bloqueados / n, float(sum((p - sum(pedales) / n) ** 2 for p in pedales) / n) ** 0.5
+
+
+def test_sin_memoria_el_comportamiento_es_el_de_siempre_y_el_diag_no_cambia():
+    a = _limiter(0.2)
+    b = _limiter(0.2, hold_frac=0.0, hold_rate=0.1, hold_learn=1.0)  # con hold_frac 0 los demás campos no cuentan
+    for rps in ((100.0,) * 4, (70.0, 70.0, 100.0, 100.0), (95.0, 95.0, 100.0, 100.0)) * 10:
+        assert a.apply(1.0, rps) == b.apply(1.0, rps)
+    assert set(a.diag()) == {"brake_slip", "brake_scale"} and b.p_lim is None
+
+
+def test_la_memoria_anota_el_pedal_al_pasar_del_objetivo_y_limita_la_subida_rapida():
+    lim = _limiter(0.2, hold_frac=0.8)
+    lim.apply(1.0, (100.0, 100.0, 100.0, 100.0))
+    lim.apply(1.0, (20.0, 20.0, 100.0, 100.0))  # cruce fuerte (exceso 0,6): el pedal aplicado era 1,0 y la escala baja a 0,4
+    assert lim.p_lim == pytest.approx(1.0)
+    assert lim.diag()["brake_plim"] == pytest.approx(1.0)
+    for _ in range(100):  # sin exceso: sube deprisa solo hasta 0,8 · p_lim y luego despacio
+        lim.apply(1.0, (100.0, 100.0, 100.0, 100.0))
+        if lim.scale >= 0.8:
+            break
+    assert lim.scale == pytest.approx(0.8, abs=1e-9)
+    antes = lim.scale
+    lim.apply(1.0, (100.0, 100.0, 100.0, 100.0))
+    assert lim.scale - antes == pytest.approx(lim.config.hold_rate)
+
+
+def test_la_memoria_se_olvida_al_soltar_el_freno():
+    lim = _limiter(0.2, hold_frac=0.85)
+    lim.apply(1.0, (100.0, 100.0, 100.0, 100.0))
+    lim.apply(1.0, (60.0, 60.0, 100.0, 100.0))
+    assert lim.p_lim is not None
+    lim.apply(0.0, (100.0, 100.0, 100.0, 100.0))
+    assert lim.p_lim is None and lim.diag()["brake_plim"] == -1.0
+
+
+def test_el_pedal_limite_pesa_el_ultimo_cruce_con_hold_learn():
+    lim = _limiter(0.2, hold_frac=0.85, hold_learn=0.5)
+    lim.scale = 1.0
+    lim.apply(1.0, (60.0, 60.0, 100.0, 100.0))
+    assert lim.p_lim == pytest.approx(1.0)
+    lim._over = False
+    lim.scale = 0.6
+    lim.apply(1.0, (60.0, 60.0, 100.0, 100.0))
+    assert lim.p_lim == pytest.approx(0.8)  # 0,5 · 1,0 + 0,5 · 0,6
+
+
+def test_con_memoria_el_pedal_oscila_menos_y_no_se_bloquea_a_distintos_agarres():
+    for mu in (1.0, 1.6, 2.2):
+        d0, b0, s0 = _ciclos(_limiter(0.25), mu=mu)
+        d1, b1, s1 = _ciclos(_limiter(0.25, hold_frac=0.85), mu=mu)
+        assert b1 == 0.0 and b0 == 0.0
+        assert s1 < s0  # el pedal aplicado varía menos
+        assert d1 >= d0 * 0.99  # y no se frena peor

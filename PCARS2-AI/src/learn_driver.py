@@ -139,6 +139,11 @@ def parse_args() -> argparse.Namespace:
              "evita el bloqueo de las delanteras con cualquier agarre. Actúa sobre el pedal de cualquier origen (teacher, maniobra `frenar`). 0 = apagado (producción).",
     )
     parser.add_argument(
+        "--brake-slip-hold", type=float, default=0.0,
+        help="Con --brake-slip-limit (V49): memoria del pedal límite. Tras pasar del objetivo, el pedal sube deprisa solo hasta esta fracción (p. ej. 0,85) del pedal que lo provocó y despacio desde ahí, "
+             "en lugar de volver siempre a 1,0 y oscilar. 0 = sin memoria.",
+    )
+    parser.add_argument(
         "--throttle-max", type=float, default=0.85,
         help="Tope del gas del teacher al acelerar (V24). 0,85 = producción; con 1,0 acelera a fondo como en A1.",
     )
@@ -478,9 +483,11 @@ def run(args: argparse.Namespace) -> int:
     ))
     safety = SafetyMonitor(ref=ref, surface_profile=ns_str(args, "safety_profile"))
     brake_slip_limit = float(getattr(args, "brake_slip_limit", 0.0) or 0.0)
-    brake_slip = BrakeSlipLimiter(BrakeSlipConfig(limit=brake_slip_limit)) if brake_slip_limit > 0.0 else None
+    brake_slip_hold = float(getattr(args, "brake_slip_hold", 0.0) or 0.0)
+    brake_slip = BrakeSlipLimiter(BrakeSlipConfig(limit=brake_slip_limit, hold_frac=brake_slip_hold)) if brake_slip_limit > 0.0 else None
     if brake_slip is not None:
-        print(f"[Learn] Limitador de frenada por deslizamiento: objetivo {brake_slip_limit:g} (1 − rps delanteras / rps traseras)")
+        print(f"[Learn] Limitador de frenada por deslizamiento: objetivo {brake_slip_limit:g} (1 − rps delanteras / rps traseras)"
+              + (f", memoria del pedal límite al {brake_slip_hold:g}" if brake_slip_hold > 0.0 else ""))
     session = DriveSession()
     perturb_every = float(getattr(args, "perturb_every", 0.0) or 0.0)
     perturber = (
