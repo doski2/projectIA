@@ -24,7 +24,7 @@ no un seguimiento estricto.
 | # | Paso | Éxito si… | Estado |
 | --- | --- | --- | --- |
 | D0 | Sistema de coordenadas (s, n) sobre el eje de la pista, a partir de la referencia suavizada; formato del mapa en `circuito_virtual/pistas/sugo_gp/mapa.json` (versionado) | Ida y vuelta (x, z) ↔ (s, n) con error < 5 cm | **Hecho (2026-11-01):** `src/mapa.py`; ida y vuelta con error de s ≤ 0,3 cm y de n ≈ 0 con |n| ≤ 6 m; `pistas/sugo_gp/mapa.json` (164 KB) |
-| D1 | **Mapeo de bordes:** sesión lenta (30 km/h) en la que el teacher recorre desplazamientos laterales crecientes por vueltas hasta que una rueda toca césped o franja ilegal; se anota `n` del borde por metro y lado | Bordes de las 3567 m con una incertidumbre ≤ 0,25 m | Pendiente |
+| D1 | **Mapeo de bordes:** sesión lenta (30 km/h) en la que el teacher recorre desplazamientos laterales crecientes por vueltas hasta que una rueda toca césped o franja ilegal; se anota `n` del borde por metro y lado | Bordes de las 3567 m con una incertidumbre ≤ 0,25 m | **D1a hecho** (logs, V9); D1b diseño en la sección siguiente, pendiente de visto bueno |
 | D2 | **Línea óptima sin juego:** con el mapa y el solver, minimizar el tiempo de vuelta variando `n(s)` dentro del pasillo, con margen a los bordes y penalización de curvatura | Tiempo predicho menor que el de la línea suavizada; curvatura continua | Pendiente |
 | D3 | Convertir la línea óptima en un `ReferenceLine` (mismo formato JSON) y rodarla con el teacher a velocidades crecientes | Vuelta limpia a ritmo > actual; tiempo medido dentro del 3 % del predicho (criterio de A2) | Pendiente |
 | D4 | **Exploración en bucle cerrado:** margen a los bordes menor por escalones, μ y k reajustados con cada vuelta real | La línea mejora o se queda; ninguna salida de pista | Pendiente |
@@ -56,3 +56,15 @@ no un seguimiento estricto.
 2. D0 y D1 (mapa), D2 (óptimo sin juego), D3 (rodarlo): cierran A2 con una línea mejor.
 3. D4, y A1.3b (arcos en 3ª) para fijar `k`.
 4. D5 y el PPO (C4) con el mapa, el modelo y un BC v2.
+
+## D1b: mapeo de bordes con sesiones (diseño propuesto, pendiente de visto bueno del usuario, 2026-11-01)
+
+D1a (V9) dejó el asfalto comprobado en toda la vuelta pero los bordes medidos en < 2 %. D1b los mide con el teacher a 30 km/h, sin tocar `PCARS2-AI`.
+
+- **Lanzador:** `src/sesion_mapeo.py` **no arranca el juego**: lee las observaciones y el mapa, escribe las referencias desplazadas en `pistas/sugo_gp/desplazadas/` (no versionadas) y **imprime los comandos de `aislado.py`** (`--teacher-only --speed-band 30 --reference <archivo> --experiment mapa_<lado>_<k>`). El usuario los lanza. Así se respeta la regla de dependencias (`circuito_virtual` no importa de `experimental`) y el aislamiento de modelo, buffer y progreso de `aislado.py`.
+- **Qué línea se rueda:** una por lado y ronda. Para el lado izquierdo, la posición objetivo de la rueda es la cota «asfalto hasta» ya comprobada menos 0,4 m, suavizada (mínimo móvil de ±15 m y gaussiana de σ = 10 m) para que el teacher la pueda seguir; el centro del coche va a esa posición más la semivía. Igual a la derecha. Cada ronda empuja el límite comprobado 0,4 m más allá; cuando aparece la cota «ya fuera», el borde queda acotado.
+- **Rondas:** una vuelta lanzada por lado y ronda (≈ 7 min a 30 km/h), con el extractor (`bordes_logs.py escanear`) entre una ronda y la siguiente para recalcular el objetivo. Se para en cada tramo al llegar a |n| = 6 m o al medir el borde. Estimación: 6-10 rondas por lado.
+- **Seguridad:** a 30 km/h un toque a la hierba no hace daño; `--stop-on-damage` cierra la sesión ante un golpe; los muros no se buscan (el avance es de 0,4 m por ronda y solo hacia donde no se ha medido); el usuario delante del juego y en seco, con Ctrl+C si el coche no recupera la línea. **Riesgo conocido:** si el borde está pegado a un muro (en 1350-1450 m la línea ya pasa a ≈ 1 m del borde izquierdo), los 0,4 m de avance podrían acercar el coche a él; en esos tramos el avance baja a 0,2 m.
+- **Guardia de superficie:** el teacher trata una o dos ruedas en hierba como `edge_surface` (sigue) y frena con tres (`off_surface`): antes de la primera ronda hay que comprobar qué perfil de seguridad usa `aislado.py` (`--safety-profile`) y que la recuperación va hacia la línea desplazada, no hacia la original.
+- **Calibración de la semivía:** con una ronda en recta donde el coche sale por los dos lados, la diferencia entre las cotas «fuera» izquierda y derecha menos la anchura medida del asfalto da la vía; hasta entonces 0,85 m.
+- **Éxito:** los dos bordes medidos en ≥ 90 % de la vuelta con una incertidumbre ≤ 0,3 m.

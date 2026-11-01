@@ -1,6 +1,12 @@
 {
-  "include": ["PCARS2-AI/src", "PCARS2-AI/tests", "PCARS2-AI/v2"],
+  "include": [
+    "PCARS2-AI/src",
+    "PCARS2-AI/tests",
+    "PCARS2-AI/v2",
+    "circuito_virtual"
+  ],
   "extraPaths": [
+    ".",
     "PCARS2-AI",
     "PCARS2-AI/src"
   ],

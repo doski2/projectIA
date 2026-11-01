@@ -23,6 +23,8 @@ Nace de las conclusiones de A1-A2 (`experimental/docs/DECISIONES.md`, H56, H59, 
 | `docs/DECISIONES.md`, `DIARIO.md`, `PENDIENTE.md` | Decisiones (V1...), diario y orden de trabajo de esta carpeta; la historia anterior está en `experimental/docs/` |
 | `src/perfil_velocidad.py` | Modelo del coche y de la pista: solver de perfil de velocidad de adelante y atrás (A2) |
 | `src/linea_suave.py` | Suavizado de la referencia en las rectas (H61) |
+| `src/bordes_logs.py` | D1a: cotas de borde por metro a partir de los logs ya grabados (terreno de las ruedas y posición) |
+| `src/informe_mapa.py` | Informe HTML del mapa: cobertura, planta, anchura comprobada (distinto del de `experimental`) |
 | `src/mapa.py` | Mapa en coordenadas (s, n): eje, curvatura, pendiente, bordes, `sn_a_xz` / `xz_a_sn` (D0) |
 | `tests/` | Pruebas con pistas sintéticas y con Sugo |
 | `pistas/sugo_gp/` | `mapa.json` (versionado), referencia suavizada (no versionada) y, cuando existan, línea óptima y gráficos |
@@ -33,6 +35,8 @@ Nace de las conclusiones de A1-A2 (`experimental/docs/DECISIONES.md`, H56, H59, 
 ```text
 python circuito_virtual/src/linea_suave.py          # escribe pistas/sugo_gp/sugo_smooth.json
 python circuito_virtual/src/mapa.py construir        # escribe pistas/sugo_gp/mapa.json
+python circuito_virtual/src/bordes_logs.py escanear  # recorre los logs y escribe pistas/sugo_gp/observaciones_logs.json
+python circuito_virtual/src/informe_mapa.py          # escribe pistas/sugo_gp/informes/informe_mapa.html
 python experimental/identificacion/analisis_a2.py --guardar circuito_virtual/coches/formula_rookie/parametros_a1.json
 python -m pytest circuito_virtual/tests
 ```

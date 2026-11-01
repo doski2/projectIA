@@ -115,11 +115,13 @@ class Mapa:
                 s0[a:a + 512] = self.s[np.argmin(dx * dx + dz * dz, axis=1)]
         else:
             hint = np.broadcast_to(np.asarray(s_hint, dtype=float), x.shape)
+            idx0 = np.clip(np.searchsorted(self.s, np.mod(hint, self.longitud_m)), 0, self.n_puntos - 1)
+            ventana = int(100.0 / max(self.longitud_m / self.n_puntos, 1e-6))
             s0 = np.empty(len(x))
-            for k in range(len(x)):
-                near = np.flatnonzero(np.abs((self.s - hint[k] + self.longitud_m / 2) % self.longitud_m - self.longitud_m / 2) <= 100.0)
-                d2 = (x[k] - self.x[near]) ** 2 + (z[k] - self.z[near]) ** 2
-                s0[k] = self.s[near[np.argmin(d2)]]
+            for a in range(0, len(x), 4096):  # ±100 m alrededor de la pista, por bloques
+                idx = (idx0[a:a + 4096, None] + np.arange(-ventana, ventana + 1)[None, :]) % self.n_puntos
+                d2 = (x[a:a + 4096, None] - self.x[idx]) ** 2 + (z[a:a + 4096, None] - self.z[idx]) ** 2
+                s0[a:a + 4096] = self.s[idx[np.arange(len(idx)), np.argmin(d2, axis=1)]]
         s = s0
         for _ in range(FIXED_POINT_ITERATIONS):
             px, pz, tx, tz = self.eje(s)
