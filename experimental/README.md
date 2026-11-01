@@ -8,7 +8,8 @@ Aquí viven las ideas A, B y C del estudio, sus planes de trabajo y sus resultad
 1. **Dependencia en un solo sentido.** `experimental/` puede importar de `PCARS2-AI/src`; el código
 
    de
-   `PCARS2-AI/` nunca importa de `experimental/`. Borrar esta carpeta no debe romper nada. Desde D25 `experimental/` también puede importar de `circuito_virtual/` (que solo importa de `PCARS2-AI/src`).
+`PCARS2-AI/` nunca importa de `experimental/`. Borrar esta carpeta no debe romper nada. Desde D25
+`experimental/` también puede importar de `circuito_virtual/` (que solo importa de `PCARS2-AI/src`).
 
 2. **Excepciones puntuales y anotadas.** Los cambios mínimos en código existente (p. ej. los campos
 

@@ -309,23 +309,133 @@ Siguiente: check del modelo final
   aterrizaje suave) queda en `PLAN_A_LIMITES_COCHE.md`, a la espera del visto bueno del usuario. Sin
   código.
 
-- **Nace `circuito_virtual/` (D25).** El usuario aprueba la carpeta propia para el mapa virtual y la línea óptima de cualquier pista. Se mueven `perfil_velocidad.py`, `linea_suave.py`, sus tests y el plan D; regla `PCARS2-AI` ← `circuito_virtual` ← `experimental`; parámetros del coche en `coches/formula_rookie/parametros_a1.json`. Suites en verde (17, 61 y 471).
-- **Plan D propuesto (D24).** El usuario quiere un mapa virtual de la pista y una línea óptima, y que lo aprendido sea una selección del agente dentro del pasillo, para adelantar y defender. Diseño en `circuito_virtual/docs/PLAN.md`: mapa de bordes (D1, mapeo lento a 30 km/h), optimizador con el solver de A2 (D2), rodar la línea (D3), exploración en bucle (D4) y selección aprendida (D5). Los logs de A1 solo tocan el borde en 3 sitios: el mapa no sale gratis. A la espera del visto bueno. Sin código.
-- **Línea suavizada hecha (línea suavizada hecha).** El usuario aprueba el diseño de H61. `linea_suave.py` + `aislado.py --reference` + 7 tests (78 y 471 en verde). Genera `sugo_smooth.json` con 7 tramos suavizados y 0,73 m de desplazamiento máximo. Falta validarlo en el juego: G1 con la línea suavizada.
-- **Micro-quiebros de la línea de referencia (H61).** El usuario sospecha que el volante oscila y limita la velocidad. La referencia grabada de la IA tiene 12 quiebros de |κ| > 0,003 en rectas (el de 3300 m, de 0,3 m, explica el corte a 125 km/h). Diseño de una línea suavizada solo en rectas (σ = 15 m, desplazamiento ≤ 0,8 m) en `PLAN_A_LIMITES_COCHE.md`, a la espera del visto bueno del usuario. Sin código.
-- **G1 de las marchas hecho en el juego (H60).** `--max-gear 3`: un solo cambio 2ª → 3ª a 108 km/h con 0,19 s de punto muerto, sin bucle ni daño, y 3ª medida hasta 125 km/h (2,72 y 2,33 m/s²); el quiebro de 3300-3345 m corta la maniobra a 125 km/h con |CTE| > 1 m. El modelo de A2 sube su tope a 125 y la vuelta potencial es de 109,2 s. P26: sin daño en 629 s.
-- **Marchas por encima de 2ª hechas en código (X24, D23).** El usuario aprueba el diseño y recuerda que la marcha con la que se entra en la curva cambia el límite lateral (freno motor, par): A1.3 se midió en 2ª, así que se repetirá en 3ª y 4ª (A1.3b). `--max-gear N` (2 por defecto = producción), el fallo `gear` 1 del corte ya no se toma como marcha. **Incidente al probar:** ejecuté `aislado.py --max-gear 3 --speed-band 60` para comprobar los argumentos y, como esa combinación aún no se rechazaba, lanzó el experimento por defecto `c0_log`, que vació `experimental/data/c0_log_buffer.jsonl` (los datos de la banda 40 del paso 7c) y sobrescribió `c0_log_model.pt` con el modelo de producción. **Recuperado el buffer** (38 515 filas) del prefijo de `bc7c_ft_limpio_base.jsonl`, que se armó con él: el tramo siguiente es `teacher_20` byte a byte salvo CRLF → LF y la suma de filas (38 515 + 261 421) da las 299 936 de la base; escrito con CRLF como los demás. `c0_log_model.pt` no se recupera (salida de aquel experimento, sin uso). Borrados 3 archivos de log vacíos de esa sesión. Ahora `--max-gear` distinto de 2 sin `--ident` se rechaza. Regla: los argumentos se prueban con tests; si se ejecuta la CLI, con `--experiment a1_probe_dummy`.
-- **Marchas por encima de 2ª, diseño propuesto (marchas propuestas).** Segundo bloqueo de D22: `max_gear` por parámetro en el cambio automático (2 por defecto = producción), `--max-gear N`, el fallo `gear` 1 del corte tratado como la marcha anterior y escalones G1-G3 (3ª con techo 135, 150, frenadas desde 130-150). En `PLAN_A_LIMITES_COCHE.md`, a la espera del visto bueno del usuario. Sin código.
-- **Volante con anticipación validado (H59).** `--steer-ff-gain 0.003` baja el CTE máximo a 85 km/h un 21 % (2,50 → 1,97 m) y a 80 lo deja en 1,55, pero a 90 se corta igual (2,52 m a 270 m). La ganancia del volante cae un 15 % de 85 a 88 km/h (lateral por unidad de volante 39 → 33): el eje delantero empieza a saturarse con 12-13 m/s² sostenidos. No se sube g. Daño de motor 0 → 1 a los 607,6 s otra vez (3 de 3 sesiones de arcos), anotado en P26.
-- **Volante con anticipación por velocidad hecho en código (X23).** El usuario aprueba el diseño de H58. `--steer-ff-gain G` (0 por defecto = producción) multiplica la anticipación del volante por 1 + G·(v² − 60²); validación en el juego pendiente: rampa de arcos 80-90 con G = 0,003. Los tests pasan (464 y 70).
-- **Volante con anticipación por velocidad propuesto (H58).** El teacher pone de anticipación ≈ 4,3 · κ a cualquier velocidad y la curva pide 9,1 · κ a 60 km/h y 13,1 · κ a 85; el resto lo pone la realimentación del CTE, por eso el CTE en curva crece con la velocidad. Retraso del coche 0,05-0,07 s, no es eso. Diseño en `PLAN_A_LIMITES_COCHE.md` (factor 1 + g·(v² − v0²), g = 0 por defecto), a la espera del visto bueno del usuario. Sin código.
-- **A2.1 hecho (H57, D22).** El usuario aprueba el diseño de A2, no grabará vueltas (el agente debe rodar y valorar por sí mismo) y aprueba A2.1. Solver de perfil en `experimental/identificacion/`: reproduce las frenadas con un 0,8 % de error de tiempo (mediana, dejando un log fuera) y las aceleraciones en recta con un 3,6 %; las aceleraciones en las eses salen 10-12 % más lentas (elipse de fricción, sin modelar). Vuelta potencial a ≤ 120 km/h: 112 s. Para A2.0 hacen falta cambios en el teacher (marchas > 2ª y volante por encima de 85 km/h), con visto bueno.
-- **A2 propuesto (A2 propuesto).** Diseño en `PLAN_A_LIMITES_COCHE.md`, a la espera del visto bueno del usuario. Hallazgo: no hay ninguna vuelta a ritmo real (la más rápida es de 165 s) y `a_acel` solo llega a 120 km/h en 2ª, así que A2 pide unas 5 vueltas limpias conducidas por el usuario con `registro_pasivo.py`. Sin código.
-- **A1.3 cerrada con cota inferior (D21).** El usuario da por buena como referencia validada un límite lateral de ≥ 14,6 m/s² (≈ 1,49 g) en seco, y recuerda que dependerá de la presión de los neumáticos, la suspensión y la técnica de conducción (acelerador en el vértice o dejar rodar), a descubrir más adelante. Siguiente: A2.
-- **A1.3, 85 y 90 km/h (H56).** 85 limpia con lateral p95 13,4 y máx. 14,6 m/s² (≈ 1,45 g) y |CTE| máx. justo en 2,5 m; 90 cortada en la 1ª curva (|CTE| 2,54 m) con el lateral aún en 12,8 m/s², como a 85: el límite que salta es el seguimiento de la línea, no el agarre. El corte de 2,5 m coincide con el refuerzo de ganancia del volante del teacher (×2,25), que provocó el bandazo del aterrizaje (volante 0,92, rumbo −0,28 rad). Daño de motor 0 → 1 a los 607,7 s (3434 m), anotado en P26. Falta decidir cómo seguir.
-- **A1.3, primera pasada real (H55).** Con la caché arreglada, 80 km/h en las curvas de 228-600 m sin frenar: lateral p95 12,05 y máx. 12,89 m/s² (≈ 1,3 g), |CTE| máx. 2,08 m (el corte está en 2,5), volante máx. 0,34. Limpia. El usuario cerró la sesión a la vuelta 2 tras la primera pasada. Siguiente: 85 y 90.
-- **A1.3, tanda 1 repetida (H54).** Tres pasadas (80, 85 y 90 km/h) "limpias" con la misma velocidad en curva (≈ 76 km/h) y el mismo lateral (p95 9,7 m/s²): la rampa no tenía efecto porque el teacher guardaba en caché los límites de curva calculados con 6,5 m/s² y no se recalculaban al subirlos a 60. Corregido con un diccionario por valor y un test; hay que repetir la tanda. El daño de motor subió dos veces (0 → 1 y 1 → 2), anotado en P26.
-- **A1.3, tanda 1 (H53).** Pasada de 80 km/h limpia (lateral p95 9,5 y máx. 11,5 m/s², |CTE| máx. 1,41 m, igual que el teacher de rutina a 80); la de 85 quedó a medias porque la sesión se cerró a las 2 vueltas: el currículo de L1 daba el objetivo por cumplido y `goal_reached` ignoraba `--max-laps`. Corregido para `--ident`. Hay que repetir la tanda 80-90.
+- **Nace `circuito_virtual/` (D25).** El usuario aprueba la carpeta propia para el mapa virtual y la
+
+  línea óptima de cualquier pista. Se mueven `perfil_velocidad.py`, `linea_suave.py`, sus tests y el
+  plan D; regla `PCARS2-AI` ← `circuito_virtual` ← `experimental`; parámetros del coche en
+  `coches/formula_rookie/parametros_a1.json`. Suites en verde (17, 61 y 471).
+
+- **Plan D propuesto (D24).** El usuario quiere un mapa virtual de la pista y una línea óptima, y
+
+  que lo aprendido sea una selección del agente dentro del pasillo, para adelantar y defender.
+  Diseño en `circuito_virtual/docs/PLAN.md`: mapa de bordes (D1, mapeo lento a 30 km/h), optimizador
+  con el solver de A2 (D2), rodar la línea (D3), exploración en bucle (D4) y selección aprendida
+  (D5). Los logs de A1 solo tocan el borde en 3 sitios: el mapa no sale gratis. A la espera del
+  visto bueno. Sin código.
+
+- **Línea suavizada hecha (línea suavizada hecha).** El usuario aprueba el diseño de H61.
+
+  `linea_suave.py` + `aislado.py --reference` + 7 tests (78 y 471 en verde). Genera
+  `sugo_smooth.json` con 7 tramos suavizados y 0,73 m de desplazamiento máximo. Falta validarlo en
+  el juego: G1 con la línea suavizada.
+
+- **Micro-quiebros de la línea de referencia (H61).** El usuario sospecha que el volante oscila y
+
+  limita la velocidad. La referencia grabada de la IA tiene 12 quiebros de |κ| > 0,003 en rectas (el
+  de 3300 m, de 0,3 m, explica el corte a 125 km/h). Diseño de una línea suavizada solo en rectas (σ
+  = 15 m, desplazamiento ≤ 0,8 m) en `PLAN_A_LIMITES_COCHE.md`, a la espera del visto bueno del
+  usuario. Sin código.
+
+- **G1 de las marchas hecho en el juego (H60).** `--max-gear 3`: un solo cambio 2ª → 3ª a 108 km/h
+
+  con 0,19 s de punto muerto, sin bucle ni daño, y 3ª medida hasta 125 km/h (2,72 y 2,33 m/s²); el
+  quiebro de 3300-3345 m corta la maniobra a 125 km/h con |CTE| > 1 m. El modelo de A2 sube su tope
+  a 125 y la vuelta potencial es de 109,2 s. P26: sin daño en 629 s.
+
+- **Marchas por encima de 2ª hechas en código (X24, D23).** El usuario aprueba el diseño y recuerda
+
+  que la marcha con la que se entra en la curva cambia el límite lateral (freno motor, par): A1.3 se
+  midió en 2ª, así que se repetirá en 3ª y 4ª (A1.3b). `--max-gear N` (2 por defecto = producción),
+  el fallo `gear` 1 del corte ya no se toma como marcha. **Incidente al probar:** ejecuté
+  `aislado.py --max-gear 3 --speed-band 60` para comprobar los argumentos y, como esa combinación
+  aún no se rechazaba, lanzó el experimento por defecto `c0_log`, que vació
+  `experimental/data/c0_log_buffer.jsonl` (los datos de la banda 40 del paso 7c) y sobrescribió
+  `c0_log_model.pt` con el modelo de producción. **Recuperado el buffer** (38 515 filas) del prefijo
+  de `bc7c_ft_limpio_base.jsonl`, que se armó con él: el tramo siguiente es `teacher_20` byte a byte
+  salvo CRLF → LF y la suma de filas (38 515 + 261 421) da las 299 936 de la base; escrito con CRLF
+  como los demás. `c0_log_model.pt` no se recupera (salida de aquel experimento, sin uso). Borrados
+  3 archivos de log vacíos de esa sesión. Ahora `--max-gear` distinto de 2 sin `--ident` se rechaza.
+  Regla: los argumentos se prueban con tests; si se ejecuta la CLI, con `--experiment
+  a1_probe_dummy`.
+
+- **Marchas por encima de 2ª, diseño propuesto (marchas propuestas).** Segundo bloqueo de D22:
+
+  `max_gear` por parámetro en el cambio automático (2 por defecto = producción), `--max-gear N`, el
+  fallo `gear` 1 del corte tratado como la marcha anterior y escalones G1-G3 (3ª con techo 135, 150,
+  frenadas desde 130-150). En `PLAN_A_LIMITES_COCHE.md`, a la espera del visto bueno del usuario.
+  Sin código.
+
+- **Volante con anticipación validado (H59).** `--steer-ff-gain 0.003` baja el CTE máximo a 85 km/h
+
+  un 21 % (2,50 → 1,97 m) y a 80 lo deja en 1,55, pero a 90 se corta igual (2,52 m a 270 m). La
+  ganancia del volante cae un 15 % de 85 a 88 km/h (lateral por unidad de volante 39 → 33): el eje
+  delantero empieza a saturarse con 12-13 m/s² sostenidos. No se sube g. Daño de motor 0 → 1 a los
+  607,6 s otra vez (3 de 3 sesiones de arcos), anotado en P26.
+
+- **Volante con anticipación por velocidad hecho en código (X23).** El usuario aprueba el diseño de
+
+  H58. `--steer-ff-gain G` (0 por defecto = producción) multiplica la anticipación del volante por 1
+
+  + G·(v² − 60²); validación en el juego pendiente: rampa de arcos 80-90 con G = 0,003. Los tests
+
+  pasan (464 y 70).
+
+- **Volante con anticipación por velocidad propuesto (H58).** El teacher pone de anticipación ≈ 4,3
+
+  · κ a cualquier velocidad y la curva pide 9,1 · κ a 60 km/h y 13,1 · κ a 85; el resto lo pone la
+  realimentación del CTE, por eso el CTE en curva crece con la velocidad. Retraso del coche
+  0,05-0,07 s, no es eso. Diseño en `PLAN_A_LIMITES_COCHE.md` (factor 1 + g·(v² − v0²), g = 0 por
+  defecto), a la espera del visto bueno del usuario. Sin código.
+
+- **A2.1 hecho (H57, D22).** El usuario aprueba el diseño de A2, no grabará vueltas (el agente debe
+
+  rodar y valorar por sí mismo) y aprueba A2.1. Solver de perfil en `experimental/identificacion/`:
+  reproduce las frenadas con un 0,8 % de error de tiempo (mediana, dejando un log fuera) y las
+  aceleraciones en recta con un 3,6 %; las aceleraciones en las eses salen 10-12 % más lentas
+  (elipse de fricción, sin modelar). Vuelta potencial a ≤ 120 km/h: 112 s. Para A2.0 hacen falta
+  cambios en el teacher (marchas > 2ª y volante por encima de 85 km/h), con visto bueno.
+
+- **A2 propuesto (A2 propuesto).** Diseño en `PLAN_A_LIMITES_COCHE.md`, a la espera del visto bueno
+
+  del usuario. Hallazgo: no hay ninguna vuelta a ritmo real (la más rápida es de 165 s) y `a_acel`
+  solo llega a 120 km/h en 2ª, así que A2 pide unas 5 vueltas limpias conducidas por el usuario con
+  `registro_pasivo.py`. Sin código.
+
+- **A1.3 cerrada con cota inferior (D21).** El usuario da por buena como referencia validada un
+
+  límite lateral de ≥ 14,6 m/s² (≈ 1,49 g) en seco, y recuerda que dependerá de la presión de los
+  neumáticos, la suspensión y la técnica de conducción (acelerador en el vértice o dejar rodar), a
+  descubrir más adelante. Siguiente: A2.
+
+- **A1.3, 85 y 90 km/h (H56).** 85 limpia con lateral p95 13,4 y máx. 14,6 m/s² (≈ 1,45 g) y |CTE|
+
+  máx. justo en 2,5 m; 90 cortada en la 1ª curva (|CTE| 2,54 m) con el lateral aún en 12,8 m/s²,
+  como a 85: el límite que salta es el seguimiento de la línea, no el agarre. El corte de 2,5 m
+  coincide con el refuerzo de ganancia del volante del teacher (×2,25), que provocó el bandazo del
+  aterrizaje (volante 0,92, rumbo −0,28 rad). Daño de motor 0 → 1 a los 607,7 s (3434 m), anotado en
+  P26. Falta decidir cómo seguir.
+
+- **A1.3, primera pasada real (H55).** Con la caché arreglada, 80 km/h en las curvas de 228-600 m
+
+  sin frenar: lateral p95 12,05 y máx. 12,89 m/s² (≈ 1,3 g), |CTE| máx. 2,08 m (el corte está en
+  2,5), volante máx. 0,34. Limpia. El usuario cerró la sesión a la vuelta 2 tras la primera pasada.
+  Siguiente: 85 y 90.
+
+- **A1.3, tanda 1 repetida (H54).** Tres pasadas (80, 85 y 90 km/h) "limpias" con la misma velocidad
+
+  en curva (≈ 76 km/h) y el mismo lateral (p95 9,7 m/s²): la rampa no tenía efecto porque el teacher
+  guardaba en caché los límites de curva calculados con 6,5 m/s² y no se recalculaban al subirlos a
+
+  60. Corregido con un diccionario por valor y un test; hay que repetir la tanda. El daño de motor
+
+  subió dos veces (0 → 1 y 1 → 2), anotado en P26.
+
+- **A1.3, tanda 1 (H53).** Pasada de 80 km/h limpia (lateral p95 9,5 y máx. 11,5 m/s², |CTE| máx.
+
+  1,41 m, igual que el teacher de rutina a 80); la de 85 quedó a medias porque la sesión se cerró a
+  las 2 vueltas: el currículo de L1 daba el objetivo por cumplido y `goal_reached` ignoraba
+  `--max-laps`. Corregido para `--ident`. Hay que repetir la tanda 80-90.
+
 - **A1.3 preparado (X22).** `aislado.py --ident arco --ident-arc-speeds 80,85,90`: una pasada por
 
   vuelta con la consigna del teacher subida en las curvas de 228-600 m, de 80 a 110 km/h, que se

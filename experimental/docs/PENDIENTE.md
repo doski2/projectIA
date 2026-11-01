@@ -1,6 +1,8 @@
 # Pendiente para la próxima sesión
 
-> **Desde el 2026-11-01 (V4):** el trabajo de mapa, línea óptima, modelo del coche (A2, G1b, G3, A1.3b) se sigue en `circuito_virtual/docs/PENDIENTE.md`. Aquí queda la historia de A1-A2 y lo que no es del circuito (rampa del BC C1, PPO, daño de motor P26, controles de seco, reentreno v2).
+> **Desde el 2026-11-01 (V4):** el trabajo de mapa, línea óptima, modelo del coche (A2, G1b, G3,
+> A1.3b) se sigue en `circuito_virtual/docs/PENDIENTE.md`. Aquí queda la historia de A1-A2 y lo que
+> no es del circuito (rampa del BC C1, PPO, daño de motor P26, controles de seco, reentreno v2).
 
 > Escrito el 2026-10-28, actualizado el 2026-10-30. Detalle completo en
 > [DECISIONES.md](DECISIONES.md) (D19, pasos 7b y 7c, H25-H33, X7-X18, P23-P24).
@@ -93,9 +95,9 @@ A1, D16). **El paso 1 de D20 queda cerrado con H46; el reentreno desde cero se d
          --ident-floor-kmh 60 --ident-straights 1 --laps 2` da el rodado desde 110 km/h. **Decisión
          abierta:** (a) pasar a A1.2 (frenadas) con velocidades de entrada ≤ 110 km/h, o (b) antes,
          hacer un cambio con 3ª y 4ª para ir más rápido (tope por parámetro, bajada segura contra
-         sobrerrevoluciones, el fallo `gear 1` del UDP al corte) y validar el volante del teacher por
+sobrerrevoluciones, el fallo `gear 1` del UDP al corte) y validar el volante del teacher por
          encima de 80 km/h. Análisis: `python experimental/common/analisis_a1.py
-         PCARS2-AI/logs/learning/<ts>_sugo_gp_l1_linea.jsonl --json ...`. Pendiente de A1.1: rodar en
+PCARS2-AI/logs/learning/<ts>_sugo_gp_l1_linea.jsonl --json ...`. Pendiente de A1.1: rodar en
          punto muerto para aislar el aire (A2).
 **A1.2, frenadas a fondo: HECHO (H51).** 13 frenadas desde 60-110 km/h hasta 30: 11,1-12,0 m/s²
 corregidas de pendiente, curva a_freno(v) de 12,0 (50-60 km/h) a 13,0 (100-110). Sin incidencias.
@@ -108,7 +110,40 @@ antes.** En seco, juego en parrilla en Sugo GP, perfil RA, sin hacer clic fuera.
 vuelta (la ventana cruza la meta: la primera empieza al final de la vuelta 1), unas 4 vueltas ≈ 14
 min la tanda; la sesión se cierra sola al encontrar el límite o al acabar las velocidades. Ctrl+C si
 el coche hace eses o se descontrola.
-**Tanda 1 lanzada el 2026-10-31 (H53): la pasada de 80 salió limpia, pero la sesión se cerró a las 2 vueltas por un fallo del currículo (corregido). La repetición (H54) tampoco valió: la rampa no tenía efecto porque el teacher guardaba en caché los límites de curva (corregido con un test). Con el arreglo, la pasada de 80 salió limpia y real (H55: lateral p95 12,05 y máx. 12,89 m/s², |CTE| máx. 2,08 m). Siguiente: `--ident-arc-speeds 85,90 --laps 6`. **Hecho (H56): 85 limpia en el borde (lateral máx. 14,6 m/s²), 90 cortada por CTE 2,54 m en la 1ª curva por el seguimiento de la línea y no por el agarre. **Volante con anticipación por velocidad: hecho y validado (X23, H58, H59): baja el CTE un 21 % a 85 km/h y no evita el corte a 90 (el eje delantero satura a ≈ 88 km/h con 12-13 m/s²); g queda en 0,003 solo para sesiones de A1/A2. Segundo bloqueo de A2.0, marchas por encima de 2ª: **hecho y probado (X24, H60: G1 correcto; 3ª medida hasta 125 km/h; el quiebro de 3300-3345 m corta la recta a 125 km/h, así que G2 con techo 150 ya no hace falta para Sugo).** **Plan D (mapa virtual de la pista y línea óptima, D24): diseño en `../circuito_virtual/docs/PLAN.md`, pendiente de visto bueno del usuario.** **Línea suavizada (H61): hecha, sin probar en el juego.** Escalón G1b con el usuario delante, en seco: `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --ident acel --speed-band 60 --ident-cap-kmh 135 --max-gear 3 --ident-straights 1 --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_smooth.json --experiment a1_acel_g3_suave_60 --laps 3` (éxito: llega a 135 km/h sin corte por CTE en 3300-3345 m y el volante en ±0,05 en la recta; si no basta, `--steer-ff-gain 0.003` y después un corte de CTE más ancho solo en recta). Después, G3 (frenadas en 3ª) y A1.3b (arcos en 3ª). Texto del escalón G1 ya ejecutado: Escalón G1 con el usuario delante, en seco: `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --ident acel --speed-band 60 --ident-cap-kmh 135 --max-gear 3 --ident-straights 1 --experiment a1_acel_g3_60 --laps 3` (éxito: un solo cambio 2ª → 3ª sin bucle, punto muerto ≤ 0,3 s, CTE ≤ 1 m; Ctrl+C si el coche oscila). Después G2 (techo 150) y G3 (frenadas desde 130 y 150) y A1.3b (arcos en 3ª y 4ª, D23). (Texto anterior:) Volante con anticipación por velocidad: hecho en código (X23, H58), sin probar en el juego; primer bloqueo de A2.0. Validación con el usuario delante: `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --ident arco --speed-band 60 --ident-arc-speeds 80,85,90 --steer-ff-gain 0.003 --experiment a1_arco_ff_60 --laps 6` y comparar con H55-H56 (éxito: |CTE| máx. a 85 km/h ≤ 1,2 m y sin corte a 90).** **A2 en curso (D22, H57): A2.1 hecho; A2.0 espera a poder rodar a ritmo real (marchas > 2ª y volante > 85 km/h en el teacher, con visto bueno del usuario).** **A1.3 CERRADA (D21, 2026-11-01): se toma ≥ 14,6 m/s² como cota inferior validada del límite lateral; el techo real, la presión, la suspensión y la técnica de conducción quedan para más adelante. Siguiente: A2.**
+**Tanda 1 lanzada el 2026-10-31 (H53): la pasada de 80 salió limpia, pero la sesión se cerró a las 2
+vueltas por un fallo del currículo (corregido). La repetición (H54) tampoco valió: la rampa no tenía
+efecto porque el teacher guardaba en caché los límites de curva (corregido con un test). Con el
+arreglo, la pasada de 80 salió limpia y real (H55: lateral p95 12,05 y máx. 12,89 m/s², |CTE| máx.
+2,08 m). Siguiente: `--ident-arc-speeds 85,90 --laps 6`. **Hecho (H56): 85 limpia en el borde
+(lateral máx. 14,6 m/s²), 90 cortada por CTE 2,54 m en la 1ª curva por el seguimiento de la línea y
+no por el agarre. **Volante con anticipación por velocidad: hecho y validado (X23, H58, H59): baja
+el CTE un 21 % a 85 km/h y no evita el corte a 90 (el eje delantero satura a ≈ 88 km/h con 12-13
+m/s²); g queda en 0,003 solo para sesiones de A1/A2. Segundo bloqueo de A2.0, marchas por encima de
+2ª: **hecho y probado (X24, H60: G1 correcto; 3ª medida hasta 125 km/h; el quiebro de 3300-3345 m
+corta la recta a 125 km/h, así que G2 con techo 150 ya no hace falta para Sugo).****Plan D (mapa
+virtual de la pista y línea óptima, D24): diseño en `../circuito_virtual/docs/PLAN.md`, pendiente de
+visto bueno del usuario.****Línea suavizada (H61): hecha, sin probar en el juego.** Escalón G1b con
+el usuario delante, en seco: `C:\Users\doski\projectIA\.venv\Scripts\python.exe
+C:\Users\doski\projectIA\experimental\common\aislado.py --ident acel --speed-band 60 --ident-cap-kmh
+135 --max-gear 3 --ident-straights 1 --reference
+C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_smooth.json --experiment
+a1_acel_g3_suave_60 --laps 3` (éxito: llega a 135 km/h sin corte por CTE en 3300-3345 m y el volante
+en ±0,05 en la recta; si no basta, `--steer-ff-gain 0.003` y después un corte de CTE más ancho solo
+en recta). Después, G3 (frenadas en 3ª) y A1.3b (arcos en 3ª). Texto del escalón G1 ya ejecutado:
+Escalón G1 con el usuario delante, en seco: `C:\Users\doski\projectIA\.venv\Scripts\python.exe
+C:\Users\doski\projectIA\experimental\common\aislado.py --ident acel --speed-band 60 --ident-cap-kmh
+135 --max-gear 3 --ident-straights 1 --experiment a1_acel_g3_60 --laps 3` (éxito: un solo cambio 2ª
+→ 3ª sin bucle, punto muerto ≤ 0,3 s, CTE ≤ 1 m; Ctrl+C si el coche oscila). Después G2 (techo 150)
+y G3 (frenadas desde 130 y 150) y A1.3b (arcos en 3ª y 4ª, D23). (Texto anterior:) Volante con
+anticipación por velocidad: hecho en código (X23, H58), sin probar en el juego; primer bloqueo de
+A2.0. Validación con el usuario delante: `C:\Users\doski\projectIA\.venv\Scripts\python.exe
+C:\Users\doski\projectIA\experimental\common\aislado.py --ident arco --speed-band 60
+--ident-arc-speeds 80,85,90 --steer-ff-gain 0.003 --experiment a1_arco_ff_60 --laps 6` y comparar
+con H55-H56 (éxito: |CTE| máx. a 85 km/h ≤ 1,2 m y sin corte a 90).****A2 en curso (D22, H57): A2.1
+hecho; A2.0 espera a poder rodar a ritmo real (marchas > 2ª y volante > 85 km/h en el teacher, con
+visto bueno del usuario).****A1.3 CERRADA (D21, 2026-11-01): se toma ≥ 14,6 m/s² como cota inferior
+validada del límite lateral; el techo real, la presión, la suspensión y la técnica de conducción
+quedan para más adelante. Siguiente: A2.**
 a. Tanda 1: `C:\Users\doski\projectIA\.venv\Scripts\python.exe
 C:\Users\doski\projectIA\experimental\common\aislado.py --ident arco --speed-band 60
 --ident-arc-speeds 80,85,90 --laps 6`

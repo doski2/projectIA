@@ -474,15 +474,6 @@ sin comprobar.
 ## 6. Relación entre las ideas y orden recomendado
 
 ```text
-C: rampa del BC (log ampliado) ──► datos a más velocidad ─┬──► BC nuevo ──► PPO (noche protegida)
-                                                          ├──► A1-A2 (analizar aceleraciones)
-                                                          └──► B0 (datos para el simulador)
-Sesiones de identificación (sección 5)
-        │
-        ├──► A: parámetros del coche ──► perfil de velocidad físico ──► profesor nuevo ──► BC ──► PPO
-        │                 │
-        │                 └──► prior físico para B
-        └──► B: simulador aprendido ──► entrenamiento rápido de la política
 ```
 
 Orden sugerido por rentabilidad con poco tiempo:
