@@ -63,6 +63,7 @@ from learning_curriculum import (
     try_advance_stage,
 )
 from obs_builder import encoded_action_tuple
+from brake_slip import BrakeSlipConfig, BrakeSlipLimiter
 from obs_universal import OBS_SCHEMA, OBS_UNIVERSAL_DIM, build_obs_universal
 from reference_recorder import ReferenceLine
 from safety_monitor import SafetyMonitor
@@ -131,6 +132,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--brake-overspeed-straight-ms", type=float, default=8.0,
         help="En RECTA el pedal de freno es exceso de velocidad / este valor (m/s, V31). 8 = el de siempre; menor frena más fuerte.",
+    )
+    parser.add_argument(
+        "--brake-slip-limit", type=float, default=0.0,
+        help="Limitador de frenada por deslizamiento (V43): si 1 − rps delanteras / rps traseras pasa de este valor (p. ej. 0,2) el pedal baja y vuelve a subir al recuperar agarre; "
+             "evita el bloqueo de las delanteras con cualquier agarre. Actúa sobre el pedal de cualquier origen (teacher, maniobra `frenar`). 0 = apagado (producción).",
     )
     parser.add_argument(
         "--throttle-max", type=float, default=0.85,
@@ -471,6 +477,10 @@ def run(args: argparse.Namespace) -> int:
         max_gear=int(getattr(args, "max_gear", TEACHING_MAX_GEAR) or TEACHING_MAX_GEAR),
     ))
     safety = SafetyMonitor(ref=ref, surface_profile=ns_str(args, "safety_profile"))
+    brake_slip_limit = float(getattr(args, "brake_slip_limit", 0.0) or 0.0)
+    brake_slip = BrakeSlipLimiter(BrakeSlipConfig(limit=brake_slip_limit)) if brake_slip_limit > 0.0 else None
+    if brake_slip is not None:
+        print(f"[Learn] Limitador de frenada por deslizamiento: objetivo {brake_slip_limit:g} (1 − rps delanteras / rps traseras)")
     session = DriveSession()
     perturb_every = float(getattr(args, "perturb_every", 0.0) or 0.0)
     perturber = (
@@ -754,6 +764,9 @@ def run(args: argparse.Namespace) -> int:
             if arc_dec is not None and arc_dec.tag:
                 drive_source = arc_dec.tag  # los ticks de la pasada salen con su etiqueta y no entran en el buffer
 
+            if brake_slip is not None:
+                final = (final[0], brake_slip.apply(final[1], telem.tyre_rps), final[2])  # V43: el pedal que sale al juego ya va limitado
+
             if drive_source in ("bc", "teacher:speed", "perturb:coast") or drive_source.startswith("ident:"):
                 teacher.track_applied_pedals(final[0], final[1])  # anti-windup: el PI no integra lo que el BC no sigue
 
@@ -824,7 +837,7 @@ def run(args: argparse.Namespace) -> int:
                 rpm=telem.rpm,
                 shift_event=shift_event,
                 track_diag=track_diag,
-                vehicle=vehicle_diag(telem),
+                vehicle={**vehicle_diag(telem), **(brake_slip.diag() if brake_slip is not None else {})},
                 timing=timing_diag(timings),
             )
             conditions = conditions_diag(session.game_state)
