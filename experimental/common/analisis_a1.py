@@ -193,7 +193,7 @@ def brake_events(ticks: List[dict]) -> List[dict]:
         flat = a + G * np.where(np.isfinite(gr), gr, gm)
         events.append({
             "lap": seg[0].get("lap"), "d0": round(seg[0]["lap_distance"]), "v_in": round(float(v[0] * 3.6), 1),
-            "v_out": round(float(v[-1] * 3.6), 1), "dist_m": round((seg[-1]["lap_distance"] - seg[0]["lap_distance"]) % 100000.0),
+            "v_out": round(float(v[-1] * 3.6), 1), "dist_m": round(float(np.sum(np.clip(np.diff([x["lap_distance"] for x in seg]), 0.0, 50.0)))),  # metros recorridos; el salto de fin de vuelta no cuenta
             "time_s": round(dur, 2), "grade_pct": round(100 * gm, 1),
             "a_mean_raw": round(a_mean, 2), "a_mean": round(a_mean - G * gm, 2),  # deceleración (+) medida y corregida de pendiente
             "a_peak": round(float(-flat[ok].min()), 2) if ok.any() else None, "gears": sorted({x["gear"] for x in seg}),
@@ -314,7 +314,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("  vuelta     d  v_in  v_out  dist_m  tiempo  pend%  a_media  a_corr.  a_máx  marchas  frenos°C  CTE")
         for e in res["brake_events"]:
             print(f"  {e['lap']:>5} {e['d0']:>5} {e['v_in']:>5} {e['v_out']:>6} {e['dist_m']:>7} {e['time_s']:>7} {e['grade_pct']:>6} "
-                  f"{e['a_mean_raw']:>8} {e['a_mean']:>8} {e['a_peak']:>6}  {','.join(map(str, e['gears'])):>7} "
+                  f"{e['a_mean_raw']:>8} {e['a_mean']:>8} {'-' if e['a_peak'] is None else e['a_peak']:>6}  {','.join(map(str, e['gears'])):>7} "
                   f"{e['brake_temp_max']:>8} {e['max_cte']:>5}")
     if res["brake_curve"]:
         print("\na_freno(v) corregida de pendiente (todas las marchas; a negativa = frena):")

@@ -32,6 +32,8 @@ LAT_ACCEL_LIMIT = 6.5
 
 
 DEFAULT_REFERENCE = "src/refs/sugo_ai.json"
+A2_PREFIX = "a2_"  # vueltas completas con límite lateral o marcha propios (A2.0): tampoco pueden llamarse como los buffers de entrenamiento
+MAX_LAT_ACCEL_LIMIT = 14.6  # cota inferior validada del límite lateral del coche (D21); por encima no hay datos
 IDENT_PREFIX = "a1_"  # los experimentos de identificación no pueden llamarse como los buffers de entrenamiento (`teacher_40`, ...)
 
 
@@ -46,6 +48,23 @@ def experiment_name(speed_band: float, teacher_only: bool, name: str = "", ident
     if name:
         return name
     return f"teacher_{speed_band:g}" if teacher_only else "c0_log"
+
+
+def a2_error(ident: str, max_gear: int, lat_accel_limit: float, teacher_only: bool, experiment: str, speed_band: float, cap_limit: float,
+             extra_teacher_options: bool = False) -> Optional[str]:
+    """Por qué no se puede lanzar la combinación de opciones de A2.0 (vueltas completas del teacher con marcha o límite lateral propios), o None si vale."""
+    if not 0 < lat_accel_limit <= MAX_LAT_ACCEL_LIMIT:
+        return f"--lat-accel-limit {lat_accel_limit:g}: debe estar entre 0 y {MAX_LAT_ACCEL_LIMIT:g} m/s² (D21)"
+    if ident or (max_gear == 2 and lat_accel_limit == LAT_ACCEL_LIMIT and not extra_teacher_options):
+        return None
+    if not teacher_only:
+        return "--max-gear, --lat-accel-limit y las opciones del teacher (--steer-*, --lat-gain-v0-kmh) distintos de los de producción solo se usan con --ident o con --teacher-only (X24, A2.0)"
+    if not experiment.startswith(A2_PREFIX):
+        return (f"sin --ident, las opciones propias del teacher exigen --experiment con prefijo {A2_PREFIX!r}: el nombre por defecto "
+                "(teacher_<banda>) borraría el buffer de datos del teacher")
+    if speed_band > cap_limit:
+        return f"--speed-band {speed_band:g} supera el máximo permitido ({cap_limit:g}) con --max-gear {max_gear}: H50"
+    return None
 
 
 def base_sources(data: Optional[Path] = None) -> List[Path]:
@@ -80,7 +99,9 @@ def build_argv(
     ident: str = "", ident_cap_kmh: float = 0.0, ident_floor_kmh: float = 30.0, ident_end_margin_m: float = 150.0,
     ident_straights: str = "", ident_caps: str = "",
     ident_arc_speeds: str = "", ident_arc_window: str = "3200,600", ident_arc_cte: float = 2.5, steer_ff_gain: float = 0.0,
-    max_gear: int = 2, reference: str = DEFAULT_REFERENCE,
+    max_gear: int = 2, reference: str = DEFAULT_REFERENCE, lat_accel_limit: float = LAT_ACCEL_LIMIT, steer_slip_gain: float = 0.0,
+    lat_gain_v0_kmh: float = 0.0, steer_ff_v0_kmh: float = -1.0, steer_preview_s: float = 0.0,
+    throttle_max: float = 0.85, brake_decel_straight: float = 0.0, brake_overspeed_straight_ms: float = 8.0,
 ) -> List[str]:
     argv = [
         str(python), str(APP / "src" / "learn_driver.py"),
@@ -90,7 +111,7 @@ def build_argv(
         "--stage", stage, "--speed-band", f"{speed_band:g}",
         "--max-laps", str(laps), "--learn-every", str(learn_every),  # 99 = sin fine-tune dentro de la prueba
         "--steer-comp", "--experiment", experiment, "--stop-on-damage",
-        "--lat-accel-limit", f"{LAT_ACCEL_LIMIT:g}",
+        "--lat-accel-limit", f"{lat_accel_limit:g}",
     ]
     if base_dataset is not None:  # fine-tune: la base es el teacher nuevo, no los datos antiguos de producción
         argv += ["--base-dataset", str(base_dataset), "--curated", ""]
@@ -110,6 +131,20 @@ def build_argv(
         if ident == "arco":  # A1.3: la rampa de velocidades por vueltas y sus límites
             argv += ["--ident-arc-speeds", ident_arc_speeds, "--ident-arc-window", ident_arc_window,
                      "--ident-arc-cte", f"{ident_arc_cte:g}"]
+    if steer_slip_gain:  # V17: contravolante por deriva; 0 = el de producción
+        argv += ["--steer-slip-gain", f"{steer_slip_gain:g}"]
+    if brake_decel_straight:  # V31: frenada fuerte en recta; 0 / 8 = la de producción
+        argv += ["--brake-decel-straight", f"{brake_decel_straight:g}"]
+    if brake_overspeed_straight_ms != 8.0:
+        argv += ["--brake-overspeed-straight-ms", f"{brake_overspeed_straight_ms:g}"]
+    if throttle_max != 0.85:  # V24: tope del gas del teacher al acelerar (producción 0,85)
+        argv += ["--throttle-max", f"{throttle_max:g}"]
+    if steer_preview_s:  # V22: anticipación del volante por tiempo; 0 = 30 m fijos de producción
+        argv += ["--steer-preview-s", f"{steer_preview_s:g}"]
+    if steer_ff_v0_kmh >= 0.0:  # V21: velocidad desde la que crece la anticipación de volante (por defecto 60)
+        argv += ["--steer-ff-v0-kmh", f"{steer_ff_v0_kmh:g}"]
+    if lat_gain_v0_kmh:  # V18: ganancia de CTE programada por velocidad; 0 = producción
+        argv += ["--lat-gain-v0-kmh", f"{lat_gain_v0_kmh:g}"]
     if max_gear != 2:  # X24: el cambio automático sube hasta esa marcha (producción: 2)
         argv += ["--max-gear", str(max_gear)]
     if steer_ff_gain:  # H58: anticipación de volante escalada con la velocidad; 0 = la de producción
@@ -125,7 +160,9 @@ def run_isolated(
     ident: str = "", ident_cap_kmh: float = 0.0, ident_floor_kmh: float = 30.0, ident_end_margin_m: float = 150.0,
     ident_straights: str = "", ident_caps: str = "",
     ident_arc_speeds: str = "", ident_arc_window: str = "3200,600", ident_arc_cte: float = 2.5, steer_ff_gain: float = 0.0,
-    max_gear: int = 2, reference: str = DEFAULT_REFERENCE,
+    max_gear: int = 2, reference: str = DEFAULT_REFERENCE, lat_accel_limit: float = LAT_ACCEL_LIMIT, steer_slip_gain: float = 0.0,
+    lat_gain_v0_kmh: float = 0.0, steer_ff_v0_kmh: float = -1.0, steer_preview_s: float = 0.0,
+    throttle_max: float = 0.85, brake_decel_straight: float = 0.0, brake_overspeed_straight_ms: float = 8.0,
 ) -> int:
     DATA.mkdir(parents=True, exist_ok=True)
     model = DATA / f"{experiment}_model.pt"
@@ -155,7 +192,11 @@ def run_isolated(
                 ident=ident, ident_cap_kmh=ident_cap_kmh, ident_floor_kmh=ident_floor_kmh,
                 ident_end_margin_m=ident_end_margin_m, ident_straights=ident_straights, ident_caps=ident_caps,
                 ident_arc_speeds=ident_arc_speeds, ident_arc_window=ident_arc_window, ident_arc_cte=ident_arc_cte,
-                steer_ff_gain=steer_ff_gain, max_gear=max_gear, reference=reference,
+                steer_ff_gain=steer_ff_gain, max_gear=max_gear, reference=reference, lat_accel_limit=lat_accel_limit,
+                steer_slip_gain=steer_slip_gain, lat_gain_v0_kmh=lat_gain_v0_kmh,
+                steer_ff_v0_kmh=steer_ff_v0_kmh, steer_preview_s=steer_preview_s,
+                throttle_max=throttle_max, brake_decel_straight=brake_decel_straight,
+                brake_overspeed_straight_ms=brake_overspeed_straight_ms,
             ),
             cwd=APP, env=env,
         ).returncode
@@ -207,7 +248,25 @@ if __name__ == "__main__":
                     help="Línea de referencia del teacher (por defecto src/refs/sugo_ai.json). Para alta velocidad: circuito_virtual/pistas/sugo_gp/sugo_smooth.json, "
                          "de identificacion/linea_suave.py (H61)")
     ap.add_argument("--max-gear", type=int, default=2,
-                    help="Marcha más alta que sube el cambio automático (producción: 2). Con 3 o 4 sube el techo de las maniobras de A1 (X24); solo con --ident")
+                    help="Marcha más alta que sube el cambio automático (producción: 2). Con 3 o 4 sube el techo de las maniobras de A1 (X24); "
+                         "con --ident, o con --teacher-only y un experimento a2_* (A2.0: vueltas completas, --speed-band hasta el techo de esa marcha)")
+    ap.add_argument("--lat-accel-limit", type=float, default=LAT_ACCEL_LIMIT,
+                    help=f"Aceleración lateral (m/s²) que el teacher supone en curva (por defecto {LAT_ACCEL_LIMIT:g}). Otro valor: solo con --teacher-only y un "
+                         f"experimento a2_* (A2.0); máximo {MAX_LAT_ACCEL_LIMIT:g}, la cota validada (D21)")
+    ap.add_argument("--steer-slip-gain", type=float, default=0.0,
+                    help="Contravolante del teacher por deriva (V17): volante por radián de deriva por encima de 3° (la ganancia de CTE baja a 0 a los 8°); 0 = producción")
+    ap.add_argument("--brake-decel-straight", type=float, default=0.0,
+                    help="Frenada que el teacher supone en RECTA para anticipar la curva (m/s², V31); 0 = la de siempre (4)")
+    ap.add_argument("--brake-overspeed-straight-ms", type=float, default=8.0,
+                    help="En RECTA el pedal de freno es exceso de velocidad / este valor (m/s, V31); 8 = el de siempre, menor frena más fuerte")
+    ap.add_argument("--throttle-max", type=float, default=0.85,
+                    help="Tope del gas del teacher al acelerar (V24); 0,85 = producción, 1,0 = a fondo como en A1")
+    ap.add_argument("--steer-preview-s", type=float, default=0.0,
+                    help="Anticipación del volante por tiempo (V22): la curvatura que anticipa el volante se lee a v · T metros (mín. 4 m) en lugar de 30 m fijos; 0 = producción")
+    ap.add_argument("--steer-ff-v0-kmh", type=float, default=-1.0,
+                    help="Velocidad (km/h) desde la que crece la anticipación de volante de --steer-ff-gain (por defecto 60); con 0 el factor es 1 + G · v² (V21)")
+    ap.add_argument("--lat-gain-v0-kmh", type=float, default=0.0,
+                    help="Ganancia de CTE del teacher programada por velocidad (V18): por encima de esta velocidad se multiplica por (v0/v)²; 0 = producción")
     ap.add_argument("--steer-ff-gain", type=float, default=0.0,
                     help="Anticipación de volante del teacher escalada con la velocidad (H58): factor 1 + G · (v² − 60²) por encima de 60 km/h; 0 = producción")
     ap.add_argument("--ident", choices=("acel", "rodar", "acelrodar", "frenar", "arco"), default="",
@@ -238,8 +297,11 @@ if __name__ == "__main__":
         cap_limit = ident_max_cap_kmh(a.max_gear)
     except ValueError as exc:
         ap.error(str(exc))
-    if a.max_gear != 2 and not a.ident:
-        ap.error("--max-gear distinto de 2 solo se usa con --ident (X24)")
+    problem = a2_error(a.ident, a.max_gear, a.lat_accel_limit, a.teacher_only, a.experiment, a.speed_band, cap_limit,
+                         bool(a.steer_ff_gain or a.steer_slip_gain or a.lat_gain_v0_kmh or a.steer_ff_v0_kmh >= 0.0 or a.steer_preview_s
+                         or a.throttle_max != 0.85 or a.brake_decel_straight or a.brake_overspeed_straight_ms != 8.0))
+    if problem:
+        ap.error(problem)
     if a.ident in ("acel", "acelrodar") and a.ident_cap_kmh <= a.speed_band:
         ap.error(f"--ident {a.ident} necesita --ident-cap-kmh mayor que --speed-band (la maniobra acelera desde la banda hasta el techo)")
     if a.ident == "arco":
@@ -268,8 +330,14 @@ if __name__ == "__main__":
                  "a ≈ 120 km/h la 2ª llega al corte de encendido y el coche se descontrola (H50)")
     if a.reference != DEFAULT_REFERENCE and not Path(a.reference).is_file() and not (APP / a.reference).is_file():
         ap.error(f"--reference {a.reference}: no existe (¿falta ejecutar identificacion/linea_suave.py?)")
-    if a.steer_ff_gain < 0:
-        ap.error("--steer-ff-gain no puede ser negativo")
+    if a.brake_decel_straight < 0 or a.brake_decel_straight > 11.0:
+        ap.error("--brake-decel-straight debe estar entre 0 y 11 m/s² (G3: 11,5-11,8 a pedal 1,0)")
+    if a.brake_overspeed_straight_ms <= 0:
+        ap.error("--brake-overspeed-straight-ms debe ser positivo")
+    if not 0.0 < a.throttle_max <= 1.0:
+        ap.error("--throttle-max debe estar entre 0 (sin incluir) y 1")
+    if a.steer_ff_gain < 0 or a.steer_slip_gain < 0 or a.lat_gain_v0_kmh < 0 or a.steer_preview_s < 0:
+        ap.error("--steer-ff-gain, --steer-slip-gain, --lat-gain-v0-kmh y --steer-preview-s no pueden ser negativos")
     if a.ident:
         a.teacher_only = True  # el BC no conduce en A1
     t0 = time.time() - 5
@@ -284,7 +352,10 @@ if __name__ == "__main__":
                        ident_floor_kmh=a.ident_floor_kmh, ident_end_margin_m=a.ident_end_margin_m,
                        ident_straights=a.ident_straights, ident_caps=a.ident_caps,
                        ident_arc_speeds=a.ident_arc_speeds, ident_arc_window=a.ident_arc_window, ident_arc_cte=a.ident_arc_cte,
-                       steer_ff_gain=a.steer_ff_gain, max_gear=a.max_gear, reference=a.reference)
+                       steer_ff_gain=a.steer_ff_gain, max_gear=a.max_gear, reference=a.reference, lat_accel_limit=a.lat_accel_limit, steer_slip_gain=a.steer_slip_gain,
+                       lat_gain_v0_kmh=a.lat_gain_v0_kmh, steer_ff_v0_kmh=a.steer_ff_v0_kmh, steer_preview_s=a.steer_preview_s,
+                       throttle_max=a.throttle_max, brake_decel_straight=a.brake_decel_straight,
+                       brake_overspeed_straight_ms=a.brake_overspeed_straight_ms)
     log = latest_log(experiment, t0)
     if log is None:
         print("[experimental] no se encontró el log de la prueba; sin informe")

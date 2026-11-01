@@ -1,5 +1,7 @@
 """Tests del análisis de A1 con ticks sintéticos (aceleración y deceleración conocidas)."""
 
+import json
+
 import numpy as np
 import pytest
 
@@ -154,3 +156,24 @@ def test_arc_passes_are_summarised_per_pass_with_their_event():
 
 def test_no_arc_ticks_gives_no_arc_rows():
     assert a1.analyze(_ticks("teacher:only", 60, 0, 2))["arc_passes"] == []
+
+
+def test_brake_distance_survives_crossing_the_finish_line():
+    """Una frenada que empieza a 3550 m y acaba tras la meta (3567 m) no puede dar una distancia de 96 000 m (V29)."""
+    ticks = _ticks("ident:frenar", 100, -10.0, 1.8, gear=2, d0=3550.0)
+    for t in ticks:
+        t["lap_distance"] = t["lap_distance"] % 3567.0
+    ev = a1.analyze(ticks)["brake_events"]
+    assert len(ev) == 1
+    assert 90 <= ev[0]["dist_m"] <= 110
+
+
+def test_report_does_not_crash_when_a_brake_event_has_no_peak(tmp_path, capsys):
+    """Una frenada cortada al final de la sesión deja `a_peak` en None; el informe de texto debe imprimirla igualmente (V29)."""
+    ticks = _ticks("ident:acel", 30, 3.0, 4.0, gear=1) + _ticks("ident:frenar", 100, -10.0, 0.17, gear=2, t0=5.0)  # 10 ticks de frenada: llega al mínimo, pero no queda tramo central para el pico
+    ev = a1.analyze(ticks)["brake_events"]
+    assert len(ev) == 1 and ev[0]["a_peak"] is None
+    log = tmp_path / "log.jsonl"
+    log.write_text(chr(10).join(json.dumps(t) for t in ticks) + chr(10), encoding="utf-8")
+    assert a1.main([str(log)]) == 0
+    assert "frenadas a fondo" in capsys.readouterr().out

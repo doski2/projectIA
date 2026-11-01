@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any, Dict
 
 import pytest
 
@@ -272,3 +273,70 @@ def test_aislado_passes_the_reference_to_learn_driver():
         aislado.build_argv(Path("python"), "a1_acel_60", 60.0, 3, teacher_only=True).index("--reference") + 1] == "src/refs/sugo_ai.json"
     argv = aislado.build_argv(Path("python"), "a1_acel_60", 60.0, 3, teacher_only=True, reference="C:/x/sugo_smooth.json")
     assert argv[argv.index("--reference") + 1] == "C:/x/sugo_smooth.json"
+
+
+def test_a2_vueltas_completas_llevan_el_limite_lateral_propio_a_learn_driver():
+    base = aislado.build_argv(Path("python"), "a2_x", 100.0, 3, teacher_only=True, max_gear=3)
+    assert base[base.index("--lat-accel-limit") + 1] == "6.5"  # sin pedirlo, el de siempre
+    argv = aislado.build_argv(Path("python"), "a2_x", 100.0, 3, teacher_only=True, max_gear=3, lat_accel_limit=12.5)
+    assert argv[argv.index("--lat-accel-limit") + 1] == "12.5" and argv[argv.index("--max-gear") + 1] == "3"
+    assert "--ident" not in argv and "--teacher-only" in argv and "--stop-on-damage" in argv
+
+
+def test_a2_error_exige_teacher_prefijo_a2_y_limites_validados():
+    ok: Dict[str, Any] = dict(ident="", max_gear=3, lat_accel_limit=12.5, teacher_only=True, experiment="a2_suave_100", speed_band=100.0, cap_limit=150.0)
+    assert aislado.a2_error(**ok) is None
+    assert aislado.a2_error(**{**ok, "teacher_only": False})  # el BC no conduce con marchas sin validar
+    assert "a2_" in aislado.a2_error(**{**ok, "experiment": ""})  # el nombre por defecto borraría `teacher_<banda>`
+    assert "a2_" in aislado.a2_error(**{**ok, "experiment": "teacher_100"})
+    assert aislado.a2_error(**{**ok, "speed_band": 160.0})  # por encima del techo de la 3ª
+    assert aislado.a2_error(**{**ok, "lat_accel_limit": 15.0})  # por encima de la cota de D21
+    assert aislado.a2_error(**{**ok, "lat_accel_limit": 0.0})
+    # lo de antes sigue igual: producción y A1 no piden nada
+    assert aislado.a2_error("", 2, aislado.LAT_ACCEL_LIMIT, False, "", 40.0, 120.0) is None
+    assert aislado.a2_error("acel", 3, aislado.LAT_ACCEL_LIMIT, True, "a1_acel_g3_60", 60.0, 150.0) is None
+
+
+def test_steer_slip_gain_goes_to_learn_driver_only_when_set():
+    assert "--steer-slip-gain" not in aislado.build_argv(Path("python"), "a2_x", 100.0, 3, teacher_only=True)
+    argv = aislado.build_argv(Path("python"), "a2_x", 100.0, 3, teacher_only=True, steer_slip_gain=5.0)
+    assert argv[argv.index("--steer-slip-gain") + 1] == "5"
+
+
+def test_lat_gain_v0_goes_to_learn_driver_only_when_set():
+    assert "--lat-gain-v0-kmh" not in aislado.build_argv(Path("python"), "a2_x", 100.0, 3, teacher_only=True)
+    argv = aislado.build_argv(Path("python"), "a2_x", 100.0, 3, teacher_only=True, lat_gain_v0_kmh=60.0)
+    assert argv[argv.index("--lat-gain-v0-kmh") + 1] == "60"
+
+
+def test_las_opciones_propias_del_teacher_exigen_prefijo_a2_y_teacher_only():
+    base: Dict[str, Any] = dict(ident="", max_gear=2, lat_accel_limit=aislado.LAT_ACCEL_LIMIT, teacher_only=True, experiment="a2_x", speed_band=100.0, cap_limit=115.0)
+    assert aislado.a2_error(**base, extra_teacher_options=True) is None
+    assert "a2_" in aislado.a2_error(**{**base, "experiment": ""}, extra_teacher_options=True)  # el nombre por defecto borraría `teacher_<banda>`
+    assert aislado.a2_error(**{**base, "teacher_only": False}, extra_teacher_options=True)
+    assert aislado.a2_error(**{**base, "experiment": ""}) is None  # sin opciones propias, producción
+
+
+def test_steer_ff_v0_goes_to_learn_driver_only_when_set():
+    assert "--steer-ff-v0-kmh" not in aislado.build_argv(Path("python"), "a2_x", 80.0, 3, teacher_only=True)
+    argv = aislado.build_argv(Path("python"), "a2_x", 80.0, 3, teacher_only=True, steer_ff_gain=0.0035, steer_ff_v0_kmh=0.0)
+    assert argv[argv.index("--steer-ff-v0-kmh") + 1] == "0" and argv[argv.index("--steer-ff-gain") + 1] == "0.0035"
+
+
+def test_steer_preview_goes_to_learn_driver_only_when_set():
+    assert "--steer-preview-s" not in aislado.build_argv(Path("python"), "a2_x", 80.0, 3, teacher_only=True)
+    argv = aislado.build_argv(Path("python"), "a2_x", 80.0, 3, teacher_only=True, steer_preview_s=0.3)
+    assert argv[argv.index("--steer-preview-s") + 1] == "0.3"
+
+
+def test_throttle_max_goes_to_learn_driver_only_when_not_production():
+    assert "--throttle-max" not in aislado.build_argv(Path("python"), "a2_x", 90.0, 3, teacher_only=True)
+    argv = aislado.build_argv(Path("python"), "a2_x", 90.0, 3, teacher_only=True, throttle_max=1.0)
+    assert argv[argv.index("--throttle-max") + 1] == "1"
+
+
+def test_straight_braking_options_go_to_learn_driver_only_when_set():
+    argv0 = aislado.build_argv(Path("python"), "a2_x", 125.0, 3, teacher_only=True)
+    assert "--brake-decel-straight" not in argv0 and "--brake-overspeed-straight-ms" not in argv0
+    argv = aislado.build_argv(Path("python"), "a2_x", 125.0, 3, teacher_only=True, brake_decel_straight=8.0, brake_overspeed_straight_ms=2.5)
+    assert argv[argv.index("--brake-decel-straight") + 1] == "8" and argv[argv.index("--brake-overspeed-straight-ms") + 1] == "2.5"
