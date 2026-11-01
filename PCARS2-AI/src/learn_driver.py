@@ -113,6 +113,34 @@ def parse_args() -> argparse.Namespace:
         help="Anticipación de volante del teacher escalada con la velocidad: factor 1 + G · (v² − 60²) por encima de 60 km/h (H58). 0 = producción.",
     )
     parser.add_argument(
+        "--steer-slip-gain", type=float, default=0.0,
+        help="Contravolante del teacher por deriva (V17): volante por radián de deriva por encima de 3°, y la ganancia de CTE baja a 0 a los 8°. 0 = producción.",
+    )
+    parser.add_argument(
+        "--steer-ff-v0-kmh", type=float, default=-1.0,
+        help="Velocidad (km/h) desde la que crece la anticipación de volante con --steer-ff-gain: factor 1 + G · (v² − v0²). Por defecto 60; con 0 el factor es 1 + G · v² (V21). Negativo = el de siempre.",
+    )
+    parser.add_argument(
+        "--steer-preview-s", type=float, default=0.0,
+        help="Anticipación del volante por tiempo (V22): la curvatura que anticipa el volante se lee a v · T metros (mín. 4 m) en lugar de 30 m fijos. 0 = producción.",
+    )
+    parser.add_argument(
+        "--brake-decel-straight", type=float, default=0.0,
+        help="Frenada que el teacher supone en RECTA para anticipar la curva (m/s², V31). 0 = la de siempre (4 m/s²).",
+    )
+    parser.add_argument(
+        "--brake-overspeed-straight-ms", type=float, default=8.0,
+        help="En RECTA el pedal de freno es exceso de velocidad / este valor (m/s, V31). 8 = el de siempre; menor frena más fuerte.",
+    )
+    parser.add_argument(
+        "--throttle-max", type=float, default=0.85,
+        help="Tope del gas del teacher al acelerar (V24). 0,85 = producción; con 1,0 acelera a fondo como en A1.",
+    )
+    parser.add_argument(
+        "--lat-gain-v0-kmh", type=float, default=0.0,
+        help="Ganancia de CTE del teacher programada por velocidad (V18): por encima de esta velocidad se multiplica por (v0/v)². 0 = producción.",
+    )
+    parser.add_argument(
         "--steer-damp-kmh", type=float, default=STEER_DAMP_REF_MS * 3.6,
         help="Por encima de esta velocidad el volante del BC se reduce ∝ 1/v (0 = desactivado)",
     )
@@ -433,6 +461,13 @@ def run(args: argparse.Namespace) -> int:
     teacher = TeachingController(ref, TeacherConfig(
         speed_target_kmh=effective_speed, lat_accel_limit=args.lat_accel_limit or None,
         ff_speed_gain=float(getattr(args, "steer_ff_gain", 0.0) or 0.0),
+        slip_steer_gain=float(getattr(args, "steer_slip_gain", 0.0) or 0.0),
+        lat_gain_v0_kmh=float(getattr(args, "lat_gain_v0_kmh", 0.0) or 0.0),
+        steer_preview_s=float(getattr(args, "steer_preview_s", 0.0) or 0.0),
+        throttle_max=float(getattr(args, "throttle_max", 0.85) or 0.85),
+        brake_decel_straight=float(getattr(args, "brake_decel_straight", 0.0) or 0.0),
+        brake_overspeed_straight_ms=float(getattr(args, "brake_overspeed_straight_ms", 8.0) or 8.0),
+        **({"ff_speed_v0_kmh": float(args.steer_ff_v0_kmh)} if getattr(args, "steer_ff_v0_kmh", -1.0) >= 0.0 else {}),
         max_gear=int(getattr(args, "max_gear", TEACHING_MAX_GEAR) or TEACHING_MAX_GEAR),
     ))
     safety = SafetyMonitor(ref=ref, surface_profile=ns_str(args, "safety_profile"))
