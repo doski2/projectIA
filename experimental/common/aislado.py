@@ -31,6 +31,7 @@ from learn_progress import progress_file  # noqa: E402
 LAT_ACCEL_LIMIT = 6.5
 
 
+DEFAULT_REFERENCE = "src/refs/sugo_ai.json"
 IDENT_PREFIX = "a1_"  # los experimentos de identificación no pueden llamarse como los buffers de entrenamiento (`teacher_40`, ...)
 
 
@@ -79,11 +80,11 @@ def build_argv(
     ident: str = "", ident_cap_kmh: float = 0.0, ident_floor_kmh: float = 30.0, ident_end_margin_m: float = 150.0,
     ident_straights: str = "", ident_caps: str = "",
     ident_arc_speeds: str = "", ident_arc_window: str = "3200,600", ident_arc_cte: float = 2.5, steer_ff_gain: float = 0.0,
-    max_gear: int = 2,
+    max_gear: int = 2, reference: str = DEFAULT_REFERENCE,
 ) -> List[str]:
     argv = [
         str(python), str(APP / "src" / "learn_driver.py"),
-        "--reference", "src/refs/sugo_ai.json",
+        "--reference", reference,
         "--model", str(DATA / f"{experiment}_model.pt"),
         "--buffer", str(DATA / f"{experiment}_buffer.jsonl"),
         "--stage", stage, "--speed-band", f"{speed_band:g}",
@@ -124,7 +125,7 @@ def run_isolated(
     ident: str = "", ident_cap_kmh: float = 0.0, ident_floor_kmh: float = 30.0, ident_end_margin_m: float = 150.0,
     ident_straights: str = "", ident_caps: str = "",
     ident_arc_speeds: str = "", ident_arc_window: str = "3200,600", ident_arc_cte: float = 2.5, steer_ff_gain: float = 0.0,
-    max_gear: int = 2,
+    max_gear: int = 2, reference: str = DEFAULT_REFERENCE,
 ) -> int:
     DATA.mkdir(parents=True, exist_ok=True)
     model = DATA / f"{experiment}_model.pt"
@@ -154,7 +155,7 @@ def run_isolated(
                 ident=ident, ident_cap_kmh=ident_cap_kmh, ident_floor_kmh=ident_floor_kmh,
                 ident_end_margin_m=ident_end_margin_m, ident_straights=ident_straights, ident_caps=ident_caps,
                 ident_arc_speeds=ident_arc_speeds, ident_arc_window=ident_arc_window, ident_arc_cte=ident_arc_cte,
-                steer_ff_gain=steer_ff_gain, max_gear=max_gear,
+                steer_ff_gain=steer_ff_gain, max_gear=max_gear, reference=reference,
             ),
             cwd=APP, env=env,
         ).returncode
@@ -202,6 +203,9 @@ if __name__ == "__main__":
     ap.add_argument("--ramp-step", type=float, default=5.0)
     ap.add_argument("--steer-damp-kmh", type=float, default=None,
                     help="Velocidad desde la que se reduce el volante del BC ∝ 1/v (producción: 45; 0 = desactivado)")
+    ap.add_argument("--reference", default=DEFAULT_REFERENCE,
+                    help="Línea de referencia del teacher (por defecto src/refs/sugo_ai.json). Para alta velocidad: experimental/data/sugo_smooth.json, "
+                         "de identificacion/linea_suave.py (H61)")
     ap.add_argument("--max-gear", type=int, default=2,
                     help="Marcha más alta que sube el cambio automático (producción: 2). Con 3 o 4 sube el techo de las maniobras de A1 (X24); solo con --ident")
     ap.add_argument("--steer-ff-gain", type=float, default=0.0,
@@ -262,6 +266,8 @@ if __name__ == "__main__":
     if a.ident and a.ident_cap_kmh > cap_limit:
         ap.error(f"--ident-cap-kmh {a.ident_cap_kmh:g} supera el máximo permitido ({cap_limit:g}) con --max-gear {a.max_gear}: "
                  "a ≈ 120 km/h la 2ª llega al corte de encendido y el coche se descontrola (H50)")
+    if a.reference != DEFAULT_REFERENCE and not Path(a.reference).is_file() and not (APP / a.reference).is_file():
+        ap.error(f"--reference {a.reference}: no existe (¿falta ejecutar identificacion/linea_suave.py?)")
     if a.steer_ff_gain < 0:
         ap.error("--steer-ff-gain no puede ser negativo")
     if a.ident:
@@ -278,7 +284,7 @@ if __name__ == "__main__":
                        ident_floor_kmh=a.ident_floor_kmh, ident_end_margin_m=a.ident_end_margin_m,
                        ident_straights=a.ident_straights, ident_caps=a.ident_caps,
                        ident_arc_speeds=a.ident_arc_speeds, ident_arc_window=a.ident_arc_window, ident_arc_cte=a.ident_arc_cte,
-                       steer_ff_gain=a.steer_ff_gain, max_gear=a.max_gear)
+                       steer_ff_gain=a.steer_ff_gain, max_gear=a.max_gear, reference=a.reference)
     log = latest_log(experiment, t0)
     if log is None:
         print("[experimental] no se encontró el log de la prueba; sin informe")

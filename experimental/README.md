@@ -44,6 +44,7 @@ Aquí viven las ideas A, B y C del estudio, sus planes de trabajo y sus resultad
 - [docs/PLAN_C_RAMPA_BC.md](docs/PLAN_C_RAMPA_BC.md),
 
   [docs/PLAN_A_LIMITES_COCHE.md](docs/PLAN_A_LIMITES_COCHE.md),
-  [docs/PLAN_B_SIMULADOR.md](docs/PLAN_B_SIMULADOR.md): planes de trabajo.
+  [docs/PLAN_B_SIMULADOR.md](docs/PLAN_B_SIMULADOR.md),
+  [docs/PLAN_D_MAPA_Y_LINEA.md](docs/PLAN_D_MAPA_Y_LINEA.md): planes de trabajo.
 
 - [docs/DIARIO.md](docs/DIARIO.md): resultados de cada experimento.
