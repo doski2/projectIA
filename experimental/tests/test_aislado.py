@@ -359,3 +359,14 @@ def test_brake_slip_limit_counts_as_a_teacher_option_for_the_a2_name_rule():
     assert aislado.a2_error("", 3, aislado.LAT_ACCEL_LIMIT, True, "a2_frena_slip02", 125.0, cap, True) is None
     # con --ident la opción se acepta con cualquier nombre
     assert aislado.a2_error("frenar", 3, aislado.LAT_ACCEL_LIMIT, True, "a1_frenar_g3_slip02", 60.0, cap, True) is None
+
+
+def test_brake_slip_hold_goes_to_learn_driver_only_when_set():
+    assert "--brake-slip-hold" not in aislado.build_argv(Path("python"), "a1_frenar", 60.0, 3, teacher_only=True, ident="frenar", ident_caps="130", max_gear=3, brake_slip_limit=0.25)
+    argv = aislado.build_argv(Path("python"), "a1_frenar", 60.0, 3, teacher_only=True, ident="frenar", ident_caps="130", max_gear=3, brake_slip_limit=0.25, brake_slip_hold=0.85)
+    assert argv[argv.index("--brake-slip-hold") + 1] == "0.85" and argv[argv.index("--brake-slip-limit") + 1] == "0.25"
+
+
+def test_brake_slip_hold_counts_as_a_teacher_option_for_the_a2_name_rule():
+    cap = aislado.ident_max_cap_kmh(3)
+    assert aislado.a2_error("", 3, aislado.LAT_ACCEL_LIMIT, True, "teacher_125", 125.0, cap, True) is not None
