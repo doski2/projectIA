@@ -4,7 +4,7 @@ Estado al cierre de la sesión del **2026-11-01**. Lo que no es del circuito (ra
 de motor P26, controles de seco, reentreno v2) está en `experimental/docs/PENDIENTE.md`. El plan está
 en `docs/PLAN.md`, las decisiones en `docs/DECISIONES.md` y la historia en `docs/DIARIO.md`.
 
-**Qué significan las «V»:** cada Vnn es una entrada del registro de decisiones (hoy V1-V51), no una
+**Qué significan las «V»:** cada Vnn es una entrada del registro de decisiones (hoy V1-V52), no una
 versión del software. La versión del software es el commit de git, que cada sesión guarda en la
 cabecera de su log. Este documento recoge solo el estado actual y lo que sigue; las cifras de sesiones
 anteriores son referencia (están en `DECISIONES.md`) y cada sesión nueva se juzga contra el criterio de
@@ -30,7 +30,7 @@ volante de más abajo, no contra la anterior.
 | A2.0 a 125 km/h con la línea suavizada | **Cumple el criterio** (|CTE| máx. 1,56 m, deriva 2,5°, 120,4 s) | Nada: es la receta base |
 | A2.0 con la línea óptima `a1mu9b` | Prevé −1,7 s pero no cumple (|CTE| 2,2-2,5 m, deriva hasta 4,4°, ruedas fuera) | La anticipación de volante a más de 100 km/h: tope de velocidad en el factor |
 | Techo en 3.ª (G2) | **Limpio hasta 140 km/h** (volante ±0,01, CTE ≤ 0,16 m por encima de 128 km/h). El motor llega a 149,9 km/h (112 N·m a 6756 rpm) | Repetir 150 km/h con la ganancia por velocidad |
-| Frenadas fuertes | Con pedal ≤ 0,84 (teacher de A2) no hay bloqueo; con pedal 1,0 (A1) se bloquean las delanteras. **Limitador por deslizamiento (V44, V45, V47): cuatro sesiones reales, sin bloqueo; el mejor valor del limitador sin memoria es el objetivo 0,3 con 10,9-11,3 m/s² (criterio 11,5) y el pedal sigue en ciclo; memoria del pedal límite (V50, V51): estable a ≈ 0,74 de pedal pero lenta de arranque (10,96 m/s²)** | Misma frenada con vueltas más rápidas (`--speed-band 100`); después `--brake-slip-hold 0.75`; frenadas desde 140 y 150 km/h con el mejor ajuste; luego 140 km/h y el techo a 150 km/h |
+| Frenadas fuertes | Con pedal ≤ 0,84 (teacher de A2) no hay bloqueo; con pedal 1,0 (A1) se bloquean las delanteras. **Limitador por deslizamiento (V44, V45, V47): cuatro sesiones reales, sin bloqueo; el mejor valor del limitador sin memoria es el objetivo 0,3 con 10,9-11,3 m/s² (criterio 11,5) y el pedal sigue en ciclo; memoria del pedal límite (V50, V51): estable a ≈ 0,74 de pedal pero lenta de arranque (10,96 m/s²)** | Banda 100 con techo 140 km/h y la receta de A2.0 (V52: con banda 100 a 130 km/h la frenada cae en una curva con más cuesta y el CTE llega a 1 m); después `--brake-slip-hold 0.75`; el techo a 150 km/h; luego 140 km/h y el techo a 150 km/h |
 | Modelo del volante | `experimental/common/modelo_volante.py` acierta a más de 108 km/h y no ve las entradas en curva cerrada | Reajustarlo con cada log nuevo |
 | Bordes de la pista | Pasillo comprobado, bordes reales sin medir | D1b |
 
@@ -57,22 +57,21 @@ subir el techo solo después de la prueba de frenada de arriba):
 C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --ident acel --speed-band 60 --ident-cap-kmh 140 --max-gear 3 --lat-gain-v0-kmh 70 --ident-straights 1 --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_smooth.json --experiment a1_acel_g3_lg70_140_60 --laps 3
 ```
 
-**A1, frenada a fondo desde 130 km/h con vueltas más rápidas (séptima prueba, V51).** La sesión anterior
-(objetivo 0,25 y memoria 0,85, `--speed-band 60`) dio 10,96 m/s² de media, sin bloqueo, y el pedal se
-estabilizaba en ≈ 0,74 con el deslizamiento en 0,24 pero tardaba ≈ 3 s en converger. Una sola variable: la
-banda sube de 60 a 100 km/h, porque con 60 la vuelta dura ≈ 208 s para una frenada de 3 s (la velocidad en
-curva la sigue limitando el teacher con `--lat-accel-limit`; la banda solo acorta las rectas). El limitador no
-cambia. Éxito: 0 ticks con las delanteras paradas, deslizamiento relativo ≤ 0,50, CTE ≤ 0,5 m y la
-frenada en el mismo punto de la recta (≈ 3363 m); la deceleración (V51: 11,24 / 10,93 / 10,72) y la
-temperatura de neumáticos como datos. Si la vuelta se sale o la frenada cambia de recta, volver a 80.
-Siguiente variable del limitador: `--brake-slip-hold 0.75` (el techo del primer ciclo coincide con el pedal
-estacionario ≈ 0,75). Después, 140 y 150 km/h con el mejor ajuste (`--ident-caps 140`; para el techo,
-`--ident-cap-kmh 150` en el comando de A1 con `--lat-gain-v0-kmh 70`). El simulador sobrestima ≈ 0,5-1 m/s²
-y no ve el efecto del objetivo (V47, V49); el ABS del propio juego queda como referencia del máximo sin
-bloqueo.
+**A1, frenada a fondo desde 140 km/h con vueltas rápidas (octava prueba, V52).** La banda 100 acorta la
+vuelta de 208 a ≈ 146 s y mantiene los frenos a ≈ 250 °C (con banda 60 bajaban de 177 a 88 °C y la frenada
+perdía ≈ 0,25 m/s² por vuelta), pero a 130 km/h la frenada cae 73 m antes (la aceleración arranca fija en
+3132 m), en una curva suave con más cuesta, y el CTE llega a 1,0 m. Por eso: banda 100, techo 140 km/h
+(`--ident-caps 140`, frenada esperada hacia 3377 m) y la receta de A2.0 que dio vueltas limpias a
+125 km/h (con `--lat-gain-v0-kmh 70`, de las sesiones de 140 km/h); el limitador no cambia (objetivo 0,25,
+memoria 0,85). `--throttle-max 1.0` quita el tope de 0,85 de la recuperación. Éxito: frenada que empieza entre
+≈ 3340 y 3400 m, 0 ticks con las delanteras paradas, deslizamiento relativo ≤ 0,50, CTE durante la frenada
+≤ 0,5 m, criterio de volante de V19 cumplido y 0 ticks con ruedas fuera. Anotar la deceleración también sin
+la cuesta (restar g · pendiente del mapa: hoy ≈ +0,35 m/s² en 3363-3430 m) y la temperatura de freno al
+empezar. Siguiente variable del limitador: `--brake-slip-hold 0.75`. El simulador sobrestima ≈ 0,5-1 m/s² y no
+ve el efecto del objetivo (V47, V49).
 
 ```text
-C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --ident frenar --ident-caps 130 --speed-band 100 --max-gear 3 --lat-gain-v0-kmh 70 --brake-slip-limit 0.25 --brake-slip-hold 0.85 --ident-straights 1 --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_smooth.json --experiment a1_frenar_g3_slip025_hold085_130_100 --laps 3
+C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --ident frenar --ident-caps 140 --speed-band 100 --max-gear 3 --lat-accel-limit 9 --steer-ff-gain 0.003 --steer-ff-v0-kmh 0 --steer-preview-s 0.3 --steer-slip-gain 5 --lat-gain-v0-kmh 70 --throttle-max 1.0 --brake-decel-straight 8 --brake-overspeed-straight-ms 2.5 --brake-slip-limit 0.25 --brake-slip-hold 0.85 --ident-straights 1 --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_smooth.json --experiment a1_frenar_g3_slip025_hold085_140_100_a2 --laps 3
 ```
 
 **Regenerar las líneas locales** (por orden; la segunda tarda ≈ 70 s y la tercera ≈ 50 s):
@@ -169,11 +168,12 @@ superficie de carrera. Referencia: la IA a ritmo real hace 97,9 s.
 
 ## Siguiente (en este orden)
 
-1. **Frenada con la memoria del pedal límite y vueltas a 100 km/h** (V50, V51): con el comando de arriba. Luego
-   `--brake-slip-hold 0.75` (una variable por sesión) y, con el mejor ajuste, 140 y 150 km/h. Las sesiones de
-   solo frenada no necesitan la banda de 60 km/h de las de aceleración. Datos de partida (radio efectivo
-   0,274 m): sin bloqueo el deslizamiento delantero va al 10-15 % con pedal 0,6-0,95; con bloqueo
-   (80-110 %) la deceleración baja a 11,9 m/s² frente a 12,5-12,7 con el 20-50 %.
+1. **Frenada desde 140 km/h con vueltas a 100 km/h y la receta de A2.0** (V50-V52): con el comando de arriba.
+   Luego `--brake-slip-hold 0.75` (una variable por sesión) y el techo a 150 km/h. La banda de 60 km/h solo
+   vale para las sesiones de aceleración y, a 130 km/h, para que la frenada caiga en la recta de 3363 m.
+   Datos de partida (radio efectivo 0,274 m): sin bloqueo el deslizamiento delantero va al 10-15 % con pedal
+   0,6-0,95; con bloqueo (80-110 %) la deceleración baja a 11,9 m/s² frente a 12,5-12,7 con el 20-50 %.
+   Comprobar si las tablas de A1 de `perfil_velocidad.py` descuentan la pendiente (V52).
 2. **Tope de velocidad en la anticipación del volante** (`--steer-ff-cap-kmh`, por defecto 0 = sin
    tope; necesita el visto bueno del usuario): factor 1 + 0,003 · v² con v limitada a 100 km/h. Es una hipótesis (V41), que se juzga solo
    por si la línea `a1mu9b` cumple el criterio. También sirve para bandas por encima de 125 km/h.
