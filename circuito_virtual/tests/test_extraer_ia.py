@@ -6,7 +6,7 @@ from circuito_virtual.src import extraer_ia as ei
 
 
 def _vuelta(num, tiempo, n=3600):
-    pts = [{"d": float(i), "pos": [float(i), 5.0, 1.0], "spd": 30.0, "thr": 255, "brk": 0, "gear": 3, "rpm": 6000, "lacc": [1.0, 0.0, -2.0]} for i in range(n)]
+    pts = [{"d": float(i), "pos": [float(i), 5.0, 1.0], "spd": 30.0, "thr": 255, "brk": 0, "gear": 3, "rpm": 6000, "lacc": [1.0, 0.0, -2.0], "avel": [0.0, 0.05, 0.0]} for i in range(n)]
     return {"lap_num": num, "lap_time": tiempo, "points": pts}
 
 

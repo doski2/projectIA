@@ -163,6 +163,8 @@ con el teacher a 30 km/h, sin tocar `PCARS2-AI`.
 
 - **Éxito:** los dos bordes medidos en ≥ 90 % de la vuelta con una incertidumbre ≤ 0,3 m.
 
-## A2 con las vueltas de la IA a ritmo real (propuesto, 2026-11-01)
+## A2 con las vueltas de la IA a ritmo real (hecho, 2026-11-01, V12-V13)
 
 Con `pistas/sugo_gp/ia_ritmo_real.json` (V11) se puede cerrar lo que A2 no podía: **predecir el tiempo de una vuelta a ritmo real** (97,7 s) y el perfil de velocidad (criterio: error < 3 % y perfil correlado). Pasos: (1) extender `a_acel(v)` hasta 184 km/h con la envolvente de la aceleración longitudinal de las 14 vueltas (el gas de la IA no sirve para saber cuándo iba a fondo, así que se toma el percentil alto por tramo de velocidad y marcha, con la pendiente corregida); (2) el límite lateral `μ + k·v²` con la envolvente de `a_lat` frente a v² de la IA (a 120-150 km/h llega a 11,9 m/s²: ajusta `k` si resulta positiva, y `μ` queda en la cota de D21 mientras no haya datos por encima); (3) la frenada con la envolvente del freno de la IA (0-172) y la deceleración medida; (4) predecir la vuelta con `solve()` sobre la línea de la propia IA (mediana de las 14 vueltas) y comparar con 97,7 s y con el perfil v(s), separando algunas vueltas para validar. Todo sin juego.
+
+- **Resultado:** `src/ajuste_ia.py`. Con las envolventes de la IA (V13) el solver predice 82,4 s sin calibrar y **97,90 s con un factor de ritmo f = 0,697** frente a 98,06 s reales en las 4 vueltas de prueba (−0,2 %); correlación de v(s) 0,938 y 11,0 km/h de error cuadrático. Criterio de A2 cumplido para Sugo con una IA; falta A3 (segunda pista) y probar con vueltas del propio agente. Las `lacc` del archivo de la IA no están en m/s² (V12).

@@ -5,6 +5,7 @@ de **vueltas a ritmo real** que hay (14 vueltas consistentes de 97,7-98,3 s, 135
 posición (x, z), altura y, velocidad, freno, marcha, régimen y las aceleraciones locales (eje 0 lateral, eje 2 longitudinal con el signo del juego, H1/H52).
 
 El campo de gas de la IA vale 255 en todos los puntos, así que **no sirve** para saber cuándo iba a fondo; el freno sí varía (0-172).
+Las aceleraciones locales (`lacc`) de este archivo **no están en m/s²**: la correlación con v · guiñada es 0,986 pero la pendiente es 0,459 (en los logs actuales es 0,99, H52). Se guarda también la guiñada (`yaw`, eje 1 de la velocidad angular) para calcular el lateral real como |v · yaw|; la aceleración longitudinal se obtiene de la derivada de la velocidad.
 
 Uso:
     python circuito_virtual/src/extraer_ia.py [--commit 2c972a4] [--salida circuito_virtual/pistas/sugo_gp/ia_ritmo_real.json]
@@ -37,9 +38,10 @@ def extraer(datos: Dict, max_vuelta_s: float = MAX_VUELTA_S) -> Dict:
             "z": [round(p["pos"][2], 2) for p in pts], "v_ms": [round(p["spd"], 2) for p in pts], "freno": [int(p["brk"]) for p in pts],
             "marcha": [int(p["gear"]) for p in pts], "rpm": [int(p["rpm"]) for p in pts],
             "a_lat": [round(p["lacc"][0], 2) for p in pts], "a_long": [round(p["lacc"][2], 2) for p in pts],
+            "yaw": [round(p["avel"][1], 4) for p in pts],
         })
     return {"pista": str(datos.get("track_name", "")).split("\x00")[0].strip(), "longitud_m": datos["track_length"],
-            "origen": "sugo_ai.json del primer commit (IA a ritmo real)", "nota": "el gas de la IA vale 255 siempre: no usar", "vueltas": vueltas}
+            "origen": "sugo_ai.json del primer commit (IA a ritmo real)", "nota": "el gas de la IA vale 255 siempre: no usar. a_lat y a_long (lacc) NO están en m/s²: valen ≈ 0,46 de v·yaw; la aceleración lateral real es |v·yaw| y la longitudinal sale de la derivada de la velocidad", "vueltas": vueltas}
 
 
 def main(argv=None) -> int:

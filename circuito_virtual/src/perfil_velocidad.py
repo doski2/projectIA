@@ -88,6 +88,26 @@ class Track:
         return float(self.grade[int(d) % self.n])
 
     @staticmethod
+    def from_arrays(x: np.ndarray, z: np.ndarray, y: np.ndarray, length_m: float) -> "Track":
+        """Pista a partir de una línea muestreada a un punto por metro (cerrada): |κ| suavizada ±7 m como el teacher y pendiente ±15 m."""
+        n = len(x)
+
+        def suave(a: np.ndarray, sigma: float = 3.0) -> np.ndarray:  # el ruido de posición (centímetros) se dispara al derivar dos veces
+            half = int(4 * sigma)
+            k = np.exp(-0.5 * (np.arange(-half, half + 1) / sigma) ** 2)
+            return np.convolve(np.concatenate([a[-half:], a, a[:half]]), k / k.sum(), mode="valid")
+
+        x, z = suave(x), suave(z)
+        dx, dz = np.gradient(x), np.gradient(z)
+        ddx, ddz = np.gradient(dx), np.gradient(dz)
+        kap = np.abs((dx * ddz - dz * ddx) / np.maximum((dx * dx + dz * dz) ** 1.5, 1e-9))
+        kernel = np.ones(2 * KAPPA_HALF_M + 1) / (2 * KAPPA_HALF_M + 1)
+        kap = np.convolve(np.concatenate([kap[-KAPPA_HALF_M:], kap, kap[:KAPPA_HALF_M]]), kernel, mode="valid")
+        h = GRADE_HALF_M
+        grade = (np.roll(y, -h) - np.roll(y, h)) / (2.0 * h)
+        return Track(float(length_m), kap, grade)
+
+    @staticmethod
     def from_reference(path: Path = SUGO_REF) -> "Track":
         from reference_recorder import ReferenceLine  # noqa: PLC0415
 

@@ -13,7 +13,7 @@ a1_acel_g3_suave_60 --laps 3`
 Éxito: llega a 135 km/h sin corte por CTE en 3300-3345 m y el volante en ±0,05 en la recta. Si no
 basta: `--steer-ff-gain 0.003`, y después un corte de CTE más ancho solo en recta.
 
-1b. **A2 con la IA a ritmo real (V11):** extender `a_acel(v)` hasta 184 km/h con la envolvente de las 14 vueltas, ajustar `k`, y predecir los 97,7 s y el perfil de velocidad (< 3 %). Sin juego; plan en `docs/PLAN.md`.
+1b. ~~**A2 con la IA a ritmo real**~~ **Hecho (V12, V13):** f = 0,697 → error −0,2 % y correlación 0,94 con 4 vueltas de prueba. Siguiente: que el agente ruede una vuelta completa sobre la línea suavizada y comparar con el solver, y A3 (segunda pista).
 2. ~~**D0:**~~ **Hecho (V7, 2026-11-01):** coordenadas (s, n), `src/mapa.py`,
 
    `pistas/sugo_gp/mapa.json`; ida y vuelta con error < 0,3 cm.

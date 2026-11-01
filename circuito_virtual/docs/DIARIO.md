@@ -2,6 +2,8 @@
 
 Lo más reciente arriba. Historia anterior en `experimental/docs/DIARIO.md`.
 
+- **2026-11-01 — A2 con la IA a ritmo real hecho (V12, V13).** Las `lacc` del archivo de la IA valen 0,46 de lo real: se usan la guiñada y la derivada de la velocidad. Con ellas el solver predice 82,4 s sin calibrar (−15,8 %: la IA va a ≈ 70 % de su envolvente) y **97,90 s con un factor de ritmo f = 0,697** frente a 98,06 s (−0,2 %), correlación de v(s) 0,94. La aceleración y la frenada de la IA coinciden con las de A1. El lateral de la IA a 85 km/h (≈ 19,5 m/s²) supera la cota de D21. 43 tests en `circuito_virtual`.
+
 - **2026-11-01 — Más datos en los logs y la IA a ritmo real (V10, V11).** El usuario sospecha que hay más sobre los márgenes en todos los logs y acierta: 59 logs más con terreno (sin posición; se usan con el CTE) elevan los bordes medidos al 15,4 % (izquierda) y 6,8 % (derecha) de la vuelta, con asfalto comprobado de 5,24 m de anchura mediana. Además, **la referencia original de `sugo_ai.json` era una IA a ritmo real (97,7 s, 14 vueltas, hasta 184 km/h) y está en el historial de git**; exportada a `pistas/sugo_gp/ia_ritmo_real.json`. Va por casi la misma línea que la nuestra (±2 m) y con lateral máximo de 11,9 m/s². Sirve para validar A2. 37 tests.
 
 - **2026-11-01 — D1a hecho (V8, V9).** `src/bordes_logs.py` recorre los 47 logs de esquema 2 y saca
