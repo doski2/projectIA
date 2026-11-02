@@ -76,3 +76,20 @@ def test_el_resumen_completo_corre_sobre_un_log_escrito_en_disco(tmp_path, capsy
     assert rs.main([str(log), "--previsto", "100.0"]) == 0
     out = capsys.readouterr().out
     assert "Criterio de volante" in out and "Vueltas" in out and "Terreno" in out
+
+
+def test_el_criterio_se_evalua_por_parejas_de_vueltas_seguidas(tmp_path):
+    ticks = []
+    for lap in (1, 2, 3):
+        for i in range(0, 3560, 5):
+            tk = _tick(lap * 1000 + i / 30.0, 2, 90.0, lap=lap, d=float(i))
+            tk["signed_cte"] = 3.0 if lap == 3 else 0.2
+            tk["timing"] = {"game_time_s": 100.0 + lap}
+            ticks.append(tk)
+    log = tmp_path / "log.jsonl"
+    log.write_text(chr(10).join(json.dumps(x) for x in [{"type": "session", "log_schema": 3}] + ticks) + chr(10), encoding="utf-8")
+    vs = rs.vueltas(rs.cargar_ticks(log))
+    parejas = rs.evaluar_parejas(log, vs)
+    assert [p["vueltas"] for p in parejas] == [(1, 2), (2, 3)]
+    assert not any("curvas cte_max" in f for f in parejas[0]["fallan"])  # las vueltas 1 y 2 tienen CTE 0,2 m
+    assert any("curvas cte_max" in f for f in parejas[1]["fallan"])  # la 3 tiene 3 m y arrastra a su pareja

@@ -158,12 +158,54 @@ def terreno(ticks: Sequence[dict]) -> Dict:
     return {"ticks": int(len(terr)), "alguna_rueda_fuera": int(fuera.any(axis=1).sum()), "dos_o_mas": int((fuera.sum(axis=1) >= 2).sum())}
 
 
+def evaluar_parejas(ruta: Path, vs: Sequence[Dict]) -> List[Dict]:
+    """Criterio de volante (V19) de cada pareja de vueltas completas **seguidas**: «2 vueltas completas seguidas» es lo que pide el criterio, así que una sola vuelta mala no invalida las demás parejas.
+
+    Escribe en un archivo temporal la cabecera y los ticks de las dos vueltas y le pasa `analisis_volante.analizar`."""
+    import tempfile  # noqa: PLC0415
+
+    with open(ruta, encoding="utf-8") as fh:
+        lineas = fh.readlines()
+    cabecera = next((l for l in lineas if '"type": "session"' in l), "")
+    por_vuelta: Dict[int, List[str]] = {}
+    for l in lineas:
+        if '"type": "tick"' in l:
+            por_vuelta.setdefault(int(json.loads(l)["lap"]), []).append(l)
+    out = []
+    for a, b in zip(vs, vs[1:]):
+        if b["vuelta"] != a["vuelta"] + 1:
+            continue
+        with tempfile.TemporaryDirectory() as tmp:
+            sub = Path(tmp) / "pareja.jsonl"
+            sub.write_text(cabecera + "".join(por_vuelta.get(a["vuelta"], []) + por_vuelta.get(b["vuelta"], [])), encoding="utf-8")
+            res = av.analizar(sub)
+        filas = evaluar(res)
+        out.append({"vueltas": (a["vuelta"], b["vuelta"]), "cumple": all(f[4] for f in filas), "fallan": [f"{f[0]} {f[1]} {f[2]:.3f} > {f[3]:g}" for f in filas if not f[4] and f[2] is not None]})
+    return out
+
+
 def resumen(ruta: Path, previsto_s: Optional[float] = None, n_vueltas: int = 2) -> Dict:
     ticks = cargar_ticks(ruta)
     vs = vueltas(ticks)
     validas = [v["vuelta"] for v in vs][:n_vueltas]
-    return {"ruta": str(ruta), "vueltas": vs, "previsto_s": previsto_s, "volante": av.analizar(ruta), "tramos": tramos_fuera(ticks, validas),
+    # los tramos fuera de criterio se listan de **todas** las vueltas completas: el criterio de volante (`av.analizar`) también las cuenta todas y un desvío de la 4.ª vuelta no debe quedar sin localizar
+    return {"ruta": str(ruta), "vueltas": vs, "previsto_s": previsto_s, "volante": av.analizar(ruta), "tramos": tramos_fuera(ticks, [v["vuelta"] for v in vs]), "parejas": evaluar_parejas(ruta, vs),
             "frenos": frenos(ticks, validas), "cambios": cambios(ticks, validas), "terreno": terreno(ticks)}
+
+
+def _catalogo(ruta: Path):
+    """Catálogo numerado de curvas de la pista del log (`circuito_virtual/pistas/<pista>/curvas.json`) o None."""
+    try:
+        import sys  # noqa: PLC0415
+
+        repo = Path(__file__).resolve().parents[2]
+        if str(repo) not in sys.path:
+            sys.path.insert(0, str(repo))
+        from circuito_virtual.src.curvas import catalogo_de_log  # noqa: PLC0415
+
+        return catalogo_de_log(ruta)
+    except Exception:  # sin catálogo el resumen sale igual
+        return None
 
 
 def _imprimir(r: Dict) -> None:
@@ -181,10 +223,16 @@ def _imprimir(r: Dict) -> None:
         txt = "sin datos" if valor is None else f"{valor:.3f}"
         print(f"  {'OK' if cumple else 'NO'}  {ambito:<6} {metrica:<17} {txt:>9}  (≤ {limite:g})")
     print(f"  => {'CUMPLE: se puede subir de banda' if ok else 'NO CUMPLE'}")
+    if r.get("parejas"):
+        print("  Por parejas de vueltas seguidas (el criterio pide dos seguidas):")
+        for q in r["parejas"]:
+            print(f"    vueltas {q['vueltas'][0]}-{q['vueltas'][1]}: {'CUMPLE' if q['cumple'] else 'no cumple (' + '; '.join(q['fallan']) + ')'}")
     if r["tramos"]:
         print(f"\nTramos con |CTE| > {CTE_ALTO_M:g} m o deriva > {DERIVA_ALTA_DEG:g}°:")
+        cat = _catalogo(Path(r["ruta"]))
         for t in r["tramos"]:
-            print(f"  vuelta {t['vuelta']}: {t['d0']:5.0f}-{t['d1']:5.0f} m  |CTE| {t['cte_max']:.2f}  deriva {t['deriva_max']:.1f}°  {t['v_kmh']:.0f} km/h  marcha {t['marcha']}  lateral {t['lateral_max']:.1f}")
+            curva = f"  [{cat.etiqueta_tramo(t['d0'], t['d1'])}]" if cat else ""
+            print(f"  vuelta {t['vuelta']}: {t['d0']:5.0f}-{t['d1']:5.0f} m{curva}  |CTE| {t['cte_max']:.2f}  deriva {t['deriva_max']:.1f}°  {t['v_kmh']:.0f} km/h  marcha {t['marcha']}  lateral {t['lateral_max']:.1f}")
     f = r["frenos"]
     if f:
         print(f"\nFrenos: pedal máx. {f['pedal_max']:.2f}, p99 {f['pedal_p99']:.2f}, {f['ticks_con_freno']} ticks con freno; ABS encendido en {f['abs_ticks']} ticks; "

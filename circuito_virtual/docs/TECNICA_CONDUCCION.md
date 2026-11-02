@@ -75,7 +75,7 @@ Decisión pendiente (a discutir con el usuario): empezar por la versión «PCA»
 | --- | --- | --- | --- |
 | F1 | **IMPLEMENTADA (V68, §8; sin probar en el juego).** **Frenada de entrada continua y a capacidad real**: deceleración supuesta continua entre recta y curva (sin el salto 8 → 4), basada en el círculo; punto de frenada sin margen de 1,5 m/s y sin tiempo muerto; límite por deslizamiento en vez de topes de pedal | Es la brecha mayor (deceleración al 50-70 %, 68 % del freno dentro de la curva, tiempo muerto 0,27 s) | Tiempo muerto ≤ 0,1 s; deceleración media en las frenadas de recta ≥ 9 m/s²; sin salto de la consigna > 2 km/h por metro; energía de frenada con > 4 m/s² laterales ≤ 40 %; tiempo de vuelta menor que el de `140704Z`; \|CTE\| y deriva como en esa sesión |
 | F2 | **Suelta con presupuesto del círculo** (trail controlado) | Cierra la fase 4 | La velocidad mínima coincide con el vértice (± 20 m) y el lateral no sube de 14,6 |
-| F3 | **Tope del gas por el círculo** | Fase 6; quedó fuera de V65 | Sin deriva > 4° a la salida; gas monótono |
+| F3 | **HECHO (V72-V73, `--exit-circle 14.6`).** **Tope del gas por el círculo** en la salida con el lateral medido | C11 salía con 0,93-1,00 de gas con 11-12 m/s² laterales | **Cumplido:** C11 de 2,1-2,24 a 1,39-1,71 m; casi todas las curvas bajan; +0,23 s por vuelta |
 | F4 | **Perfil de velocidad planificado** (solver de `circuito_virtual` con las tablas de A1) como referencia del teacher en lugar de la parábola con constantes | Unifica 4, 5 y 6: da el freno, el vértice y el gas con el mismo presupuesto | Consigna y perfil del solver difieren < 3 km/h en las frenadas |
 | F5 | **Puntos de frenada adaptativos por curva**: retrasar el punto vuelta a vuelta hasta el límite y retroceder | Fuente 9 | Convergencia en ≤ 5 vueltas sin salirse |
 | F6 | **Cambios de marcha respecto a la frenada**: ver cuándo caen las bajadas y cuánto cuestan | Fuente 10 | Ninguna bajada en apoyo con > 6 m/s² laterales |
@@ -201,10 +201,10 @@ Se juzga con `resumen_sesion.py` y `pedales_sesion.py <log> --vueltas 2,3,4 --ev
 
 ### 8.4 Sesión F1-2 (después de F1-1): deceleración a capacidad real
 
-Solo si F1-1 sale bien: `--brake-decel-straight 10` y el limitador de deslizamiento (`--brake-slip-limit 0.25 --brake-slip-hold 0.85`, ya cerrado en V55). Objetivo: deceleración mediana ≥ 7 m/s², ≥ 25 % del tiempo de freno con ≥ 10 m/s², pedal máx. ≥ 0,8, sin bloqueo de ruedas (rps de cada eje frente al otro), mismo tiempo o menor. Comando:
+Con el círculo 10 y 6 vueltas (más muestras de vueltas frías; V70): `--brake-decel-straight 10` y el limitador de deslizamiento (`--brake-slip-limit 0.25 --brake-slip-hold 0.85`, ya cerrado en V55). Objetivo: deceleración mediana ≥ 7 m/s², ≥ 25 % del tiempo de freno con ≥ 10 m/s², pedal máx. ≥ 0,8, sin bloqueo de ruedas (rps de cada eje frente al otro), mismo tiempo o menor. Comando:
 
 ```text
-C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --teacher-only --speed-band 125 --max-gear 3 --lat-accel-limit 9 --steer-ff-gain 0.003 --steer-ff-v0-kmh 0 --steer-preview-s 0.3 --steer-slip-gain 5 --lat-gain-v0-kmh 60 --throttle-max 1.0 --brake-decel-straight 10 --brake-overspeed-straight-ms 2.5 --brake-slip-limit 0.25 --brake-slip-hold 0.85 --pedal-technique --brake-profile --brake-circle 11 --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_smooth.json --experiment a2_suave_125_g3_lat9_slip5_v60_ff0_pv03_gas1_fr10_perfil_c11_slip_l4 --laps 4
+C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --teacher-only --speed-band 125 --max-gear 3 --lat-accel-limit 9 --steer-ff-gain 0.003 --steer-ff-v0-kmh 0 --steer-preview-s 0.3 --steer-slip-gain 5 --lat-gain-v0-kmh 60 --throttle-max 1.0 --brake-decel-straight 10 --brake-overspeed-straight-ms 2.5 --brake-slip-limit 0.25 --brake-slip-hold 0.85 --pedal-technique --brake-profile --brake-circle 10 --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_smooth.json --experiment a2_suave_125_g3_lat9_slip5_v60_ff0_pv03_gas1_fr10_perfil_c10_slip_l6 --laps 6
 ```
 
 ### 8.5 Qué vigilar y qué puede salir mal
@@ -213,3 +213,58 @@ C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\exper
 - **Si frena demasiado pronto/poco**: el mando es `--brake-circle` (más alto = frena más tarde y más dentro de la curva) y, en código, `brake_profile_offset_ms`.
 - **Si el volante sufre al frenar girando** (lazo del volante): comparar \|CTE\| y deriva en las frenadas con las de `140704Z`.
 - **El juguete no modela**: agarre, subviraje, cambios de marcha, transferencia de peso. Lo que dice sobre el tiempo de vuelta es solo un indicio.
+
+### 8.6 Resultado de F1-1 (`160048Z`, V69) y siguiente paso
+
+| Criterio | `140704Z` | Objetivo F1-1 | F1-1 |
+| --- | --- | --- | --- |
+| Tiempo muerto antes de frenar | 0,28 s | ≤ 0,1 s | **0,03 s** |
+| Energía de frenada con > 4 m/s² laterales | 68 % | ≤ 55 % | **55 %** |
+| Deceleración máxima | 10,0 m/s² | ≥ 8 | **12,5** (pedal 0,79; con `a_b` 8 se esperaba 0,5-0,6) |
+| Rebotes de gas / inversiones | 2 de 8 / 24 | 0 / ≤ 11 | 6 de 16 / 31 (no) |
+| Tiempo de vuelta | 120,1 s | ≤ 120,4 s | 120,65 s (no) |
+| V19 | cumple | cumple | no (CTE 2,07 m; deriva 4,5°; rectas 0,268) |
+
+Dos clases de frenada: las **6 de recta** salen como en las fuentes (pedal alto al principio, pico al 13-28 % de la frenada, 16-37 % de la energía con el coche girando); las **10 cortas encadenadas** entre curvas empiezan ya girando con 3-10 m/s² laterales, de ahí los rebotes. El lateral sube (p99 12,4-12,8; hasta 65 ticks por vuelta > 13 m/s²) y con él el \|CTE\| y la deriva en las S.
+
+**Por qué el círculo 10:** el perfil estima el lateral con v² · κ de la línea (≈ 10 m/s² en el límite con `--lat-accel-limit 9` y offset 1,0); el coche hace 14,0-14,8, ≈ 1,45 veces. En unidades de la línea el círculo real es 14,6 / 1,45 ≈ 10. Con 11 la combinada de 2397 m llegó a √(11,5² + 10,5²) = 15,6 m/s².
+Orden: F1-1b (círculo 10) → F1-2 (`a_b` 10 + limitador de deslizamiento) → después `--lat-accel-limit 10` (sesión B de `PENDIENTE.md`) con la ley de frenada que quede.
+
+## 9. Curvas numeradas de Sugo (V70)
+
+Catálogo en `circuito_virtual/pistas/sugo_gp/curvas.json` (regenerar con `python circuito_virtual/src/curvas.py`). Los números salen de la curvatura del eje del mapa, desde la línea de meta en el sentido de la marcha, y se ven en el informe HTML de cada sesión, en `resumen_sesion.py` (`[C#]`) y en `pedales_sesion.py --eventos` (columna `curva`). «Ese con» marca dos curvas de sentido contrario a menos de 100 m una de otra.
+
+| Curva | Sentido | Ápice (m) | Tramo (m) | Radio mín. | Tipo | Ese con |
+| --- | --- | --- | --- | --- | --- | --- |
+| C1 | derecha | 259 | 231-312 | 44 m | radio constante | |
+| C2 | derecha | 377 | 324-434 | 46 m | radio creciente | C3 |
+| C3 | izquierda | 530 | 501-607 | 52 m | radio creciente | C2 |
+| C4 | izquierda | 764 | 710-805 | 31 m | radio constante | |
+| C5 | izquierda | 871 | 833-887 | 53 m | radio constante | C6 |
+| C6 | derecha | 922 | 907-941 | 51 m | radio creciente | C5 |
+| C7 | derecha | 1145 | 1125-1201 | 44 m | radio creciente | |
+| C8 | derecha | 1308 | 1252-1368 | 36 m | radio constante | |
+| C9 | derecha | 2040 | 2024-2124 | 34 m | radio constante | |
+| C10 | izquierda | 2313 | 2254-2349 | 64 m | radio constante | |
+| C11 | izquierda | 2427 | 2404-2491 | 64 m | radio creciente | |
+| C12 | derecha | 2736 | 2656-2787 | 83 m | radio constante | |
+| C13 | derecha | 2859 | 2787-2947 | 94 m | radio constante | |
+| C14 | derecha | 2994 | 2947-3113 | 106 m | radio creciente | |
+
+Las **S** del circuito, en este catálogo: C2-C3 (377 → 530 m) y C5-C6 (871 → 922 m); C4-C5-C6 (764-922 m) es la sucesión izquierda-izquierda-derecha donde la vuelta 4 de `161918Z` rompió la trayectoria. Las zonas rápidas con error de seguimiento constante son C11 (2427 m), C13 (2859 m) y C14 (2994 m).
+
+### 8.7 Resultado de F1-1b (`161918Z`, V70)
+
+Círculo 10: energía de frenada con el coche girando 49 % (55 % con 11), tiempo muerto 0,03 s, pedal 0,80; tiempo 120,6 s (no mejora) y V19 no se cumple por la S de C4-C6 en la vuelta 4 (\|CTE\| 2,56 m, lateral 15,0 en C5) y por C14 (2,0 m constante). Los dos fallos son del lazo del volante y no de la frenada (V64, V70). El siguiente paso de frenada es F1-2 (arriba, con círculo 10 y 6 vueltas).
+
+### 8.8 Resultado de F1-2 (`170252Z`, V71)
+
+La frenada de F1 cumple sus objetivos: deceleración mediana 6,8-7,1 m/s² (5,4 con la técnica de V65), 24-27 % del tiempo de freno con ≥ 10 m/s² (0 %), pedal máx. 0,93, tiempo muerto 0,02 s, 47 % de la energía girando (68 %), estable en 6 vueltas. El tiempo de vuelta no cambia (120,45-120,53 s): por curva, F1-2 y `140704Z` difieren +0,28 s en total, y las rectas están en el tope de la banda. **El tiempo ya no depende de cómo se frena** sino de la velocidad de paso en curva (`--lat-accel-limit`; en C4, R 31 m, el coche hace 16-17 m/s² con el límite 9), del tope de la banda y de las salidas. Quedan en rojo C11 (gas a fondo en la salida con 11-12 m/s² laterales: F3/F10) y C14/C13 (error de seguimiento constante a más de 100 km/h: `--steer-ff-cap-kmh 100`).
+
+### 8.9 Resultado del tope de la anticipación (`174237Z`, V72)
+
+`--steer-ff-cap-kmh 100` baja C14 de 2,0 a 0,95 m y C13 de 1,65 a 1,2 m y devuelve las rectas al criterio (cte_rms 0,212); no mueve la frenada ni el tiempo (120,55 s). Queda C11 (gas a fondo con 11-12 m/s² laterales), que corrige F3 (`--exit-circle 14.6`, tope del gas = `gas_max · √(1 − (a_lat / R)²)`). Aviso nuevo: con el perfil de frenada el coche pisa fuera en C4 (R 31 m) unos 25 ticks por vuelta.
+
+### 8.10 Resultado del tope del gas por el círculo (`181618Z`, V73)
+
+C11 baja de 2,1-2,24 a 1,39-1,71 m y casi todas las curvas bajan (el gas en la salida es más suave); cuesta +0,23 s por vuelta. La pareja de vueltas 3-4 cumple V19 (la primera con el perfil de frenada); queda la deriva de C5 en las vueltas 1-2 (4,0-4,8° en el cambio izquierda-derecha de la S). El tiempo (120,8 s) no es mejor que el de la receta de partida: la técnica da una conducción limpia, no más rápida; el siguiente paso para ganar tiempo es la velocidad de paso en curva (`--lat-accel-limit 10`).

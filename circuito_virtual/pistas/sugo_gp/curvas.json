@@ -1,0 +1,161 @@
+{
+ "pista": "sugo_gp",
+ "longitud_m": 3567.01,
+ "origen": "circuito_virtual/src/curvas.py (V70)",
+ "curvas": [
+  {
+   "id": 1,
+   "sentido": "dcha",
+   "s_ini": 231.1,
+   "s_apice": 259.1,
+   "s_fin": 312.1,
+   "radio_min_m": 44.3,
+   "largo_m": 81.0,
+   "tipo": "radio constante",
+   "ese_con": null
+  },
+  {
+   "id": 2,
+   "sentido": "dcha",
+   "s_ini": 324.1,
+   "s_apice": 377.1,
+   "s_fin": 434.1,
+   "radio_min_m": 45.7,
+   "largo_m": 110.0,
+   "tipo": "radio creciente",
+   "ese_con": 3
+  },
+  {
+   "id": 3,
+   "sentido": "izq",
+   "s_ini": 501.1,
+   "s_apice": 530.2,
+   "s_fin": 607.2,
+   "radio_min_m": 52.5,
+   "largo_m": 106.0,
+   "tipo": "radio creciente",
+   "ese_con": 2
+  },
+  {
+   "id": 4,
+   "sentido": "izq",
+   "s_ini": 710.2,
+   "s_apice": 764.2,
+   "s_fin": 805.2,
+   "radio_min_m": 31.4,
+   "largo_m": 95.0,
+   "tipo": "radio constante",
+   "ese_con": null
+  },
+  {
+   "id": 5,
+   "sentido": "izq",
+   "s_ini": 833.2,
+   "s_apice": 871.2,
+   "s_fin": 887.3,
+   "radio_min_m": 52.6,
+   "largo_m": 54.0,
+   "tipo": "radio constante",
+   "ese_con": 6
+  },
+  {
+   "id": 6,
+   "sentido": "dcha",
+   "s_ini": 907.3,
+   "s_apice": 922.3,
+   "s_fin": 941.3,
+   "radio_min_m": 51.4,
+   "largo_m": 34.0,
+   "tipo": "radio creciente",
+   "ese_con": 5
+  },
+  {
+   "id": 7,
+   "sentido": "dcha",
+   "s_ini": 1125.3,
+   "s_apice": 1145.3,
+   "s_fin": 1201.3,
+   "radio_min_m": 44.1,
+   "largo_m": 76.0,
+   "tipo": "radio creciente",
+   "ese_con": null
+  },
+  {
+   "id": 8,
+   "sentido": "dcha",
+   "s_ini": 1252.4,
+   "s_apice": 1308.4,
+   "s_fin": 1368.4,
+   "radio_min_m": 36.0,
+   "largo_m": 116.0,
+   "tipo": "radio constante",
+   "ese_con": null
+  },
+  {
+   "id": 9,
+   "sentido": "dcha",
+   "s_ini": 2023.6,
+   "s_apice": 2039.6,
+   "s_fin": 2123.6,
+   "radio_min_m": 33.7,
+   "largo_m": 100.0,
+   "tipo": "radio constante",
+   "ese_con": null
+  },
+  {
+   "id": 10,
+   "sentido": "izq",
+   "s_ini": 2253.6,
+   "s_apice": 2312.7,
+   "s_fin": 2348.7,
+   "radio_min_m": 63.6,
+   "largo_m": 95.0,
+   "tipo": "radio constante",
+   "ese_con": null
+  },
+  {
+   "id": 11,
+   "sentido": "izq",
+   "s_ini": 2403.7,
+   "s_apice": 2426.7,
+   "s_fin": 2490.7,
+   "radio_min_m": 64.1,
+   "largo_m": 87.0,
+   "tipo": "radio creciente",
+   "ese_con": null
+  },
+  {
+   "id": 12,
+   "sentido": "dcha",
+   "s_ini": 2655.8,
+   "s_apice": 2735.8,
+   "s_fin": 2786.8,
+   "radio_min_m": 82.9,
+   "largo_m": 131.0,
+   "tipo": "radio constante",
+   "ese_con": null
+  },
+  {
+   "id": 13,
+   "sentido": "dcha",
+   "s_ini": 2786.8,
+   "s_apice": 2858.8,
+   "s_fin": 2946.8,
+   "radio_min_m": 93.6,
+   "largo_m": 160.0,
+   "tipo": "radio constante",
+   "ese_con": null
+  },
+  {
+   "id": 14,
+   "sentido": "dcha",
+   "s_ini": 2946.8,
+   "s_apice": 2993.8,
+   "s_fin": 3112.9,
+   "radio_min_m": 105.7,
+   "largo_m": 166.0,
+   "tipo": "radio creciente",
+   "ese_con": null
+  }
+ ]
+}

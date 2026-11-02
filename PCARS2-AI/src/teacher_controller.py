@@ -68,6 +68,14 @@ PEDAL_TICK_S = 1.0 / 60.0
 PEDAL_DECEL_TABLE = ((0.0, 0.0), (3.5, 0.11), (6.2, 0.30), (8.6, 0.475), (9.7, 0.625), (11.65, 0.85), (13.0, 1.0))
 
 
+def exit_gas_cap(lat_accel: float, circle: float, throttle_max: float, floor: float) -> float:
+    """Tope del gas en la salida de curva por el círculo de adherencia (V72, F3): `throttle_max · √(1 − (lateral / círculo)²)`, nunca por debajo de `floor` (el gas que mantiene la velocidad)."""
+    if circle <= 0.0:
+        return throttle_max
+    frac = min(1.0, abs(lat_accel) / circle)
+    return max(floor, throttle_max * math.sqrt(1.0 - frac * frac))
+
+
 def pedal_for_decel(decel: float) -> float:
     """Pedal de freno (0-1) que da `decel` m/s² en recta según `PEDAL_DECEL_TABLE` (interpolación lineal)."""
     if decel <= PEDAL_DECEL_TABLE[0][0]:
@@ -186,6 +194,11 @@ class TeacherConfig:
     brake_profile_gain: float = 0.12
     brake_profile_offset_ms: float = 1.0  # el perfil se eleva esta velocidad (m/s): la ley de siempre toma las curvas por encima del límite (frena al pasar un margen de 1,5 m/s); con 1,0 el coche de juguete entra a las curvas igual que ella y tarda 0,2 s más (con 1,5 entraba 1 m/s más rápido y tardaba 1,2 s menos)
     brake_profile_lift_drop_ms: float = 1.5  # con perfil, una curva por delante cuenta si su límite está al menos esto por debajo de la velocidad (los baches de la curvatura de Sugo hacen mínimos de ≈ 3 m/s)
+    # Tope del gas en la salida por el círculo de adherencia (V72, F3), opt-in y solo con `pedal_technique`: en «exit» el gas no pasa de `throttle_max · √(1 − (a_lat / exit_circle)²)` con la aceleración
+    # lateral **medida** (suavizada), y nunca baja de `exit_circle_floor`. A 11,7 m/s² con círculo 14,6 el tope es 0,60 (la sesión 170252Z salía a 0,93-1,00 en C11). 0 = sin tope.
+    exit_circle: float = 0.0
+    exit_circle_floor: float = 0.3
+    exit_lat_alpha: float = 0.3  # suavizado (EMA por tick) del lateral medido
     brake_on_ms2: float = 0.8  # deceleración necesaria a partir de la cual empieza a frenar (por debajo, gas cortado y sin freno)
     trail_offset_ms: float = 1.0  # la suelta del freno termina con este exceso sobre la consigna (0 = hasta llegar a la consigna; la ley de siempre soltaba a 1,5; con 1,0 el coche de juguete no pierde tiempo)
     exit_slew_per_s: float = 1.5  # subida máxima del gas por segundo desde el vértice (el gas llega a fondo en ≈ 0,7 s)
@@ -207,6 +220,7 @@ class TeachingController:
         self._pi_axis: Optional[float] = None  # eje de pedal pedido por el PI en este tick (None = no pasó por el PI)
         self._phase = "drive"  # técnica de pedales (V65): "drive", "entry" o "exit"
         self._exit_target = 0.0  # consigna que no baja durante «exit»
+        self._lat_ema = 0.0  # |aceleración lateral| medida y suavizada (tope del gas por el círculo, V72)
 
     def _lateral_speed_limits(self) -> List[float]:
         """`v_lim(d) = sqrt(a_lat / |κ(d)|)` en m/s, un valor por metro, con la curvatura suavizada (±7 m)."""
@@ -333,6 +347,7 @@ class TeachingController:
         self._pi_axis = None
         self._phase = "drive"
         self._exit_target = 0.0
+        self._lat_ema = 0.0
 
     def signed_lateral_error(
         self,
@@ -494,9 +509,11 @@ class TeachingController:
 
     def _technique_pedals(
         self, speed: float, curve_target: float, curv_ahead: float, s_bind: float, v_bind: float, on_straight: bool, ref_brake: float, v_ahead: Optional[float] = None,
+        lat_accel: float = 0.0,
     ) -> Tuple[float, float, str]:
         """Pedales con la técnica de curva (V65): gas cortado del todo antes de frenar, freno que se suelta hasta el vértice y gas que solo sube desde el vértice."""
         cfg = self.config
+        self._lat_ema += cfg.exit_lat_alpha * (abs(lat_accel) - self._lat_ema)
         # «Curva por delante»: la consigna la fija una curva que viene (no la banda de velocidad) y su límite está claramente por debajo de la velocidad actual.
         approaching = curve_target < self.speed_target_ms - 0.01 and s_bind >= CURVE_SAMPLE_M and speed - v_bind > (cfg.brake_profile_lift_drop_ms if v_ahead is not None else cfg.lift_drop_ms)
         over = speed - curve_target  # siempre con la consigna real: levantar y frenar no pueden depender de la consigna «congelada» de la salida (si no, la curva que viene llega sin aviso)
@@ -541,14 +558,16 @@ class TeachingController:
 
         if self._phase == "exit":
             pi_gas, err = self._pi_target(speed, pi_target)
+            cap = exit_gas_cap(self._lat_ema, cfg.exit_circle, cfg.throttle_max, cfg.exit_circle_floor)
             if err > 0.0:
                 prev = self._prev_throttle
                 axis = min(max(pi_gas, prev), prev + cfg.exit_slew_per_s * PEDAL_TICK_S)
                 if err > 0.5 and abs(curv_ahead) > 0.02:
                     axis = min(axis, max(0.45, prev))  # el tope de curva cerrada no baja un gas que ya subía
-                throttle, brake = self._pedals_from_axis(axis, 1.0)
+                axis = min(axis, cap)  # el círculo de adherencia: con el coche aún girando el gas no pasa de lo que deja el lateral (V72)
+                throttle, brake = self._pedals_from_axis(axis, 1.0 if axis >= prev else 0.25)
             else:
-                throttle, brake = self._pedals_from_axis(pi_gas)
+                throttle, brake = self._pedals_from_axis(min(pi_gas, cap))
             return throttle, brake, "accel_exit"
 
         return self._pi_speed_pedals(speed, curve_target, curv_ahead)
@@ -651,6 +670,7 @@ class TeachingController:
             v_ahead = self.profile_at(lap_distance, self.config.brake_ff_ahead_m) if self.config.brake_profile else None
             return self._technique_pedals(
                 speed, curve_target, curv_ahead, s_bind, v_bind, self.braking_on_straight(lap_distance, signed_cte), ref_brake, v_ahead,
+                abs(telem.local_acceleration[0]),
             )
 
         if speed > curve_target + self.config.speed_margin_ms:

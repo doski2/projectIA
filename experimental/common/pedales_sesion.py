@@ -9,7 +9,7 @@ Con `--consigna REF` mide además, sin juego, el mayor salto de la consigna de v
 Las aceleraciones salen de `local_accel` con `session_log.tick_accels`, que sirve para cualquier log (en `log_schema` 1 y 2 el campo `lat_accel` era la longitudinal, V67).
 
 Uso (con salida por tubería, anteponer PYTHONIOENCODING=utf-8):
-    python experimental/common/pedales_sesion.py <log.jsonl> [--vueltas 2,3,4] [--eventos] [--consigna <linea.json>]
+    python experimental/common/pedales_sesion.py <log.jsonl> [--vueltas 2,3,4] [--eventos] [--consigna <linea.json>]  (con `circuito_virtual/pistas/<pista>/curvas.json` numera las curvas, V70)
 """
 
 from __future__ import annotations
@@ -28,6 +28,17 @@ for _p in (REPO, REPO / "PCARS2-AI" / "src"):
         sys.path.insert(0, str(_p))
 
 from session_log import tick_accels  # noqa: E402
+
+
+def _catalogo(log: Path):
+    """Catálogo numerado de curvas de la pista del log o None (V70)."""
+    try:
+        from circuito_virtual.src.curvas import catalogo_de_log  # noqa: PLC0415
+
+        return catalogo_de_log(log)
+    except Exception:  # sin catálogo la herramienta sale igual
+        return None
+
 
 CURVATURA_EN_CURVA = 0.006  # |guiñada| / v por encima de la cual se considera que el coche gira
 UMBRAL_INVERSION = 0.12  # cambio de tendencia del gas que cuenta
@@ -90,7 +101,7 @@ def _aceleraciones(ticks: Sequence[Dict[str, Any]]) -> Tuple[np.ndarray, np.ndar
     return _suavizar(lat), _suavizar(dec)
 
 
-def analizar_vuelta(ticks: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+def analizar_vuelta(ticks: Sequence[Dict[str, Any]], cat=None) -> Dict[str, Any]:
     gas = np.array([t["throttle"] for t in ticks], float)
     freno = np.array([t["brake"] for t in ticks], float)
     v = np.array([t["speed_kmh"] for t in ticks], float) / 3.6
@@ -113,8 +124,10 @@ def analizar_vuelta(ticks: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
         m = i - 1
         while m > 0 and gas[m] <= 0.05 and freno[m] <= 0.05:
             m -= 1
+        s_ini = float(ticks[i]["lap_distance"])
+        curva = cat.proxima(s_ini) if cat is not None else None
         eventos.append({
-            "s": round(float(ticks[i]["lap_distance"])), "v0_kmh": round(float(v[i] * 3.6)), "v1_kmh": round(float(v[j - 1] * 3.6)), "dur_s": round((j - i) / HZ, 2),
+            "curva": f"C{curva.id}" if curva is not None else "", "s": round(s_ini), "v0_kmh": round(float(v[i] * 3.6)), "v1_kmh": round(float(v[j - 1] * 3.6)), "dur_s": round((j - i) / HZ, 2),
             "pedal_max": round(float(freno[seg].max()), 2), "pico_en": round(float(np.argmax(freno[seg])) / max(j - i - 1, 1), 2),
             "lat_inicio": round(float(lat[i]), 1), "lat_max": round(float(lat[seg].max()), 1),
             "dec_media": round(float(dec[seg].mean()), 1), "dec_max": round(float(dec[seg].max()), 1),
@@ -188,21 +201,22 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--brake-circle", type=float, default=14.6, help="con --consigna --perfil: radio del círculo de adherencia (m/s²)")
     a = ap.parse_args(argv)
     ticks = cargar_ticks(a.log)
+    cat = _catalogo(a.log)
     for lap in (int(x) for x in a.vueltas.split(",")):
         tk = [t for t in ticks if t["lap"] == lap]
         if len(tk) < 600:
             print(f"vuelta {lap}: sin datos suficientes")
             continue
-        r = analizar_vuelta(tk)
+        r = analizar_vuelta(tk, cat)
         print(f"vuelta {lap}: {r['frenadas']} frenadas | gas a 0 al frenar {r['gas_a_0_al_frenar']} | con rebote {r['con_rebote']} {r['posiciones_rebote']} | inversiones del gas en curva {r['inversiones']}")
         if "dec_mediana" in r:
             print(f"   freno: {r['segundos_de_freno']} s | pedal máx. {r['pedal_max']} | deceleración mediana {r['dec_mediana']}, p90 {r['dec_p90']}, máx. {r['dec_max']} m/s² | con ≥ 10 m/s² el {r['pct_tiempo_dec_10']:.0f} % del tiempo")
             print(f"   tiempo muerto antes de frenar: media {r['muerto_medio_s']} s, máx. {r['muerto_max_s']} s | máximo del pedal al {r['pico_medio_en']:.0%} de la frenada")
             print(f"   frenando ya girando (> {LATERAL_GIRANDO:g} m/s² laterales): {r['pct_energia_girando']:.0f} % de la energía de frenada | círculo (√(lat²+dec²) / {CIRCULO_MS2}): mediana {r['circulo_mediana_pct']:.0f} %, p90 {r['circulo_p90_pct']:.0f} %")
         if a.eventos:
-            print("      s   v0   v1  dur  pedal pico  lat0 latmáx decmed decmáx %girando muerto rebote")
+            print("  curva     s   v0   v1  dur  pedal pico  lat0 latmáx decmed decmáx %girando muerto rebote")
             for e in r["eventos"]:
-                print(f"   {e['s']:5d} {e['v0_kmh']:4d} {e['v1_kmh']:4d} {e['dur_s']:4.1f}  {e['pedal_max']:.2f} {e['pico_en']:.2f} {e['lat_inicio']:5.1f} {e['lat_max']:5.1f} {e['dec_media']:5.1f} {e['dec_max']:5.1f}  {e['pct_energia_girando']:5.0f}%  {e['muerto_s']:.2f}  {'sí' if e['rebote'] else ''}")
+                print(f"   {e['curva']:>4s} {e['s']:5d} {e['v0_kmh']:4d} {e['v1_kmh']:4d} {e['dur_s']:4.1f}  {e['pedal_max']:.2f} {e['pico_en']:.2f} {e['lat_inicio']:5.1f} {e['lat_max']:5.1f} {e['dec_media']:5.1f} {e['dec_max']:5.1f}  {e['pct_energia_girando']:5.0f}%  {e['muerto_s']:.2f}  {'sí' if e['rebote'] else ''}")
     if a.consigna:
         s = salto_consigna(a.consigna, brake_decel_straight=a.brake_decel, perfil=a.perfil, brake_circle=a.brake_circle)
         modo = f"perfil continuo (círculo {a.brake_circle:g})" if a.perfil else "consigna de siempre"

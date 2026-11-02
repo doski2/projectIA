@@ -97,6 +97,76 @@ def _load_reference(header: dict):
     return None
 
 
+def _catalogo(log_path: Path):
+    """Catálogo numerado de curvas de la pista del log (V70) o None."""
+    try:
+        if str(REPO) not in sys.path:
+            sys.path.insert(0, str(REPO))
+        from circuito_virtual.src.curvas import catalogo_de_log  # noqa: PLC0415
+
+        return catalogo_de_log(log_path)
+    except Exception:  # sin catálogo el informe sale igual
+        return None
+
+
+def _marcar_curvas(ax, cat, texto: bool = True) -> None:
+    """Sombrea cada curva del catálogo (naranja = izquierda, azul = derecha) y pone su número arriba."""
+    if cat is None:
+        return
+    ymax = ax.get_ylim()[1]
+    for c in cat.curvas:
+        color = "tab:orange" if c.sentido == "izq" else "tab:blue"
+        tramos = [(c.s_ini, c.s_fin)] if c.s_ini <= c.s_fin else [(c.s_ini, cat.longitud_m), (0.0, c.s_fin)]
+        for a, b in tramos:
+            ax.axvspan(a, b, color=color, alpha=0.08, lw=0)
+        if texto:
+            ax.text(c.s_apice, ymax, f"C{c.id}", ha="center", va="top", fontsize=8, color="k", fontweight="bold")
+
+
+def tabla_curvas(ticks: List[dict], cat, margen_m: float = 40.0) -> List[dict]:
+    """Por curva y vuelta completa: velocidad mínima, |CTE| máx., lateral máx. y pedal de freno máx. desde `margen_m` antes del inicio de la curva hasta su final."""
+    if cat is None or not ticks:
+        return []
+    lap = np.array([t.get("lap", 0) for t in ticks])
+    d = np.array([t["lap_distance"] for t in ticks], float)
+    v = np.array([t["speed_kmh"] for t in ticks], float)
+    cte = np.array([abs(t["signed_cte"]) for t in ticks], float)
+    fr = np.array([t["brake"] for t in ticks], float)
+    lat = np.array([abs(t["vehicle"]["local_accel"][0]) if t.get("vehicle", {}).get("local_accel") else 0.0 for t in ticks], float)
+    vueltas = [int(x) for x in np.unique(lap) if np.ptp(d[lap == x]) > 3000.0]
+    filas = []
+    for c in cat.curvas:
+        fila = {"curva": f"C{c.id}", "sentido": c.sentido, "apice_m": c.s_apice, "radio_m": c.radio_min_m, "tipo": c.tipo, "ese": f"C{c.ese_con}" if c.ese_con else "", "vueltas": {}}
+        for L in vueltas:
+            a0 = (c.s_ini - margen_m) % cat.longitud_m
+            m = (lap == L) & ((d >= a0) & (d <= c.s_fin) if a0 <= c.s_fin else (d >= a0) | (d <= c.s_fin))
+            if m.any():
+                fila["vueltas"][L] = {"v_min": float(v[m].min()), "cte_max": float(cte[m].max()), "lat_max": float(lat[m].max()), "freno_max": float(fr[m].max())}
+        filas.append(fila)
+    return filas
+
+
+def curvas_html(filas: List[dict]) -> str:
+    if not filas:
+        return ""
+    laps = sorted({L for f in filas for L in f["vueltas"]})
+    cab = "".join(f"<th>vuelta {L}<br><small>v mín · |CTE| · lat · freno</small></th>" for L in laps)
+    cuerpo = ""
+    for f in filas:
+        celdas = ""
+        for L in laps:
+            r = f["vueltas"].get(L)
+            if r is None:
+                celdas += "<td></td>"
+                continue
+            clase = " style='background:#f9d6d6'" if r["cte_max"] > 1.8 else ""
+            celdas += f"<td{clase}>{r['v_min']:.0f} · {r['cte_max']:.2f} · {r['lat_max']:.1f} · {r['freno_max']:.2f}</td>"
+        extra = f" · ese con {f['ese']}" if f["ese"] else ""
+        cuerpo += f"<tr><td><b>{f['curva']}</b></td><td>{f['sentido']}, R {f['radio_m']:.0f} m, ápice {f['apice_m']:.0f} m, {f['tipo']}{extra}</td>{celdas}</tr>"
+    return (f"<h2>Curvas numeradas ({len(filas)})</h2><p>Por curva y vuelta, desde 40 m antes de la curva hasta su final: velocidad mínima (km/h) · |CTE| máx. (m) · lateral máx. (m/s²) · pedal de freno máx. "
+            f"Rojo: |CTE| &gt; 1,8 m. Catálogo: <code>circuito_virtual/pistas/&lt;pista&gt;/curvas.json</code>.</p><table><tr><th>Curva</th><th>Descripción</th>{cab}</tr>{cuerpo}</table>")
+
+
 def _bytes_per_tick(path: Path, n: int) -> float:
     return path.stat().st_size / max(n, 1)
 
@@ -430,7 +500,7 @@ def _png(fig) -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 
-def make_plots(ticks: List[dict], ref, lat_axis: int = 0) -> List[Tuple[str, str]]:
+def make_plots(ticks: List[dict], ref, lat_axis: int = 0, cat=None) -> List[Tuple[str, str]]:
     import matplotlib
 
     matplotlib.use("Agg")
@@ -466,7 +536,29 @@ def make_plots(ticks: List[dict], ref, lat_axis: int = 0) -> List[Tuple[str, str
     for a in (ax[0], ax[1], ax[3]):
         a.legend(fontsize=7)
     ax[4].set_xlabel("lap_distance (m)")
+    for a in ax:
+        _marcar_curvas(a, cat, texto=a is ax[0])
     plots.append(("Señales por vuelta", _png(fig)))
+
+    if "signed_cte" in ticks[0]:
+        cte = _col(ticks, "signed_cte")
+        vol = _col(ticks, "steering")
+        gas = _col(ticks, "throttle")
+        fre = _col(ticks, "brake")
+        fig, ax = plt.subplots(3, 1, figsize=(14, 10), sharex=True)
+        for L in laps:
+            m = lap == L
+            ax[0].plot(d[m], cte[m], lw=.9, label=f"vuelta {int(L)}")
+            ax[1].plot(d[m], vol[m], lw=.8)
+            ax[2].plot(d[m], gas[m] - fre[m], lw=.8)
+        for a, t_ in zip(ax, ("CTE firmado (m): otra trayectoria = otra curva de CTE", "Volante", "Gas − freno")):
+            a.set_ylabel(t_, fontsize=8)
+            a.grid(alpha=.3)
+        ax[0].legend(fontsize=7, ncol=len(laps) or 1)
+        ax[2].set_xlabel("lap_distance (m)")
+        for a in ax:
+            _marcar_curvas(a, cat, texto=a is ax[0])
+        plots.append(("CTE, volante y pedales por vuelta (curvas numeradas)", _png(fig)))
 
     fig, ax = plt.subplots(1, 2, figsize=(14, 5.5))
     ax[0].scatter(la[lat_axis], (v / 3.6) * yaw, s=2, alpha=.25)
@@ -478,6 +570,10 @@ def make_plots(ticks: List[dict], ref, lat_axis: int = 0) -> List[Tuple[str, str
         ax[1].set_aspect("equal")
         fig.colorbar(sc, ax=ax[1], label="km/h")
         ax[1].set_title("Trayectoria (position x,z)", fontsize=9)
+        if cat is not None:
+            for c in cat.curvas:
+                k = int(np.nanargmin(np.abs(d - c.s_apice)))
+                ax[1].annotate(f"C{c.id}", (pos[k, 0], pos[k, 2]), fontsize=9, fontweight="bold", color="red", xytext=(4, 4), textcoords="offset points")
     plots.append(("Coherencia lateral y trayectoria", _png(fig)))
     return plots
 
@@ -511,13 +607,15 @@ def build_report(log_path: Path, open_browser: bool = False) -> Dict[str, Any]:
     secs = sector_table(ticks)
     pz = pauses(ticks)
     dmg = damage_events(events)
-    plots = make_plots(ticks, ref, stats.get("lateral_axis", 0)) if len(ticks) >= 200 else []
+    cat = _catalogo(log_path)
+    plots = make_plots(ticks, ref, stats.get("lateral_axis", 0), cat) if len(ticks) >= 200 else []
+    curv = tabla_curvas(ticks, cat)
 
     OUT.mkdir(parents=True, exist_ok=True)
     stem = f"informe_{log_path.stem}"
     result: Dict[str, Any] = {
         "log": str(log_path), "stats": stats, "incidents": inc, "events": len(events), "sectors": secs, "pauses": pz,
-        "damage_events": dmg,
+        "damage_events": dmg, "curvas": curv,
         "checks": [dict(zip(("nombre", "estado", "detalle"), c)) for c in checks],
     }
     (OUT / f"{stem}.json").write_text(
@@ -542,6 +640,7 @@ def build_report(log_path: Path, open_browser: bool = False) -> Dict[str, Any]:
         f"<h2>Comprobaciones</h2><table><tr><th>Comprobación</th><th>Estado</th><th>Detalle</th></tr>{rows}</table>"
         + dmg_html
         + sec_html
+        + curvas_html(curv)
         + "".join(f"<h2>{escape(t)}</h2><img src='data:image/png;base64,{b}'>" for t, b in plots)
         + f"<h2>Incidencias ({len(inc)})</h2><table><tr><th>Tipo</th><th>Vuelta</th><th>Tick</th>"
         f"<th>lap_distance</th><th>Duración (ticks)</th><th>Razón</th></tr>{irows}</table>"
