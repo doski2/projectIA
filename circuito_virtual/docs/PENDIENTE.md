@@ -4,7 +4,7 @@ Estado al cierre de la sesión del **2026-11-02**. Lo que no es del circuito (ra
 de motor P26, controles de seco, reentreno v2) está en `experimental/docs/PENDIENTE.md`. El plan está
 en `docs/PLAN.md`, las decisiones en `docs/DECISIONES.md` y la historia en `docs/DIARIO.md`.
 
-**Qué significan las «V»:** cada Vnn es una entrada del registro de decisiones (hoy V1-V62), no una
+**Qué significan las «V»:** cada Vnn es una entrada del registro de decisiones (hoy V1-V63), no una
 versión del software. La versión del software es el commit de git, que cada sesión guarda en la
 cabecera de su log. Este documento recoge solo el estado actual y lo que sigue; las cifras de sesiones
 anteriores son referencia (están en `DECISIONES.md`) y cada sesión nueva se juzga contra el criterio de
@@ -16,7 +16,7 @@ volante de más abajo, no contra la anterior.
   limitador con memoria del pedal límite (V50), el tope de velocidad de la anticipación del volante (V57) y la cota
   local de curvatura de `linea_optima.py` (V62). Lo que no se versiona está en la lista de archivos locales de
   abajo.
-- **Tests en verde:** `circuito_virtual` 63, `experimental` 99, `PCARS2-AI` 506. Se lanzan con
+- **Tests en verde:** `circuito_virtual` 65, `experimental` 99, `PCARS2-AI` 506. Se lanzan con
   `pytest` dentro de cada carpeta.
 - **Teacher** (`teacher_controller.py`, `learn_driver.py`): cada opción es opt-in y su valor por
   defecto es el de producción.
@@ -29,7 +29,7 @@ volante de más abajo, no contra la anterior.
 
 | Tema | Estado | Qué falta |
 | --- | --- | --- |
-| A2.0 a 125 km/h con la línea suavizada | **Cumple el criterio** (|CTE| máx. 1,56 m, deriva 2,5°, 120,4 s) | Nada: es la receta base |
+| A2.0 a 125 km/h con la línea suavizada | **Cumple las métricas de volante** (|CTE| máx. 1,56 m, deriva 2,5°, 120,4 s) pero deja 73-103 ticks con una rueda fuera de la superficie de carrera (749-768, 1444-1456 y 2888-2895 m, V63) | Nada: es la receta base |
 | A2.0 con la línea óptima `a1mu9b` | Prevé −1,7 s pero no cumple (V58: |CTE| 2,38 m, deriva 5,6°, 0 ruedas fuera, +1,1 % de tiempo) | Con `--steer-ff-cap-kmh 100` (V58): 2690-2860 m arreglado, 0 ruedas fuera, 118,9 s; la S de 2400-2500 m (2,2-2,4 m) y una deriva de 5,6° en 920-930 m no cumplen. Tope 90 (V60) y banda 115 (V61): no mejoran; la óptima serpentea donde la suavizada no (V61). Cota local de curvatura hecha (V62), línea `a1mu9c12` generada. Siguiente: sesión con esa línea a 125 km/h |
 | Techo en 3.ª (G2) | **Limpio hasta 140 km/h** (volante ±0,01, CTE ≤ 0,16 m por encima de 128 km/h). El motor llega a 149,9 km/h (112 N·m a 6756 rpm) | Repetir 150 km/h con la ganancia por velocidad |
 | Frenadas fuertes | Con pedal ≤ 0,84 (teacher de A2) no hay bloqueo; con pedal 1,0 (A1) se bloquean las delanteras. **Limitador por deslizamiento (V44, V45, V47): cuatro sesiones reales, sin bloqueo; el mejor valor del limitador sin memoria es el objetivo 0,3 con 10,9-11,3 m/s² (criterio 11,5) y el pedal sigue en ciclo; **cerrado** con objetivo 0,25 y memoria 0,85 (V50-V55): 11,4-11,8 m/s² desde 150 km/h y 11,0-11,4 desde 140, 0 ruedas paradas, CTE ≤ 0,56 m | Decidir qué tabla de frenada usa el solver (V55, punto 4); revisar los cambios de marcha durante la frenada; luego 140 km/h y el techo a 150 km/h |
@@ -265,6 +265,9 @@ C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\exper
 - **PPO / C4:** después de mapa, modelo y BC v2, con noche protegida.
 - **Reentreno v2 del BC y controles de seco:** en `experimental/docs/PENDIENTE.md`.
 - **Informe del mapa:** añadir la línea óptima (D2) a `src/informe_mapa.py`.
+- **Informes HTML (no versionados, `pistas/sugo_gp/informes/`)**: `informe_mapa.html`, `informe_linea_optima.html` e
+  `informe_lineas_teacher.html` (V63). Se regeneran con los comandos de «Uso» del `README.md`; el último, tras cada
+  sesión nueva de A2.0, añade la sesión a su tabla.
 
 ## Hecho (no repetir)
 

@@ -46,6 +46,7 @@ cumple el criterio de volante). Lo que falta y los comandos vigentes están en `
 | `src/ajuste_ia.py` | Ajusta el solver a las vueltas de la IA (envolventes de aceleración, frenada y lateral) y predice las vueltas apartadas (A2, V13) |
 | `src/informe_mapa.py` | Informe HTML del mapa: cobertura, planta, anchura comprobada (distinto del de `experimental`) |
 | `src/informe_linea_optima.py` | Informe HTML de D2: tiempos, planta con el pasillo, `n(s)` y velocidad por nivel de ritmo |
+| `src/informe_lineas_teacher.py` | Informe HTML de las líneas que sigue el teacher (`a1mu9`, `a1mu9b`, `a1mu9c12`...): tiempo previsto, dónde serpentean y una tabla con **todas las sesiones A2.0 a 100 km/h o más** leídas de los logs (se regenera y la sesión nueva aparece sola) |
 | `tests/` | Pruebas con pistas sintéticas y con Sugo |
 | `pistas/sugo_gp/` | `mapa.json`, `observaciones_logs.json`, `ia_ritmo_real.json` y los `*_n.npy` (versionados); `sugo_smooth.json` y `sugo_optima_*.json` (no versionados); `informes/` |
 | `coches/formula_rookie/` | `parametros_a1.json`: tablas de aceleración y frenada, retraso del freno |
@@ -80,6 +81,7 @@ Informes HTML (`--help` en cada uno para las opciones):
 ```text
 python circuito_virtual/src/informe_mapa.py
 python circuito_virtual/src/informe_linea_optima.py
+python circuito_virtual/src/informe_lineas_teacher.py
 ```
 
 Las sesiones se lanzan con `experimental/common/aislado.py` y se analizan con las herramientas de
