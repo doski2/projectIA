@@ -16,7 +16,7 @@ volante de más abajo, no contra la anterior.
   limitador con memoria del pedal límite (V50), el tope de velocidad de la anticipación del volante (V57) y la cota
   local de curvatura de `linea_optima.py` (V62). Lo que no se versiona está en la lista de archivos locales de
   abajo.
-- **Tests en verde:** `circuito_virtual` 59, `experimental` 98, `PCARS2-AI` 504. Se lanzan con
+- **Tests en verde:** `circuito_virtual` 63, `experimental` 99, `PCARS2-AI` 506. Se lanzan con
   `pytest` dentro de cada carpeta.
 - **Teacher** (`teacher_controller.py`, `learn_driver.py`): cada opción es opt-in y su valor por
   defecto es el de producción.
