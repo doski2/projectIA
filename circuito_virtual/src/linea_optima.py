@@ -137,6 +137,77 @@ def perfil_en_s(mapa: Mapa, n: np.ndarray, coche: pv.CarParams) -> Tuple[np.ndar
     return np.interp(u_mapa, u, prof.v_ms), prof, track
 
 
+# ---- cota local de curvatura (V62) -----------------------------------------------------------------------------------------------
+VENTANA_CURV_M = 100  # ventana (m) en la que se compara la variación de curvatura de la línea con la de la suavizada
+UMBRAL_KAPPA_FIRMADA = 1e-3  # 1/m: por debajo la línea es casi recta y su signo de κ es ruido, no un cambio de giro
+PISO_DK_REL = 0.25  # el límite local de |Δκ| nunca baja de esta fracción del máximo de la suavizada (una recta no tiene límite 0)
+
+
+def kappa_firmada(mapa: Mapa, n: np.ndarray, paso_m: int = 3) -> np.ndarray:
+    """κ con signo de la línea `n` en cada punto del mapa **como la calcula el teacher** (`ReferenceLine.curvature`): el cambio de rumbo entre `paso_m` metros antes y después, dividido
+    por `2 · paso_m`. Con el suavizado de `Track` (que usa el solver) los serpenteos de 40-60 m quedaban amortiguados y la cota dejaba pasar lo que el seguidor sí ve (V62).
+    El signo sigue la convención del rumbo de `_rumbo` (la de las referencias)."""
+    x, z = geometria(mapa, n)
+    rumbo = _rumbo(x, z)
+    d = np.roll(rumbo, -paso_m) - np.roll(rumbo, paso_m)
+    d = (d + np.pi) % (2 * np.pi) - np.pi
+    return d / (2.0 * paso_m)
+
+
+def _max_movil(a: np.ndarray, ventana: int = VENTANA_CURV_M) -> np.ndarray:
+    h = ventana // 2
+    return np.lib.stride_tricks.sliding_window_view(np.concatenate([a[-h:], a, a[:h]]), 2 * h + 1).max(axis=1)
+
+
+def _suma_movil(a: np.ndarray, ventana: int = VENTANA_CURV_M) -> np.ndarray:
+    h = ventana // 2
+    return np.lib.stride_tricks.sliding_window_view(np.concatenate([a[-h:], a, a[:h]]), 2 * h + 1).sum(axis=1)
+
+
+def _cambios_de_signo(k: np.ndarray) -> np.ndarray:
+    """1 en el último punto significativo antes de cada cambio de signo de κ (se ignoran los tramos casi rectos); 0 en el resto."""
+    idx = np.flatnonzero(np.abs(k) > UMBRAL_KAPPA_FIRMADA)
+    out = np.zeros(len(k))
+    if len(idx) >= 2:
+        signos = np.sign(k[idx])
+        out[idx[signos != np.roll(signos, -1)]] = 1.0
+    return out
+
+
+def perfil_curvatura(mapa: Mapa, n: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """(máximo móvil de |Δκ| entre metros contiguos, nº móvil de cambios de signo de κ) en ventanas de `VENTANA_CURV_M` m, un valor por punto del mapa."""
+    k = kappa_firmada(mapa, n)
+    return _max_movil(np.abs(np.diff(np.append(k, k[0])))), _suma_movil(_cambios_de_signo(k))
+
+
+@dataclass
+class CotaCurvatura:
+    dk_max: np.ndarray  # límite local de |Δκ| por metro
+    cambios_max: np.ndarray  # límite local de cambios de signo de κ en la ventana
+
+
+def cota_curvatura(mapa: Mapa, n_ref: np.ndarray, n_ini: np.ndarray, rel: float) -> CotaCurvatura:
+    """Cota local respecto a la línea `n_ref` (la suavizada, n = 0): |Δκ| ≤ `rel` veces el suyo en la misma ventana (y no menos de `PISO_DK_REL` de su máximo) y ningún cambio de
+    signo de κ que ella no tenga. Si la línea de partida `n_ini` ya la pasa en algún tramo, ahí el límite es el de la partida (no empeora), como los otros topes."""
+    dk_ref, c_ref = perfil_curvatura(mapa, n_ref)
+    dk_ini, c_ini = perfil_curvatura(mapa, n_ini)
+    piso = PISO_DK_REL * float(dk_ref.max())
+    return CotaCurvatura(np.maximum(np.maximum(rel * dk_ref, piso), dk_ini), np.maximum(c_ref, c_ini))
+
+
+def cumple_cota_curvatura(mapa: Mapa, n: np.ndarray, cota: CotaCurvatura) -> bool:
+    dk, cambios = perfil_curvatura(mapa, n)
+    return bool(np.all(dk <= cota.dk_max + 1e-12) and np.all(cambios <= cota.cambios_max + 1e-9))
+
+
+def medir_curvatura_local(mapa: Mapa, n: np.ndarray, n_ref: np.ndarray) -> Tuple[float, int]:
+    """(mayor cociente entre el |Δκ| local de `n` y el de `n_ref` —con el mismo piso—, nº de puntos del mapa con más cambios de signo de κ que `n_ref` en su ventana)."""
+    dk_ref, c_ref = perfil_curvatura(mapa, n_ref)
+    dk, c = perfil_curvatura(mapa, n)
+    piso = PISO_DK_REL * float(dk_ref.max())
+    return float(np.max(dk / np.maximum(dk_ref, piso))), int(np.sum(c > c_ref + 1e-9))
+
+
 # ---- optimizador ----------------------------------------------------------------------------------------------------------------
 @dataclass
 class Resultado:
@@ -174,11 +245,13 @@ def medir_linea(mapa: Mapa, n: np.ndarray, coche: pv.CarParams) -> Tuple[float, 
 def optimizar(mapa: Mapa, lo: np.ndarray, hi: np.ndarray, coche: pv.CarParams, paso_nudos_m: float = PASO_NUDOS_M,
               paso_inicial_m: float = PASO_INICIAL_M, paso_final_m: float = PASO_FINAL_M, max_barridos: int = 60,
               progreso: Optional[Callable[[int, float, float], None]] = None,
-              salto_max: Optional[float] = None, pendiente_max: Optional[float] = None) -> Resultado:
+              salto_max: Optional[float] = None, pendiente_max: Optional[float] = None, curvatura_local_rel: Optional[float] = None) -> Resultado:
     """Descenso por coordenadas sobre los nudos. Parte del punto más cercano al eje que cabe en el pasillo (el eje mismo si cabe).
 
     `salto_max` y `pendiente_max` (opcionales) topan el salto de |κ| entre metros contiguos y |dn/ds| de toda la línea: un movimiento que los pase se descarta aunque gane tiempo.
-    Si la línea de partida ya los pasa, el tope es el de la línea de partida (no empeora)."""
+    Si la línea de partida ya los pasa, el tope es el de la línea de partida (no empeora).
+    `curvatura_local_rel` (opcional, V62) añade la cota local de curvatura de `cota_curvatura`: en ventanas de `VENTANA_CURV_M` m la variación de κ no pasa de ese múltiplo de la de la
+    línea suavizada y no aparecen cambios de signo de κ que la suavizada no tenga (el seguidor falla donde la línea serpentea y la suavizada no, V61)."""
     b, s_nudos = base_spline(mapa.longitud_m, mapa.s, paso_nudos_m)
     k = punto_inicial(b, lo, hi)
     n = b @ k
@@ -189,13 +262,14 @@ def optimizar(mapa: Mapa, lo: np.ndarray, hi: np.ndarray, coche: pv.CarParams, p
         nonlocal evals
         evals += 1
         t, salto, pend = medir_linea(mapa, cand, coche)
-        return t, salto <= tope_salto and pend <= tope_pend
+        return t, salto <= tope_salto and pend <= tope_pend and (cota is None or cumple_cota_curvatura(mapa, cand, cota))
 
     base = tiempo_vuelta(mapa, np.zeros(mapa.n_puntos), coche) if np.any(n) else None
     best, salto0, pend0 = medir_linea(mapa, n, coche)
     base = best if base is None else base
     tope_salto = max(salto_max, salto0) if salto_max is not None else np.inf
     tope_pend = max(pendiente_max, pend0) if pendiente_max is not None else np.inf
+    cota = cota_curvatura(mapa, np.zeros(mapa.n_puntos), n, curvatura_local_rel) if curvatura_local_rel is not None else None
     paso = paso_inicial_m
     historial: List[Tuple[int, float, float]] = []
     barridos = 0
@@ -266,12 +340,12 @@ def coche_ia(n_ajuste: int = 10) -> pv.CarParams:
 COCHE_A1 = REPO / "circuito_virtual" / "coches" / "formula_rookie" / "parametros_a1.json"
 
 
-def coche_a1(mu: float, k: float = 0.0, ruta: Path = COCHE_A1) -> pv.CarParams:
+def coche_a1(mu: float, k: float = 0.0, ruta: Path = COCHE_A1, tope_kmh: Optional[float] = None) -> pv.CarParams:
     """El coche **que conduce el teacher**: tablas de aceleración y frenada de A1 (tope de velocidad `v_known_kmh` = 140) y un límite lateral fijo `μ` (sin `k·v²`).
 
     Es el modelo con el que `aislado.py --lat-accel-limit μ` ha medido el tiempo de vuelta (V26-V31); la línea de V15 se optimizó con las envolventes de la IA, que no son las mismas."""
     base = pv.load_params(ruta)
-    return pv.CarParams(base.accel, base.brake, mu, k, base.v_known_kmh, base.brake_delay_s)
+    return pv.CarParams(base.accel, base.brake, mu, k, base.v_known_kmh if tope_kmh is None else tope_kmh, base.brake_delay_s)
 
 
 def main(argv: Optional[list] = None) -> int:
@@ -288,6 +362,10 @@ def main(argv: Optional[list] = None) -> int:
     ap.add_argument("--salto-max-rel", type=float, default=None,
                     help="tope del salto de |κ| entre metros contiguos, como múltiplo del de la línea suavizada (1 = no peor que ella; V35)")
     ap.add_argument("--pendiente-max", type=float, default=None, help="tope de |dn/ds| (m de desplazamiento lateral por m de recorrido) de la línea")
+    ap.add_argument("--tope-kmh", type=float, default=None,
+                    help="con --coche-a1-mu: tope de velocidad del solver en km/h (por defecto el de las tablas de A1, 140; las líneas a1mu9 y a1mu9b se hicieron con 125)")
+    ap.add_argument("--curvatura-local-rel", type=float, default=None,
+                    help="cota local de curvatura (V62): en ventanas de 100 m la variación de κ no pasa de este múltiplo de la de la suavizada y no hay cambios de signo de κ que ella no tenga (p. ej. 1,5)")
     ap.add_argument("--nombre", default=None, help="nombre del archivo de salida sin extensión (por defecto sugo_optima_a1mu<MU> o sugo_optima_f<ritmo>)")
     args = ap.parse_args(argv)
     mapa = Mapa.cargar(args.salida_dir / "mapa.json")
@@ -295,8 +373,8 @@ def main(argv: Optional[list] = None) -> int:
     suavizada = json.loads((args.salida_dir / "sugo_smooth.json").read_text(encoding="utf-8"))
     lo, hi = pasillo_centro(mapa, obs, args.margen, incluir_eje=not args.pasillo_estricto)
     if args.coche_a1_mu is not None:
-        _optimizar_y_escribir(mapa, obs, suavizada, lo, hi, coche_a1(args.coche_a1_mu), args.nombre or f"sugo_optima_a1mu{args.coche_a1_mu:g}",
-                              {"modelo": f"coche A1, mu {args.coche_a1_mu:g}, k 0, tope 140"}, args)
+        _optimizar_y_escribir(mapa, obs, suavizada, lo, hi, coche_a1(args.coche_a1_mu, tope_kmh=args.tope_kmh), args.nombre or f"sugo_optima_a1mu{args.coche_a1_mu:g}",
+                              {"modelo": f"coche A1, mu {args.coche_a1_mu:g}, k 0, tope {args.tope_kmh or coche_a1(args.coche_a1_mu).v_known_kmh:g}"}, args)
         return 0
     coche = coche_ia()
     print(f"pasillo del centro: ancho mediano {np.median(hi - lo):.2f} m, mínimo {np.min(hi - lo):.2f} m; {len(base_spline(mapa.longitud_m, mapa.s, args.paso_nudos)[1])} puntos de control", flush=True)
@@ -312,15 +390,18 @@ def _optimizar_y_escribir(mapa, obs, suavizada, lo, hi, coche, nombre, meta_extr
     salto_max = args.salto_max_rel * cero["salto_max"] if args.salto_max_rel is not None else None
     res = optimizar(mapa, lo, hi, coche, args.paso_nudos, max_barridos=args.max_barridos,
                     progreso=lambda b, p, t: print(f"  barrido {b:2d}  paso {p:.3f} m  tiempo {t:.3f} s", flush=True),
-                    salto_max=salto_max, pendiente_max=args.pendiente_max)
+                    salto_max=salto_max, pendiente_max=args.pendiente_max, curvatura_local_rel=args.curvatura_local_rel)
+    cociente, nuevos = medir_curvatura_local(mapa, res.n, np.zeros(mapa.n_puntos))
     hizq, hdcha = holgura_rueda(obs, res.n)
     holgura = np.fmin(hizq, hdcha)
     meta = {**meta_extra, "margen_m": args.margen, "paso_nudos_m": args.paso_nudos, "tiempo_previsto_s": round(res.tiempo_s, 3),
             "tiempo_suavizada_s": round(res.tiempo_base_s, 3), "semivia_m": obs.semivia_m, "pasillo_estricto": bool(args.pasillo_estricto),
             "salto_max_kappa": round(res.salto_max, 6), "salto_max_suavizada": round(cero["salto_max"], 6), "pendiente_max": round(res.pendiente_max, 4),
-            "holgura_min_rueda_m": round(float(np.nanmin(holgura)), 3)}
+            "holgura_min_rueda_m": round(float(np.nanmin(holgura)), 3),
+            "curvatura_local_rel": args.curvatura_local_rel, "dk_local_max_sobre_suavizada": round(cociente, 3), "puntos_con_cambios_de_signo_nuevos": nuevos}
     print(f"  salto de |κ| máx. {res.salto_max:.5f} (suavizada {cero['salto_max']:.5f}); |dn/ds| máx. {res.pendiente_max:.3f}; holgura mínima de la rueda al borde "
           f"{np.nanmin(holgura):.2f} m, {int(np.sum(holgura < args.margen - 1e-3))} m con menos de {args.margen:g} m", flush=True)
+    print(f"  variación local de κ: hasta {cociente:.2f} veces la de la suavizada; {nuevos} puntos del mapa con más cambios de signo de κ que ella", flush=True)
     salida = args.salida_dir / f"{nombre}.json"
     salida.write_text(json.dumps(escribir_linea(mapa, res.n, suavizada, meta)), encoding="utf-8")
     np.save(args.salida_dir / f"{nombre}_n.npy", res.n)

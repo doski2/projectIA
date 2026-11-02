@@ -226,3 +226,49 @@ def test_si_el_tope_ya_lo_pasa_la_linea_de_partida_el_tope_es_el_de_la_partida()
     lo_c, hi_c = _pasillo(mapa, 4.0)
     res = lo.optimizar(mapa, lo_c, hi_c, CAR, paso_nudos_m=25.0, max_barridos=5, salto_max=0.0, pendiente_max=0.0)
     assert np.all(res.n == 0.0) and res.tiempo_s == res.tiempo_base_s
+
+
+# ---- cota local de curvatura (V62) -------------------------------------------------------------------------------------------------
+def test_kappa_firmada_tiene_un_solo_signo_en_las_esquinas_y_es_casi_cero_en_las_rectas():
+    mapa = _rectangulo_redondeado()
+    k = lo.kappa_firmada(mapa, np.zeros(mapa.n_puntos))
+    k = k * np.sign(k[np.argmax(np.abs(k))])  # el signo sigue la convención del rumbo; lo que importa es que sea uno solo
+    assert k.max() == pytest.approx(1.0 / 40.0, rel=0.15) and k.min() > -1e-3  # recorrido siempre al mismo lado: un solo signo
+    assert np.sum(np.abs(k) < 2e-3) > 200  # y las rectas están cerca de 0
+    desplazadas = [np.abs(lo.kappa_firmada(mapa, np.full(mapa.n_puntos, d))).max() for d in (-2.0, 2.0)]
+    assert max(desplazadas) > np.abs(k).max() > min(desplazadas)  # hacia el centro de la curva el radio es menor y hacia fuera mayor
+
+
+def test_la_cota_local_acepta_la_suavizada_y_una_traslacion_y_rechaza_un_serpenteo_en_la_recta():
+    mapa = _rectangulo_redondeado()
+    cero = np.zeros(mapa.n_puntos)
+    cota = lo.cota_curvatura(mapa, cero, cero, 1.5)
+    assert lo.cumple_cota_curvatura(mapa, cero, cota)
+    assert lo.cumple_cota_curvatura(mapa, np.full(mapa.n_puntos, 1.0), cota)  # desplazar toda la línea 1 m no es serpentear
+    s = mapa.s
+    serpenteo = 3.0 * np.sin(2 * math.pi * s / 70.0) * ((s > 20) & (s < 140))  # S en la primera recta (150 m)
+    assert not lo.cumple_cota_curvatura(mapa, serpenteo, cota)
+    cociente, nuevos = lo.medir_curvatura_local(mapa, serpenteo, cero)
+    assert cociente > 1.5 and nuevos > 0
+    cociente0, nuevos0 = lo.medir_curvatura_local(mapa, cero, cero)
+    assert cociente0 == pytest.approx(1.0) and nuevos0 == 0
+
+
+def test_si_la_linea_de_partida_ya_pasa_la_cota_local_el_limite_es_el_de_la_partida():
+    mapa = _rectangulo_redondeado()
+    cero = np.zeros(mapa.n_puntos)
+    s = mapa.s
+    ini = 2.0 * np.sin(2 * math.pi * s / 70.0) * ((s > 20) & (s < 140))
+    cota = lo.cota_curvatura(mapa, cero, ini, 1.5)
+    assert lo.cumple_cota_curvatura(mapa, ini, cota)  # no empeora respecto a la partida
+    assert not lo.cumple_cota_curvatura(mapa, 2.0 * ini, cota)
+
+
+def test_el_optimizador_con_cota_local_la_cumple_y_sigue_ganando_a_la_suavizada():
+    mapa = _rectangulo_redondeado()
+    bajo, alto = _pasillo(mapa, 4.0)
+    res = lo.optimizar(mapa, bajo, alto, CAR, paso_nudos_m=30.0, max_barridos=8, curvatura_local_rel=1.5)
+    cero = np.zeros(mapa.n_puntos)
+    cociente, nuevos = lo.medir_curvatura_local(mapa, res.n, cero)
+    assert cociente <= 1.5 + 1e-6 and nuevos == 0
+    assert res.tiempo_s < res.tiempo_base_s
