@@ -3,6 +3,8 @@
 Lo más reciente arriba. Historia anterior en `experimental/docs/DIARIO.md`. Las «V» son entradas del
 registro de decisiones (`DECISIONES.md`), no versiones del software.
 
+- **2026-11-02 — Cota local de curvatura y línea `a1mu9c12` (V62).** `linea_optima.py --curvatura-local-rel R` impide que la línea serpentee donde la suavizada no (variación de κ por ventana de 100 m y cambios de signo); mide κ como el teacher porque con el suavizado del solver la cota dejaba pasar los serpenteos. Con R = 1,2: 2380-2560 m pasa de 3001 a 1680 · 10⁻⁶ y de 2 cambios de signo a 0, 2680-2870 m de 2229 a 1557; tiempo previsto 118,447 s (suavizada 119,885; `a1mu9b` 117,766). Siguiente: sesión a 125 km/h con tope de anticipación 100 y esta línea.
+
 - **2026-11-02 — Banda 115 km/h con la línea `a1mu9b`: peor, y encuentro la causa probable en la línea (V61).** A 115 km/h fallan los mismos tramos (2,50 m en 430-451 m) porque están a 97-108 km/h, por debajo de la banda. Comparando curvaturas, donde la suavizada no cambia de signo (2380-2560 m) la óptima cambia dos veces y con una variación de curvatura tres veces mayor: el optimizador serpentea para aprovechar el ancho y el teacher no lo sigue. Propongo una cota local de curvatura en `linea_optima.py`; necesita visto bueno.
 
 - **2026-11-02 — Línea `a1mu9b` con tope de 90 km/h: no cumple (V60).** La S de 2400-2500 m baja a 1,8-1,9 m, pero la de 400-600 m sube a 2,2 m, aparecen 58 ticks con ruedas fuera y la deriva queda en 4,5°. Con una sola ganancia cada S pide un valor distinto; el tope 100 queda como mejor ajuste. Las dos S se cruzan a 11-15 m/s² laterales entrando a 98-117 km/h. Siguiente, una variable: banda 115 km/h con tope 100 (escalera de A2.0).
