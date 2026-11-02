@@ -3,6 +3,8 @@
 Lo más reciente arriba. Historia anterior en `experimental/docs/DIARIO.md`. Las «V» son entradas del
 registro de decisiones (`DECISIONES.md`), no versiones del software.
 
+- **2026-11-02 — El modelo del volante con el log del tope 100 (V59).** Sigue sin reproducir la S de 2400-2500 m (la simula en 0,7-1,4 m cuando el coche hizo 2,2-2,4 m) ni 900-960 m, pero ve bien el desvío de 2690-2860 m. Ordena las variantes: los topes de 85-90 km/h bajan los picos en las tres ventanas y `k_heading` 0,7 también. Con los datos reales de V40 (ganancia menor para todos: arregla la S, estropea 900-960 m) se elige la prueba menos arriesgada: `--steer-ff-cap-kmh 90`, una sola variable.
+
 - **2026-11-02 — Línea `a1mu9b` con tope de 100 km/h en la anticipación (V58).** Mejora: el desvío de 2690-2860 m baja de 1,69 a 0,85 m, 0 ruedas fuera y 118,9 s (+1,1 % sobre lo previsto); rectas muy tranquilas (volante rms 0,011). No cumple: la salida de la S de 2400-2500 m sigue en 2,2-2,4 m porque nace a 91-99 km/h, por debajo del tope, y aparece una deriva de 5,6° en 920-930 m en la vuelta 2. Siguiente: probar en el modelo del volante, con este log, topes menores y otras variables solo en esas dos ventanas.
 
 - **2026-11-02 — Tope de velocidad en la anticipación del volante hecho (V57).** `--steer-ff-cap-kmh` (en `teacher_controller.py`, `learn_driver.py` y `aislado.py`, apagado por defecto): por encima del tope el factor 1 + G · v² deja de crecer. Sin cambio por debajo del tope. 506 tests en `PCARS2-AI`, 99 en `experimental`, 59 en `circuito_virtual`. Sin probar en el juego: siguiente sesión, la línea óptima `a1mu9b` a 125 km/h con tope 100 km/h.
