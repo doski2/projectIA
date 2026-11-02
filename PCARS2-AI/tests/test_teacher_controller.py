@@ -690,6 +690,31 @@ def test_lat_gain_v0_also_scales_the_safety_branch():
     assert safe == pytest.approx(-0.12 * 1.5 * (60.0 / 100.0) ** 2)
 
 
+def test_ff_speed_cap_freezes_the_factor_above_the_cap_and_zero_changes_nothing():
+    """V57: con tope, el factor no crece por encima; por debajo (y con tope 0) es el de siempre."""
+    sin = TeachingController(_sugo(), TeacherConfig(ff_speed_gain=0.003, ff_speed_v0_kmh=0.0))
+    con = TeachingController(_sugo(), TeacherConfig(ff_speed_gain=0.003, ff_speed_v0_kmh=0.0, ff_speed_cap_kmh=100.0))
+    cero = TeachingController(_sugo(), TeacherConfig(ff_speed_gain=0.003, ff_speed_v0_kmh=0.0, ff_speed_cap_kmh=0.0))
+    for kmh in (0.0, 30.0, 72.0, 90.0, 100.0):
+        assert con.ff_speed_factor(kmh / 3.6) == sin.ff_speed_factor(kmh / 3.6)
+    for kmh in (72.0, 108.0, 125.0, 150.0):
+        assert cero.ff_speed_factor(kmh / 3.6) == sin.ff_speed_factor(kmh / 3.6)
+    tope = sin.ff_speed_factor(100.0 / 3.6)
+    for kmh in (101.0, 108.0, 119.0, 140.0):
+        assert con.ff_speed_factor(kmh / 3.6) == pytest.approx(tope)
+        assert sin.ff_speed_factor(kmh / 3.6) > tope
+    assert tope == pytest.approx(1.0 + 0.003 * (100.0 / 3.6) ** 2)
+
+
+def test_ff_speed_cap_changes_the_steering_only_above_the_cap():
+    for kmh, igual in ((60.0, True), (95.0, True), (120.0, False)):
+        sin = _steer_in_sugo_bend(0.003, kmh, ff_speed_v0_kmh=0.0)
+        con = _steer_in_sugo_bend(0.003, kmh, ff_speed_v0_kmh=0.0, ff_speed_cap_kmh=100.0)
+        assert (sin == con) is igual
+        if not igual:
+            assert abs(con) < abs(sin)  # menos anticipación a 120 km/h
+
+
 def test_ff_factor_with_v0_zero_matches_the_measured_steering_need_of_h58():
     """H58: la curva pide ≈ 2,77 + 0,0183 · v² de volante por unidad de κ y la anticipación fija da 4,3; con G = 0,0035 y v0 = 0 el factor sigue esa curva (V21)."""
     teacher = TeachingController(_sugo(), TeacherConfig(ff_speed_gain=0.0035, ff_speed_v0_kmh=0.0))

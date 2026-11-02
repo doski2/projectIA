@@ -114,6 +114,10 @@ def parse_args() -> argparse.Namespace:
         help="Anticipación de volante del teacher escalada con la velocidad: factor 1 + G · (v² − 60²) por encima de 60 km/h (H58). 0 = producción.",
     )
     parser.add_argument(
+        "--steer-ff-cap-kmh", type=float, default=0.0,
+        help="Con --steer-ff-gain (V57): por encima de esta velocidad (p. ej. 100 km/h) el factor de la anticipación de volante deja de crecer; a más velocidad la anticipación se pasa de lo que pide el coche. 0 = sin tope (producción).",
+    )
+    parser.add_argument(
         "--steer-slip-gain", type=float, default=0.0,
         help="Contravolante del teacher por deriva (V17): volante por radián de deriva por encima de 3°, y la ganancia de CTE baja a 0 a los 8°. 0 = producción.",
     )
@@ -472,6 +476,7 @@ def run(args: argparse.Namespace) -> int:
     teacher = TeachingController(ref, TeacherConfig(
         speed_target_kmh=effective_speed, lat_accel_limit=args.lat_accel_limit or None,
         ff_speed_gain=float(getattr(args, "steer_ff_gain", 0.0) or 0.0),
+        ff_speed_cap_kmh=float(getattr(args, "steer_ff_cap_kmh", 0.0) or 0.0),
         slip_steer_gain=float(getattr(args, "steer_slip_gain", 0.0) or 0.0),
         lat_gain_v0_kmh=float(getattr(args, "lat_gain_v0_kmh", 0.0) or 0.0),
         steer_preview_s=float(getattr(args, "steer_preview_s", 0.0) or 0.0),

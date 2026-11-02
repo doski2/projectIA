@@ -130,6 +130,9 @@ class TeacherConfig:
     slip_deadzone_deg: float = 3.0
     slip_cte_cut_deg: float = 8.0
     ff_speed_v0_kmh: float = 60.0
+    # Tope de velocidad en el factor de la anticipación (V41, V57): por encima de `ff_speed_cap_kmh` el factor 1 + G · (v² − v0²) deja de crecer. Medido con el modelo del volante, a más de 100 km/h la
+    # anticipación se pasa de lo que pide el coche (×1,10 a 90, ×1,35 a 108, ×1,51 a 119 km/h) y bajar la ganancia para todos estropea las curvas lentas. 0 = sin tope (producción).
+    ff_speed_cap_kmh: float = 0.0
     steer_smooth: float = 0.35
     throttle_rate: float = 0.08
     brake_rate: float = 0.12
@@ -311,6 +314,8 @@ class TeachingController:
     def ff_speed_factor(self, speed_ms: float) -> float:
         """Factor de la anticipación de volante por la velocidad: 1 hasta `ff_speed_v0_kmh` y creciente con v² por encima."""
         v0 = self.config.ff_speed_v0_kmh / 3.6
+        if self.config.ff_speed_cap_kmh > 0.0:
+            speed_ms = min(speed_ms, self.config.ff_speed_cap_kmh / 3.6)
         return 1.0 + self.config.ff_speed_gain * max(0.0, speed_ms * speed_ms - v0 * v0)
 
     def compute_steering(
