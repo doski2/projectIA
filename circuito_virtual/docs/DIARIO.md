@@ -3,6 +3,8 @@
 Lo más reciente arriba. Historia anterior en `experimental/docs/DIARIO.md`. Las «V» son entradas del
 registro de decisiones (`DECISIONES.md`), no versiones del software.
 
+- **2026-11-02 — Línea `a1mu9b` con tope de 100 km/h en la anticipación (V58).** Mejora: el desvío de 2690-2860 m baja de 1,69 a 0,85 m, 0 ruedas fuera y 118,9 s (+1,1 % sobre lo previsto); rectas muy tranquilas (volante rms 0,011). No cumple: la salida de la S de 2400-2500 m sigue en 2,2-2,4 m porque nace a 91-99 km/h, por debajo del tope, y aparece una deriva de 5,6° en 920-930 m en la vuelta 2. Siguiente: probar en el modelo del volante, con este log, topes menores y otras variables solo en esas dos ventanas.
+
 - **2026-11-02 — Tope de velocidad en la anticipación del volante hecho (V57).** `--steer-ff-cap-kmh` (en `teacher_controller.py`, `learn_driver.py` y `aislado.py`, apagado por defecto): por encima del tope el factor 1 + G · v² deja de crecer. Sin cambio por debajo del tope. 506 tests en `PCARS2-AI`, 99 en `experimental`, 59 en `circuito_virtual`. Sin probar en el juego: siguiente sesión, la línea óptima `a1mu9b` a 125 km/h con tope 100 km/h.
 
 - **2026-11-02 — Tabla de aceleración y tope del solver a 140 km/h (V56).** Se añade el log del techo a 140 km/h (`20261101T195353Z`) a las tablas de A1: la aceleración a 125 km/h pasa de 2,33 a 2,47 m/s², aparece la fila de 135 km/h (2,21) y el tope del solver sube de 125 a 140 km/h. El error de las maniobras dejando un log fuera baja de 2,4 % a 1,7 % de mediana. La vuelta potencial a μ 9 pasa de 120,7 a 116,7 s con tope 140; con tope 125 no cambia. La tabla de frenada queda como estaba a la espera de decidir cuál usar.
