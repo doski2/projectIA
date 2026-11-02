@@ -267,7 +267,7 @@ COCHE_A1 = REPO / "circuito_virtual" / "coches" / "formula_rookie" / "parametros
 
 
 def coche_a1(mu: float, k: float = 0.0, ruta: Path = COCHE_A1) -> pv.CarParams:
-    """El coche **que conduce el teacher**: tablas de aceleración y frenada de A1 (tope de velocidad `v_known_kmh` = 125) y un límite lateral fijo `μ` (sin `k·v²`).
+    """El coche **que conduce el teacher**: tablas de aceleración y frenada de A1 (tope de velocidad `v_known_kmh` = 140) y un límite lateral fijo `μ` (sin `k·v²`).
 
     Es el modelo con el que `aislado.py --lat-accel-limit μ` ha medido el tiempo de vuelta (V26-V31); la línea de V15 se optimizó con las envolventes de la IA, que no son las mismas."""
     base = pv.load_params(ruta)
@@ -296,7 +296,7 @@ def main(argv: Optional[list] = None) -> int:
     lo, hi = pasillo_centro(mapa, obs, args.margen, incluir_eje=not args.pasillo_estricto)
     if args.coche_a1_mu is not None:
         _optimizar_y_escribir(mapa, obs, suavizada, lo, hi, coche_a1(args.coche_a1_mu), args.nombre or f"sugo_optima_a1mu{args.coche_a1_mu:g}",
-                              {"modelo": f"coche A1, mu {args.coche_a1_mu:g}, k 0, tope 125"}, args)
+                              {"modelo": f"coche A1, mu {args.coche_a1_mu:g}, k 0, tope 140"}, args)
         return 0
     coche = coche_ia()
     print(f"pasillo del centro: ancho mediano {np.median(hi - lo):.2f} m, mínimo {np.min(hi - lo):.2f} m; {len(base_spline(mapa.longitud_m, mapa.s, args.paso_nudos)[1])} puntos de control", flush=True)

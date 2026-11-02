@@ -4,7 +4,7 @@ Estado al cierre de la sesión del **2026-11-01**. Lo que no es del circuito (ra
 de motor P26, controles de seco, reentreno v2) está en `experimental/docs/PENDIENTE.md`. El plan está
 en `docs/PLAN.md`, las decisiones en `docs/DECISIONES.md` y la historia en `docs/DIARIO.md`.
 
-**Qué significan las «V»:** cada Vnn es una entrada del registro de decisiones (hoy V1-V55), no una
+**Qué significan las «V»:** cada Vnn es una entrada del registro de decisiones (hoy V1-V56), no una
 versión del software. La versión del software es el commit de git, que cada sesión guarda en la
 cabecera de su log. Este documento recoge solo el estado actual y lo que sigue; las cifras de sesiones
 anteriores son referencia (están en `DECISIONES.md`) y cada sesión nueva se juzga contra el criterio de
@@ -130,7 +130,8 @@ superficie de carrera. Referencia: la IA a ritmo real hace 97,9 s.
 
 ### Qué está probado y qué no
 
-- **Probado:** teacher en 2.ª hasta 110 km/h y con 3.ª hasta 125 km/h, dos vueltas limpias por banda;
+- **Probado:** teacher en 2.ª hasta 110 km/h y con 3.ª hasta 125 km/h, dos vueltas limpias por banda (el solver
+  tiene las tablas de aceleración hasta 140 km/h desde V56, pero no hay vuelta completa a más de 125);
   aceleración en 3.ª hasta 140 km/h con el volante tranquilo (y el motor hasta 149,9 km/h); frenada
   fuerte en recta hasta 123 km/h con pedal ≤ 0,84 y sin bloqueo (11,6 m/s²); el solver acierta el
   tiempo de vuelta con el coche de A1 en cada banda (−0,2 % a +1,0 %).
@@ -176,9 +177,10 @@ superficie de carrera. Referencia: la IA a ritmo real hace 97,9 s.
 2. **Tope de velocidad en la anticipación del volante** (`--steer-ff-cap-kmh`, por defecto 0 = sin
    tope; necesita el visto bueno del usuario): factor 1 + 0,003 · v² con v limitada a 100 km/h. Es una hipótesis (V41), que se juzga solo
    por si la línea `a1mu9b` cumple el criterio. También sirve para bandas por encima de 125 km/h.
-3. **Actualizar la tabla de aceleración de A1** y el tope de velocidad del solver (hoy 125 km/h) con
-   los datos del techo a 140 km/h (log `20261101T195353Z`) y, si se quiere, una sesión de aceleración con
-   techo 150 km/h (`--ident acel --ident-cap-kmh 150 --lat-gain-v0-kmh 70`).
+3. ~~Actualizar la tabla de aceleración de A1 y el tope del solver~~ **Hecho (V56):** tope de las tablas 140 km/h,
+   aceleración a 125 km/h 2,47 m/s², fila de 135 km/h 2,21. Queda, si se quiere, una sesión de aceleración con
+   techo 150 km/h (`--ident acel --ident-cap-kmh 150 --lat-gain-v0-kmh 70`); añadir las aceleraciones de las
+   sesiones de frenada sube el error dejando un log fuera (V56) y no se usan.
 4. **Commits** de lo pendiente (ver «Dónde estamos»).
 
 ## Después (en este orden)

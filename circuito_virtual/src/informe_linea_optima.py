@@ -35,7 +35,7 @@ from circuito_virtual.src.informe_mapa import _png, tramos  # noqa: E402
 from circuito_virtual.src.mapa import Mapa  # noqa: E402
 
 KAPPA_FINA_M = 1  # curvatura casi sin suavizar: si la ganancia aguanta, viene de la geometría y no del suavizado del modelo
-V_MEDIDA_COCHE_KMH = 125.0  # lo más rápido que se ha medido con el propio coche (A1)
+V_MEDIDA_COCHE_KMH = 140.0  # el tope de las tablas de A1 (V56); el coche llega a 150 km/h
 TOCA_BORDE_M = 0.05
 COLORES = {0: "#2b6fd9", 1: "#d9822b", 2: "#2a9d5c"}
 
