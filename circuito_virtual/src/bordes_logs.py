@@ -256,7 +256,7 @@ def main(argv=None) -> int:
     u.add_argument("--mapa", type=Path, default=REPO / "circuito_virtual" / "pistas" / "sugo_gp" / "mapa.json")
     u.add_argument("--obs", type=Path, default=OUT)
     u.add_argument("--referencia", type=Path, default=REPO / "PCARS2-AI" / "src" / "refs" / "sugo_ai.json")
-    u.add_argument("--carpetas", nargs="*", default=["learning", "teaching", "imitation"])
+    u.add_argument("--carpetas", nargs="*", default=["learning", "teaching", "imitation", "manual"])
     e = sub.add_parser("escanear", help="recorre los logs y guarda las cotas por metro")
     e.add_argument("--logs-dir", type=Path, default=REPO / "PCARS2-AI" / "logs" / "learning")
     e.add_argument("--mapa", type=Path, default=REPO / "circuito_virtual" / "pistas" / "sugo_gp" / "mapa.json")
@@ -264,7 +264,7 @@ def main(argv=None) -> int:
     e.add_argument("--semivia", type=float, default=SEMIVIA_M)
     e.add_argument("--referencia", type=Path, default=REPO / "PCARS2-AI" / "src" / "refs" / "sugo_ai.json",
                    help="línea de referencia contra la que se midió el CTE de los logs sin posición")
-    e.add_argument("--carpetas", nargs="*", default=["learning", "teaching", "imitation"],
+    e.add_argument("--carpetas", nargs="*", default=["learning", "teaching", "imitation", "manual"],
                    help="subcarpetas de PCARS2-AI/logs; --logs-dir apunta a la de learning y las demás se buscan a su lado")
     args = ap.parse_args(argv)
     if args.cmd == "actualizar":

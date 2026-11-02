@@ -103,7 +103,7 @@ def build_argv(
     lat_gain_v0_kmh: float = 0.0, steer_ff_v0_kmh: float = -1.0, steer_preview_s: float = 0.0,
     throttle_max: float = 0.85, brake_decel_straight: float = 0.0, brake_overspeed_straight_ms: float = 8.0,
     brake_slip_limit: float = 0.0, brake_slip_hold: float = 0.0, steer_ff_cap_kmh: float = 0.0,
-    pedal_technique: bool = False, pedal_exit_slew: float = 1.5, brake_profile: bool = False, brake_circle: float = 14.6, exit_circle: float = 0.0,
+    pedal_technique: bool = False, pedal_exit_slew: float = 1.5, brake_profile: bool = False, brake_circle: float = 14.6, exit_circle: float = 0.0, profile_peak_min_m: float = 0.0,
 ) -> List[str]:
     argv = [
         str(python), str(APP / "src" / "learn_driver.py"),
@@ -163,6 +163,8 @@ def build_argv(
             argv += ["--pedal-exit-slew", f"{pedal_exit_slew:g}"]
     if exit_circle:  # V72 (F3): tope del gas en la salida por el círculo de adherencia
         argv += ["--exit-circle", f"{exit_circle:g}"]
+    if profile_peak_min_m:  # V79 (F13): recorte de los picos cortos de la consigna
+        argv += ["--profile-peak-min-m", f"{profile_peak_min_m:g}"]
     if brake_profile:  # V68 (F1): perfil continuo de frenada con el círculo de adherencia
         argv += ["--brake-profile"]
         if brake_circle != 14.6:
@@ -183,7 +185,7 @@ def run_isolated(
     lat_gain_v0_kmh: float = 0.0, steer_ff_v0_kmh: float = -1.0, steer_preview_s: float = 0.0,
     throttle_max: float = 0.85, brake_decel_straight: float = 0.0, brake_overspeed_straight_ms: float = 8.0,
     brake_slip_limit: float = 0.0, brake_slip_hold: float = 0.0, steer_ff_cap_kmh: float = 0.0,
-    pedal_technique: bool = False, pedal_exit_slew: float = 1.5, brake_profile: bool = False, brake_circle: float = 14.6, exit_circle: float = 0.0,
+    pedal_technique: bool = False, pedal_exit_slew: float = 1.5, brake_profile: bool = False, brake_circle: float = 14.6, exit_circle: float = 0.0, profile_peak_min_m: float = 0.0,
 ) -> int:
     DATA.mkdir(parents=True, exist_ok=True)
     model = DATA / f"{experiment}_model.pt"
@@ -220,6 +222,7 @@ def run_isolated(
                 brake_overspeed_straight_ms=brake_overspeed_straight_ms, brake_slip_limit=brake_slip_limit,
                 brake_slip_hold=brake_slip_hold, steer_ff_cap_kmh=steer_ff_cap_kmh,
                 pedal_technique=pedal_technique, pedal_exit_slew=pedal_exit_slew, brake_profile=brake_profile, brake_circle=brake_circle, exit_circle=exit_circle,
+                profile_peak_min_m=profile_peak_min_m,
             ),
             cwd=APP, env=env,
         ).returncode
@@ -303,6 +306,8 @@ if __name__ == "__main__":
                     help="Con --pedal-technique (V68, F1): consigna de velocidad continua con el círculo de adherencia y freno por avance sin margen; usa --brake-decel-straight como deceleración en recta; sin esto, producción")
     ap.add_argument("--exit-circle", type=float, default=0.0,
                     help="Con --pedal-technique (V72, F3): en la salida de curva el gas no pasa de gas_max · √(1 − (lateral medido / este radio)²), p. ej. 14,6; con 11,7 m/s² laterales el tope es 0,60; 0 = sin tope")
+    ap.add_argument("--profile-peak-min-m", type=float, default=0.0,
+                    help="Con --brake-profile (V79, F13): quita de la consigna los picos más estrechos que estos metros (se aplanan al valle más alto de alrededor); p. ej. 60 = C5-C6, C9 y C10; 150 = también C12-C14; 0 = sin recorte")
     ap.add_argument("--brake-circle", type=float, default=14.6,
                     help="Con --brake-profile: radio del círculo de adherencia en m/s² (por defecto 14,6, D21)")
     ap.add_argument("--pedal-exit-slew", type=float, default=1.5,
@@ -339,7 +344,7 @@ if __name__ == "__main__":
         ap.error(str(exc))
     problem = a2_error(a.ident, a.max_gear, a.lat_accel_limit, a.teacher_only, a.experiment, a.speed_band, cap_limit,
                          bool(a.steer_ff_gain or a.steer_slip_gain or a.lat_gain_v0_kmh or a.steer_ff_v0_kmh >= 0.0 or a.steer_preview_s
-                         or a.throttle_max != 0.85 or a.brake_decel_straight or a.brake_overspeed_straight_ms != 8.0 or a.brake_slip_limit or a.brake_slip_hold or a.steer_ff_cap_kmh or a.pedal_technique or a.brake_profile or a.exit_circle))
+                         or a.throttle_max != 0.85 or a.brake_decel_straight or a.brake_overspeed_straight_ms != 8.0 or a.brake_slip_limit or a.brake_slip_hold or a.steer_ff_cap_kmh or a.pedal_technique or a.brake_profile or a.exit_circle or a.profile_peak_min_m))
     if problem:
         ap.error(problem)
     if a.ident in ("acel", "acelrodar") and a.ident_cap_kmh <= a.speed_band:
@@ -386,6 +391,10 @@ if __name__ == "__main__":
         ap.error("--exit-circle no puede ser negativo (0 = sin tope)")
     if a.exit_circle and not a.pedal_technique:
         ap.error("--exit-circle necesita --pedal-technique (el tope es de la fase de salida de esa técnica)")
+    if a.profile_peak_min_m < 0:
+        ap.error("--profile-peak-min-m no puede ser negativo (0 = sin recorte)")
+    if a.profile_peak_min_m and not a.brake_profile:
+        ap.error("--profile-peak-min-m necesita --brake-profile (el recorte es del perfil continuo de esa opción)")
     if a.brake_profile and not a.pedal_technique:
         ap.error("--brake-profile necesita --pedal-technique (el perfil continuo es de las fases de entrada de esa técnica)")
     if a.brake_circle <= 0:
@@ -421,7 +430,8 @@ if __name__ == "__main__":
                        throttle_max=a.throttle_max, brake_decel_straight=a.brake_decel_straight,
                        brake_overspeed_straight_ms=a.brake_overspeed_straight_ms, brake_slip_limit=a.brake_slip_limit,
                        brake_slip_hold=a.brake_slip_hold, steer_ff_cap_kmh=a.steer_ff_cap_kmh,
-                       pedal_technique=a.pedal_technique, pedal_exit_slew=a.pedal_exit_slew, brake_profile=a.brake_profile, brake_circle=a.brake_circle, exit_circle=a.exit_circle)
+                       pedal_technique=a.pedal_technique, pedal_exit_slew=a.pedal_exit_slew, brake_profile=a.brake_profile, brake_circle=a.brake_circle, exit_circle=a.exit_circle,
+                       profile_peak_min_m=a.profile_peak_min_m)
     log = latest_log(experiment, t0)
     if log is None:
         print("[experimental] no se encontró el log de la prueba; sin informe")

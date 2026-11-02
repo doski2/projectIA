@@ -409,3 +409,10 @@ def test_exit_circle_goes_to_learn_driver_only_when_set_and_counts_as_a_teacher_
     assert argv[argv.index("--exit-circle") + 1] == "14.6"
     cap = aislado.ident_max_cap_kmh(3)
     assert aislado.a2_error("", 3, aislado.LAT_ACCEL_LIMIT, True, "teacher_125", 125.0, cap, True) is not None
+
+
+def test_profile_peak_min_m_goes_to_learn_driver_only_when_set():
+    base = aislado.build_argv(Path("python"), "a2_x", 125.0, 3, teacher_only=True, pedal_technique=True, brake_profile=True)
+    assert "--profile-peak-min-m" not in base
+    argv = aislado.build_argv(Path("python"), "a2_x", 125.0, 3, teacher_only=True, pedal_technique=True, brake_profile=True, profile_peak_min_m=60.0)
+    assert argv[argv.index("--profile-peak-min-m") + 1] == "60"

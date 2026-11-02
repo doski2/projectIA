@@ -130,6 +130,10 @@ def parse_args() -> argparse.Namespace:
         help="Con --brake-profile: radio del círculo de adherencia en m/s² (por defecto la cota lateral de D21, 14,6).",
     )
     parser.add_argument(
+        "--profile-peak-min-m", type=float, default=0.0,
+        help="Con --brake-profile (V79, F13): quita de la consigna de velocidad los picos más estrechos que estos metros (se aplanan al valle más alto de alrededor): el coche deja de acelerar en tramos cortos entre curvas para frenar enseguida (p. ej. 60 = C5-C6, C9 y C10; 150 = también C12-C14). 0 = sin recorte.",
+    )
+    parser.add_argument(
         "--exit-circle", type=float, default=0.0,
         help="Con --pedal-technique (V72, F3): en la salida de curva el gas no pasa de gas_max · √(1 − (lateral medido / este radio)²) (p. ej. 14,6 = cota lateral de D21); con 11,7 m/s² laterales el tope es 0,60. 0 = sin tope.",
     )
@@ -507,6 +511,7 @@ def run(args: argparse.Namespace) -> int:
         brake_profile=bool(getattr(args, "brake_profile", False)),
         brake_circle=float(getattr(args, "brake_circle", 14.6) or 14.6),
         exit_circle=float(getattr(args, "exit_circle", 0.0) or 0.0),
+        profile_peak_min_m=float(getattr(args, "profile_peak_min_m", 0.0) or 0.0),
         exit_slew_per_s=float(getattr(args, "pedal_exit_slew", 1.5) or 1.5),
         slip_steer_gain=float(getattr(args, "steer_slip_gain", 0.0) or 0.0),
         lat_gain_v0_kmh=float(getattr(args, "lat_gain_v0_kmh", 0.0) or 0.0),

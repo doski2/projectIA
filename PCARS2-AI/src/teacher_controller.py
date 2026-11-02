@@ -193,6 +193,9 @@ class TeacherConfig:
     brake_ff_ahead_m: float = 10.0
     brake_profile_gain: float = 0.12
     brake_profile_offset_ms: float = 1.0  # el perfil se eleva esta velocidad (m/s): la ley de siempre toma las curvas por encima del límite (frena al pasar un margen de 1,5 m/s); con 1,0 el coche de juguete entra a las curvas igual que ella y tarda 0,2 s más (con 1,5 entraba 1 m/s más rápido y tardaba 1,2 s menos)
+    # Recorte de picos cortos de la consigna (V79, F13), opt-in y solo con `brake_profile`: quita del perfil los picos más estrechos que estos metros (se aplanan al valle más alto de alrededor), de modo que el
+    # coche no acelera en un tramo corto entre dos curvas para frenar enseguida (gas, freno, gas de C5-C6, C9, C10 y C12-C14). Solo baja el perfil, nunca lo sube. 0 = sin recorte.
+    profile_peak_min_m: float = 0.0
     brake_profile_lift_drop_ms: float = 1.5  # con perfil, una curva por delante cuenta si su límite está al menos esto por debajo de la velocidad (los baches de la curvatura de Sugo hacen mínimos de ≈ 3 m/s)
     # Tope del gas en la salida por el círculo de adherencia (V72, F3), opt-in y solo con `pedal_technique`: en «exit» el gas no pasa de `throttle_max · √(1 − (a_lat / exit_circle)²)` con la aceleración
     # lateral **medida** (suavizada), y nunca baja de `exit_circle_floor`. A 11,7 m/s² con círculo 14,6 el tope es 0,60 (la sesión 170252Z salía a 0,93-1,00 en C11). 0 = sin tope.
@@ -202,6 +205,21 @@ class TeacherConfig:
     brake_on_ms2: float = 0.8  # deceleración necesaria a partir de la cual empieza a frenar (por debajo, gas cortado y sin freno)
     trail_offset_ms: float = 1.0  # la suelta del freno termina con este exceso sobre la consigna (0 = hasta llegar a la consigna; la ley de siempre soltaba a 1,5; con 1,0 el coche de juguete no pierde tiempo)
     exit_slew_per_s: float = 1.5  # subida máxima del gas por segundo desde el vértice (el gas llega a fondo en ≈ 0,7 s)
+
+
+def open_profile_peaks(prof, width_m: float):
+    """Apertura morfológica circular de un perfil de velocidad por metro (V79): quita los picos más estrechos que `width_m` metros.
+
+    Un pico entre dos mínimos cercanos (p. ej. el tramo de 35 m entre C5 y C6) se aplana al valle más alto de alrededor: el resultado nunca supera al perfil de entrada y los tramos
+    anchos (rectas largas, curvas largas) no cambian. `width_m` <= 0 devuelve una copia sin tocar.
+    """
+    n = len(prof)
+    half = int(width_m // 2)
+    if half <= 0 or n == 0:
+        return list(prof)
+    half = min(half, n // 2)
+    eroded = [min(prof[(i + k) % n] for k in range(-half, half + 1)) for i in range(n)]
+    return [max(eroded[(i + k) % n] for k in range(-half, half + 1)) for i in range(n)]
 
 
 class TeachingController:
@@ -248,7 +266,7 @@ class TeachingController:
         assert a_lat is not None, "el perfil de frenada necesita lat_accel_limit"
         a_b = cfg.brake_decel_straight if cfg.brake_decel_straight > 0.0 else 8.0
         off = cfg.brake_profile_offset_ms
-        key = (a_lat, a_b, cfg.brake_circle, off)
+        key = (a_lat, a_b, cfg.brake_circle, off, cfg.profile_peak_min_m)
         prof = self._profile_cache.get(key)
         if prof is None:
             vlim = self._vlim_cache.get(a_lat)
@@ -256,6 +274,8 @@ class TeachingController:
                 vlim = self._vlim_cache[a_lat] = self._lateral_speed_limits()
             kappa = self._smoothed_kappa()
             prof = [v if v >= MAX_CURVE_SPEED_MS else min(MAX_CURVE_SPEED_MS, v + off) for v in vlim]
+            if cfg.profile_peak_min_m > 0.0:
+                prof = open_profile_peaks(prof, cfg.profile_peak_min_m)
             n = len(prof)
             for _ in range(2):
                 for i in range(n - 1, -1, -1):
