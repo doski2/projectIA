@@ -1,6 +1,6 @@
 # Pendiente de circuito_virtual
 
-Estado al cierre de la sesión del **2026-11-01**. Lo que no es del circuito (rampa del BC, PPO, daño
+Estado al cierre de la sesión del **2026-11-02**. Lo que no es del circuito (rampa del BC, PPO, daño
 de motor P26, controles de seco, reentreno v2) está en `experimental/docs/PENDIENTE.md`. El plan está
 en `docs/PLAN.md`, las decisiones en `docs/DECISIONES.md` y la historia en `docs/DIARIO.md`.
 
@@ -12,8 +12,9 @@ volante de más abajo, no contra la anterior.
 
 ## Dónde estamos
 
-- **Estado del código:** todo lo hecho está en commits (`git log`); el último cambio de código es el
-  limitador con memoria del pedal límite (V50). Lo que no se versiona está en la lista de archivos locales de
+- **Estado del código:** todo lo hecho está en commits (`git log`); los últimos cambios de código son el
+  limitador con memoria del pedal límite (V50), el tope de velocidad de la anticipación del volante (V57) y la cota
+  local de curvatura de `linea_optima.py` (V62). Lo que no se versiona está en la lista de archivos locales de
   abajo.
 - **Tests en verde:** `circuito_virtual` 59, `experimental` 98, `PCARS2-AI` 504. Se lanzan con
   `pytest` dentro de cada carpeta.
