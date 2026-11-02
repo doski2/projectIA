@@ -3,6 +3,8 @@
 Lo más reciente arriba. Historia anterior en `experimental/docs/DIARIO.md`. Las «V» son entradas del
 registro de decisiones (`DECISIONES.md`), no versiones del software.
 
+- **2026-11-02 — Banda 115 km/h con la línea `a1mu9b`: peor, y encuentro la causa probable en la línea (V61).** A 115 km/h fallan los mismos tramos (2,50 m en 430-451 m) porque están a 97-108 km/h, por debajo de la banda. Comparando curvaturas, donde la suavizada no cambia de signo (2380-2560 m) la óptima cambia dos veces y con una variación de curvatura tres veces mayor: el optimizador serpentea para aprovechar el ancho y el teacher no lo sigue. Propongo una cota local de curvatura en `linea_optima.py`; necesita visto bueno.
+
 - **2026-11-02 — Línea `a1mu9b` con tope de 90 km/h: no cumple (V60).** La S de 2400-2500 m baja a 1,8-1,9 m, pero la de 400-600 m sube a 2,2 m, aparecen 58 ticks con ruedas fuera y la deriva queda en 4,5°. Con una sola ganancia cada S pide un valor distinto; el tope 100 queda como mejor ajuste. Las dos S se cruzan a 11-15 m/s² laterales entrando a 98-117 km/h. Siguiente, una variable: banda 115 km/h con tope 100 (escalera de A2.0).
 
 - **2026-11-02 — El modelo del volante con el log del tope 100 (V59).** Sigue sin reproducir la S de 2400-2500 m (la simula en 0,7-1,4 m cuando el coche hizo 2,2-2,4 m) ni 900-960 m, pero ve bien el desvío de 2690-2860 m. Ordena las variantes: los topes de 85-90 km/h bajan los picos en las tres ventanas y `k_heading` 0,7 también. Con los datos reales de V40 (ganancia menor para todos: arregla la S, estropea 900-960 m) se elige la prueba menos arriesgada: `--steer-ff-cap-kmh 90`, una sola variable.
