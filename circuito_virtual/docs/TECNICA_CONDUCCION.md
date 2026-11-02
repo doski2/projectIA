@@ -85,7 +85,7 @@ Decisión pendiente (a discutir con el usuario): empezar por la versión «PCA»
 | F10 | **Tiempo de espera en la salida**: gas ligero tras el vértice con una duración que depende del ángulo de la curva y subida decidida después (hoy el gas sube desde 0 con pendiente fija 1,5/s) | Principio 17 | Menos inversiones del gas y sin deriva > 4° a la salida; tiempo de vuelta menor |
 | F11 | **Clasificar las curvas de la línea** (radio decreciente, creciente, horquilla, ese) a partir de κ(s) y adaptar punto de frenada y de giro a cada tipo | Principio 18 | Tabla de curvas de Sugo con su tipo; la consigna cambia solo donde el tipo lo pide |
 | F12 | **Eses: prioridad por la recta más larga**. Comprobar si la línea óptima y la consigna ya sacrifican una parte de la S de 400-600 m y de la de 2380-2560 m a favor de la recta que sigue | Principio 18 | Velocidad de paso y de salida de cada parte comparada con la del solver |
-| F13 | **Horizonte de mirada**: la consigna mira 150 m y el volante 0,3 s; ver si hace falta mirar más lejos en las curvas rápidas y en las que están encadenadas | Principio 13 | Sin sorpresas de curva (consigna que cae > 10 km/h en < 10 m) |
+| F13 | **Horizonte de mirada**: la consigna mira 150 m y el volante 0,3 s; ver si hace falta mirar más lejos en las curvas rápidas y en las que están encadenadas. **V79:** primer paso, `--profile-peak-min-m` recorta los picos cortos entre curvas del perfil (el sube-baja de C5-C6, C9, C10 y C12-C14 era lo que pedía el perfil); implementado, sin probar en el juego | Principio 13 | Sin sorpresas de curva (consigna que cae > 10 km/h en < 10 m); sin gas, freno y gas entre curvas cercanas |
 
 ## 6. Cómo se usa este documento
 
