@@ -8,7 +8,7 @@ la misma distancia que el coche. Dos comprobaciones:
 - **dejando un log fuera:** tablas con los demás y predicción del log que falta (la prueba honesta).
 
 No es la prueba de la hipótesis de A2 (error de tiempo de vuelta < 3 % con vueltas a ritmo real): todavía no hay vueltas a ritmo real, y las
-tablas llegan a 120 km/h. Además imprime la vuelta potencial del modelo con ese tope, solo como información.
+tablas llegan a 140 km/h (V56). Además imprime la vuelta potencial del modelo con ese tope, solo como información.
 
 Uso:
     python experimental/identificacion/analisis_a2.py [--json salida.json] [--guardar circuito_virtual/coches/formula_rookie/parametros_a1.json]
@@ -32,9 +32,9 @@ from experimental.common import analisis_a1 as a1  # noqa: E402
 from circuito_virtual.src import perfil_velocidad as pv  # noqa: E402
 
 LOGS = _REPO / "PCARS2-AI" / "logs" / "learning"
-ACEL_LOGS = ("20261031T172531Z", "20261031T173744Z", "20261031T175152Z", "20261031T180907Z", "20261101T000938Z")
+ACEL_LOGS = ("20261031T172531Z", "20261031T173744Z", "20261031T175152Z", "20261031T180907Z", "20261101T000938Z", "20261101T195353Z")  # el último: techo a 140 km/h con 3.ª (V43)
 BRAKE_LOGS = ("20261031T183302Z", "20261031T185936Z")
-V_KNOWN_KMH = 125.0  # hasta 120 en 1ª y 2ª (el corte de la 2ª, H50) y hasta 125 con la 3ª (G1, H60)
+V_KNOWN_KMH = 140.0  # hasta 120 en 1ª y 2ª (el corte de la 2ª, H50), hasta 125 con la 3ª (G1, H60) y hasta 140 con el techo de V43 (log 20261101T195353Z)
 MIN_PASS_S = 1.0
 MIN_PASS_KMH = 8.0
 MIN_V0_KMH = 20.0  # la salida parada (embrague, arranque) no está en el modelo
