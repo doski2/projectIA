@@ -1,10 +1,10 @@
 # Pendiente de circuito_virtual
 
-Estado al cierre de la sesión del **2026-11-02**. Lo que no es del circuito (rampa del BC, PPO, daño
+Estado al cierre de la sesión del **2026-11-02** (noche, tras F1 implementada, V1-V68). Lo que no es del circuito (rampa del BC, PPO, daño
 de motor P26, controles de seco, reentreno v2) está en `experimental/docs/PENDIENTE.md`. El plan está
 en `docs/PLAN.md`, las decisiones en `docs/DECISIONES.md` y la historia en `docs/DIARIO.md`.
 
-**Qué significan las «V»:** cada Vnn es una entrada del registro de decisiones (hoy V1-V63), no una
+**Qué significan las «V»:** cada Vnn es una entrada del registro de decisiones (hoy V1-V68), no una
 versión del software. La versión del software es el commit de git, que cada sesión guarda en la
 cabecera de su log. Este documento recoge solo el estado actual y lo que sigue; las cifras de sesiones
 anteriores son referencia (están en `DECISIONES.md`) y cada sesión nueva se juzga contra el criterio de
@@ -12,11 +12,14 @@ volante de más abajo, no contra la anterior.
 
 ## Dónde estamos
 
-- **Estado del código:** todo lo hecho está en commits (`git log`); los últimos cambios de código son el
-  limitador con memoria del pedal límite (V50), el tope de velocidad de la anticipación del volante (V57) y la cota
-  local de curvatura de `linea_optima.py` (V62). Lo que no se versiona está en la lista de archivos locales de
-  abajo.
-- **Tests en verde:** `circuito_virtual` 65, `experimental` 99, `PCARS2-AI` 506. Se lanzan con
+- **Estado del código: HAY CAMBIOS SIN COMITEAR** (`git status`; el último commit es `626cf27`). Código: `--hold-stage` (V64), `--pedal-technique` y
+  `--pedal-exit-slew` (V65), `--brake-profile` y `--brake-circle` (V68), `log_schema` 3 con `lat_accel` lateral real y `long_accel` (V67), `experimental/common/pedales_sesion.py` y sus tests. Documentos: V64-V67 en `DECISIONES.md`,
+  `DIARIO.md`, este archivo y el nuevo `TECNICA_CONDUCCION.md`. Propuesta de dos commits (el usuario decide): (1) código: `PCARS2-AI/src/{learn_driver,session_log,teacher_controller,teacher_intents}.py`,
+  `PCARS2-AI/tests/{test_learn_guards,test_session_log_schema,test_pedal_technique}.py`, `experimental/common/{aislado,informe_c0,pedales_sesion}.py`,
+  `experimental/tests/{test_aislado,test_registro_pasivo,test_pedales_sesion}.py`; (2) documentos: `circuito_virtual/docs/{DECISIONES,DIARIO,PENDIENTE,TECNICA_CONDUCCION}.md` y
+  `experimental/docs/PENDIENTE.md`. Anteriores: limitador con memoria del pedal límite (V50), tope de la anticipación del volante (V57) y cota local de curvatura de `linea_optima.py` (V62).
+  Lo que no se versiona está en la lista de archivos locales de abajo.
+- **Tests en verde:** `circuito_virtual` 65, `experimental` 106, `PCARS2-AI` 530. Se lanzan con
   `pytest` dentro de cada carpeta.
 - **Teacher** (`teacher_controller.py`, `learn_driver.py`): cada opción es opt-in y su valor por
   defecto es el de producción.
@@ -29,10 +32,13 @@ volante de más abajo, no contra la anterior.
 
 | Tema | Estado | Qué falta |
 | --- | --- | --- |
-| A2.0 a 125 km/h con la línea suavizada | **Cumple las métricas de volante** (|CTE| máx. 1,56 m, deriva 2,5°, 120,4 s) pero deja 73-103 ticks con una rueda fuera de la superficie de carrera (749-768, 1444-1456 y 2888-2895 m, V63) | Nada: es la receta base |
-| A2.0 con la línea óptima `a1mu9b` | Prevé −1,7 s pero no cumple (V58: |CTE| 2,38 m, deriva 5,6°, 0 ruedas fuera, +1,1 % de tiempo) | Con `--steer-ff-cap-kmh 100` (V58): 2690-2860 m arreglado, 0 ruedas fuera, 118,9 s; la S de 2400-2500 m (2,2-2,4 m) y una deriva de 5,6° en 920-930 m no cumplen. Tope 90 (V60) y banda 115 (V61): no mejoran; la óptima serpentea donde la suavizada no (V61). Cota local de curvatura hecha (V62), línea `a1mu9c12` generada. Siguiente: sesión con esa línea a 125 km/h |
+| A2.0 a 125 km/h con la línea suavizada | **Cumple V19 en 4 vueltas**: sin técnica `124357Z` (120,5 s, S de 400-600 m en 1,4 m) y con la técnica de pedales `140704Z` (120,1 s, 1,6 m); deja 100-160 ticks por vuelta con una rueda fuera de la superficie de carrera (740-770, 1400-1460, 2290, 2450 y 2880-2890 m, V63) | Nada: es la receta base |
+| A2.0 con la línea óptima `a1mu9b` | Prevé −1,7 s pero no cumple (V58: |CTE| 2,38 m, deriva 5,6°, 0 ruedas fuera, +1,1 % de tiempo) | Con `--steer-ff-cap-kmh 100` (V58): 2690-2860 m arreglado, 0 ruedas fuera, 118,9 s; la S de 2400-2500 m (2,2-2,4 m) y una deriva de 5,6° en 920-930 m no cumplen. Tope 90 (V60) y banda 115 (V61): no mejoran; la óptima serpentea donde la suavizada no (V61). Cota local de curvatura hecha (V62), línea `a1mu9c12` generada y **probada a 125 km/h (V64): 119,5 s, 0 ruedas fuera, volante y deriva bien, 880-980 / 2380-2560 / 2680-2870 m en 0,60 / 1,71 / 0,75 m; no cumple solo por la S de 400-600 m en la vuelta 2 (2,38 m, rumbo 0,22 rad), que es casi igual que en la suavizada** (segundo modo de las líneas óptimas en vueltas ≥ 2; la vuelta 1 nunca). Repetida: 2,48 m; con 4 vueltas y `--hold-stage` (V64): vuelta 2 1,76 m (cumpliría), 3 y 4 2,46 y 2,56 m, y la 4 pisa fuera. **Los neumáticos fríos no son la causa por sí solos (la suavizada cumple V19 en 4 vueltas, V64 14). La receta 60 / sin tope mantiene la S en 1,4-1,7 m pero falla en las zonas rápidas (hasta 1,94 m, V64 17); la receta 70 / tope 100 al revés.** La técnica de pedales cumple V19 en 4 vueltas (V66). Siguiente: frenada de entrada (F1) |
 | Techo en 3.ª (G2) | **Limpio hasta 140 km/h** (volante ±0,01, CTE ≤ 0,16 m por encima de 128 km/h). El motor llega a 149,9 km/h (112 N·m a 6756 rpm) | Repetir 150 km/h con la ganancia por velocidad |
 | Frenadas fuertes | Con pedal ≤ 0,84 (teacher de A2) no hay bloqueo; con pedal 1,0 (A1) se bloquean las delanteras. **Limitador por deslizamiento (V44, V45, V47): cuatro sesiones reales, sin bloqueo; el mejor valor del limitador sin memoria es el objetivo 0,3 con 10,9-11,3 m/s² (criterio 11,5) y el pedal sigue en ciclo; **cerrado** con objetivo 0,25 y memoria 0,85 (V50-V55): 11,4-11,8 m/s² desde 150 km/h y 11,0-11,4 desde 140, 0 ruedas paradas, CTE ≤ 0,56 m | Decidir qué tabla de frenada usa el solver (V55, punto 4); revisar los cambios de marcha durante la frenada; luego 140 km/h y el techo a 150 km/h |
+| Técnica de pedales (`--pedal-technique`, V65-V66) | Implementada y probada en el juego una vez (`140704Z`): cumple V19 y es 0,4 s más rápida, pero deja 24 inversiones de gas y 2 rebotes (objetivos ≤ 11 y 0) y mete 0,28 s de tiempo muerto antes de frenar | Frenada de entrada (F1) y gas con espera (F10) de `TECNICA_CONDUCCION.md` |
+| Frenada de entrada (F1) | **Implementada (V68, `--brake-profile`), sin probar en el juego.** Sin juego: la consigna de siempre cae hasta 16,8 km/h en 1 m (16 puntos > 2 km/h por metro, 144,6 m/s² implícitos) y el perfil continuo 1,2 km/h por metro (0 puntos, 8,0 m/s²). Hoy se frena al 50-70 % de la capacidad, el 68 % del freno con > 4 m/s² laterales y 0,28 s de tiempo muerto (V66) | Sesión F1-1 y después F1-2 (`TECNICA_CONDUCCION.md` §8) |
+| Registro de sesión | `log_schema` 3 desde V67: `lat_accel` lateral real y `long_accel`; los logs anteriores tienen `lat_accel` = longitudinal | Leer cualquier log con `session_log.tick_accels` |
 | Modelo del volante | `experimental/common/modelo_volante.py` acierta a más de 108 km/h y no ve las entradas en curva cerrada | Reajustarlo con cada log nuevo |
 | Bordes de la pista | Pasillo comprobado, bordes reales sin medir | D1b |
 
@@ -45,6 +51,13 @@ la ruta absoluta del Python del proyecto.
 
 ```text
 C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --teacher-only --speed-band 125 --max-gear 3 --lat-accel-limit 9 --steer-ff-gain 0.003 --steer-ff-v0-kmh 0 --steer-preview-s 0.3 --steer-slip-gain 5 --lat-gain-v0-kmh 60 --throttle-max 1.0 --brake-decel-straight 8 --brake-overspeed-straight-ms 2.5 --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_smooth.json --experiment a2_suave_125_g3_lat9_slip5_v60_ff0_pv03_gas1_fr8 --laps 3
+```
+
+**A2.0 con la técnica de pedales (V65, sesión de referencia `140704Z`: cumple V19 en 4 vueltas, 120,1 s).** La receta base con `--pedal-technique`
+(y 4 vueltas: `aislado.py` pasa `--hold-stage` con `--teacher-only`; usar un nombre de experimento nuevo para no borrar el buffer anterior):
+
+```text
+C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --teacher-only --speed-band 125 --max-gear 3 --lat-accel-limit 9 --steer-ff-gain 0.003 --steer-ff-v0-kmh 0 --steer-preview-s 0.3 --steer-slip-gain 5 --lat-gain-v0-kmh 60 --throttle-max 1.0 --brake-decel-straight 8 --brake-overspeed-straight-ms 2.5 --pedal-technique --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_smooth.json --experiment a2_suave_125_g3_lat9_slip5_v60_ff0_pv03_gas1_fr8_pedal_l4b --laps 4
 ```
 
 **A2.0 con la línea óptima (en prueba, no cumple todavía).** Igual, con `--lat-gain-v0-kmh 70`,
@@ -101,6 +114,10 @@ Con salida por tubería, anteponer `PYTHONIOENCODING=utf-8`:
 
 - A2.0: `experimental\common\resumen_sesion.py <log> --previsto <s>` (criterio de volante, tramos fuera
   de criterio, frenos, cambios de marcha, ruedas fuera).
+- Pedales y frenada (V65-V67): `experimental\common\pedales_sesion.py <log> --vueltas 2,3,4 [--eventos] [--consigna <linea.json>]` (inversiones y rebotes del gas, tiempo muerto antes de
+  frenar, deceleración, % de la frenada con > 4 m/s² laterales, uso del círculo; con `--consigna`, el mayor salto de la consigna del teacher sin juego). Cifras de partida en `TECNICA_CONDUCCION.md` §7.1.
+- **Aceleraciones de un log**: usar `session_log.tick_accels(tick["vehicle"])` (lateral, longitudinal positiva al acelerar) o `local_accel[0]` / `local_accel[2]`; **nunca `vehicle.lat_accel`
+  en logs anteriores a V67** (era la longitudinal).
 - A1: `experimental\common\analisis_a1.py <log>`.
 - Modelo del volante: `experimental\common\modelo_volante.py --ajuste "LOG|REF" --prueba "LOG|REF"`.
 
@@ -120,6 +137,10 @@ Con salida por tubería, anteponer `PYTHONIOENCODING=utf-8`:
 | `--reference` | `sugo_smooth.json` o `sugo_optima_a1mu9b.json` | Línea que sigue el teacher | V14, V32, V36 |
 | `--brake-slip-limit` | 0 (apagado); 0.2 para frenar desde más de 123 km/h | Si 1 − rps delanteras / rps traseras pasa de este valor, el pedal baja y vuelve a subir al recuperar agarre; actúa sobre el pedal de cualquier origen, también `--ident frenar` | V43, V44 |
 | `--brake-slip-hold` | 0 (sin memoria); 0.85 | Con `--brake-slip-limit`: tras pasar del objetivo el pedal sube deprisa solo hasta esta fracción del pedal que lo provocó y despacio desde ahí, en lugar de volver a 1,0 y oscilar; sin probar en el juego | V49, V50 |
+| `--pedal-technique` | apagado | Técnica de pedales (solo con el modelo físico): gas cortado del todo y enclavado antes de frenar, freno que se suelta en proporción al exceso hasta el vértice y gas que solo sube desde el vértice; sin probar en el juego | V65 |
+| `--pedal-exit-slew` | 1.5 | Con `--pedal-technique`: subida máxima del gas por segundo desde el vértice (1,5 = de 0 a fondo en ≈ 0,7 s; con 0,8 el coche de juguete perdía 1,2 s) | V65 |
+
+`aislado.py` pasa siempre `--hold-stage` a `learn_driver.py` con `--teacher-only` (V64): sin él dos vueltas limpias cerraban la sesión aunque `--laps` fuese mayor.
 
 Reglas de `aislado.py` para estas opciones: sin `--ident` exigen `--teacher-only` y un
 `--experiment` con prefijo `a2_` (el nombre por defecto borraría el buffer `teacher_<banda>`); con
@@ -180,28 +201,49 @@ superficie de carrera. Referencia: la IA a ritmo real hace 97,9 s.
   largos usar Write y no scripts de Python con `\n` dentro de cadenas en la línea de comandos.
 - El usuario reformatea los docs con markdownlint: no comprobar texto con búsquedas literales
   frágiles (usar regex tolerante a espacios).
+- **Ejes del log (V67):** `lat_accel` es la lateral solo desde `log_schema` 3; en los logs anteriores es la longitudinal. Un análisis suelto con el eje equivocado ya produjo cifras falsas en V64-V66.
+- **Cambios del teacher que tocan los pedales:** los tests deben medir también la velocidad con la que se llega a cada curva (regresión de V65 7: la consigna «congelada» de la salida tapó la curva siguiente
+  y el coche se pasó), no solo inversiones, rebotes y tiempo; el coche de juguete debe acelerar tanto o más que el real (probar ×1,0, ×1,3 y ×1,6).
+- **Primera sesión tras un cambio de pedales:** el usuario atento y con Ctrl+C a mano; la primera vuelta es la que revela si el coche llega a una curva sin levantar.
 - Camino sólido a largo plazo, sin prisa. Si hay que elegir, recomendar y no listar todo.
 
 ## Siguiente (en este orden)
 
-1. **Decidir la tabla de frenada del solver** (V55, punto 4): la de `parametros_a1.json` (45-105 km/h, 11,87-13,05
-   m/s²) y las medias por ventanas de V55 (10,3-12,0 m/s²) no coinciden. Las tablas de A1 ya descuentan la
-   pendiente (comprobado). Ver también los cambios de marcha durante la frenada de `--ident frenar` (hasta
-   cinco por frenada, ≈ 1 m/s² donde caen). Datos de partida (radio efectivo 0,274 m): sin bloqueo el
-   deslizamiento delantero va al 10-15 % con pedal 0,6-0,95; con bloqueo (80-110 %) la deceleración baja a
-   11,9 m/s² frente a 12,5-12,7 con el 20-50 %.
-2. **Sesión con la línea `a1mu9c12`** (V62) a 125 km/h con el tope de anticipación 100: se juzga por el criterio de V19
-   en las dos vueltas y 0 ticks con ruedas fuera, y por 118,4 s previstos. Si no sirve: línea con μ 8 o dejar la
-   suavizada a 125 km/h como referencia. Comando:
+0. **Al empezar:** `git status` (hay cambios sin comitear, ver «Dónde estamos») y preguntar si se hacen los dos commits propuestos. Leer `docs/TECNICA_CONDUCCION.md` §7.
+1. **Frenada de entrada, F1: IMPLEMENTADA (V68), falta probarla en el juego** (se asumieron las recomendaciones: PCA con el círculo, perfil local, commit pendiente). Detalle, criterios y qué vigilar en
+   `TECNICA_CONDUCCION.md` §8. El usuario lanza, atento en las primeras vueltas (Ctrl+C si el coche llega a una curva sin levantar):
+   - **F1-1** (una variable respecto a `140704Z`): receta de esa sesión + `--brake-profile --brake-circle 11` (`--brake-decel-straight 8`). Objetivos: tiempo muerto ≤ 0,1 s, energía de frenada con > 4 m/s² laterales ≤ 55 % (68 %
+     hoy), sin entrar más rápido a las curvas, rebotes 0 / inversiones ≤ 11, tiempo ≤ 120,4 s y V19 como siempre. Si frena demasiado tarde o dentro de la curva: `--brake-circle 10`.
 
 ```text
-C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --teacher-only --speed-band 125 --max-gear 3 --lat-accel-limit 9 --steer-ff-gain 0.003 --steer-ff-v0-kmh 0 --steer-ff-cap-kmh 100 --steer-preview-s 0.3 --steer-slip-gain 5 --lat-gain-v0-kmh 70 --throttle-max 1.0 --brake-decel-straight 8 --brake-overspeed-straight-ms 2.5 --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_optima_a1mu9c12.json --experiment a2_optA1mu9c12_125_g3_lat9_slip5_v70_ff0_pv03_gas1_fr8_cap100 --laps 3
+C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --teacher-only --speed-band 125 --max-gear 3 --lat-accel-limit 9 --steer-ff-gain 0.003 --steer-ff-v0-kmh 0 --steer-preview-s 0.3 --steer-slip-gain 5 --lat-gain-v0-kmh 60 --throttle-max 1.0 --brake-decel-straight 8 --brake-overspeed-straight-ms 2.5 --pedal-technique --brake-profile --brake-circle 11 --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_smooth.json --experiment a2_suave_125_g3_lat9_slip5_v60_ff0_pv03_gas1_fr8_perfil_c11_l4 --laps 4
 ```
-3. ~~Actualizar la tabla de aceleración de A1 y el tope del solver~~ **Hecho (V56):** tope de las tablas 140 km/h,
-   aceleración a 125 km/h 2,47 m/s², fila de 135 km/h 2,21. Queda, si se quiere, una sesión de aceleración con
-   techo 150 km/h (`--ident acel --ident-cap-kmh 150 --lat-gain-v0-kmh 70`); añadir las aceleraciones de las
-   sesiones de frenada sube el error dejando un log fuera (V56) y no se usan.
-4. **Commits** de lo pendiente (ver «Dónde estamos»).
+
+   - **F1-2** (solo si F1-1 sale bien): `--brake-decel-straight 10` + `--brake-slip-limit 0.25 --brake-slip-hold 0.85`. Objetivos: deceleración mediana ≥ 7 m/s², ≥ 25 % del tiempo de freno con ≥ 10 m/s², pedal máx. ≥ 0,8, sin
+     bloqueo de ruedas. Comando en `TECNICA_CONDUCCION.md` §8.4 (experimento `…_fr10_perfil_c11_slip_l4`).
+   Análisis: `resumen_sesion.py <log> --previsto 120.6` y `pedales_sesion.py <log> --vueltas 2,3,4 --eventos`.
+2. **Sesiones que se pueden lanzar ya, sin código nuevo** (mientras se decide F1; una variable cada una; el usuario las lanza y pasa el informe):
+   - **A. Línea y técnica** (respecto a `130600Z`): `a1mu9c12` con la receta 60 / sin tope y `--pedal-technique`. Pregunta: ¿la técnica arregla los fallos de las zonas rápidas de `130600Z`?
+
+```text
+C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --teacher-only --speed-band 125 --max-gear 3 --lat-accel-limit 9 --steer-ff-gain 0.003 --steer-ff-v0-kmh 0 --steer-preview-s 0.3 --steer-slip-gain 5 --lat-gain-v0-kmh 60 --throttle-max 1.0 --brake-decel-straight 8 --brake-overspeed-straight-ms 2.5 --pedal-technique --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_optima_a1mu9c12.json --experiment a2_optA1mu9c12_125_g3_lat9_slip5_v60_ff0_pv03_gas1_fr8_pedal_l4 --laps 4
+```
+
+   - **B. Margen lateral** (la propuesta del usuario, respecto a `140704Z`): `--lat-accel-limit 10` con la suavizada y `--pedal-technique`. Sube la velocidad en curva un 5 % y pide ≈ 15-16 m/s² laterales
+     (por encima de los 14,6 de D21): solo con el usuario atento.
+
+```text
+C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --teacher-only --speed-band 125 --max-gear 3 --lat-accel-limit 10 --steer-ff-gain 0.003 --steer-ff-v0-kmh 0 --steer-preview-s 0.3 --steer-slip-gain 5 --lat-gain-v0-kmh 60 --throttle-max 1.0 --brake-decel-straight 8 --brake-overspeed-straight-ms 2.5 --pedal-technique --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_smooth.json --experiment a2_suave_125_g3_lat10_slip5_v60_ff0_pv03_gas1_fr8_pedal_l4 --laps 4
+```
+
+   Pendiente aparte (V64 17-18): `a1mu9c12` con receta 70 / tope 100 arregla las zonas rápidas y degrada la S, y con 60 / sin tope al revés; falta separar `v0` y tope (p. ej. 70 sin tope).
+3. **Decidir la tabla de frenada del solver** (V55, punto 4; enlaza con F4): la de `parametros_a1.json` (45-105 km/h, 11,87-13,05 m/s²) y las medias por ventanas de V55 (10,3-12,0 m/s²) no coinciden. Las
+   tablas de A1 ya descuentan la pendiente (comprobado). Ver también los cambios de marcha durante la frenada de `--ident frenar` (hasta cinco por frenada, ≈ 1 m/s² donde caen; F6). Datos de partida
+   (radio efectivo 0,274 m): sin bloqueo el deslizamiento delantero va al 10-15 % con pedal 0,6-0,95; con bloqueo (80-110 %) la deceleración baja a 11,9 m/s² frente a 12,5-12,7 con el 20-50 %.
+4. ~~Actualizar la tabla de aceleración de A1 y el tope del solver~~ **Hecho (V56):** tope de las tablas 140 km/h, aceleración a 125 km/h 2,47 m/s², fila de 135 km/h 2,21. Queda, si se quiere, una sesión de
+   aceleración con techo 150 km/h (`--ident acel --ident-cap-kmh 150 --lat-gain-v0-kmh 70`).
+5. **Después de F1:** F3 (tope del gas por el círculo), F10 (gas con espera en la salida), F11-F13 (tipos de curva, eses, horizonte), F5 (puntos de frenada adaptativos), F7 (neumáticos); todas en
+   `TECNICA_CONDUCCION.md` §5.
 
 ## Después (en este orden)
 
@@ -244,6 +286,7 @@ C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\exper
 
 ## Ideas y referencias
 
+- **Técnica de conducción** (V66): `docs/TECNICA_CONDUCCION.md` recoge lo que dicen PCA «The Art of Braking» y 8000vueltas (frenar y acelerar), lo que hace el teacher con datos y las fases F1-F9 pendientes. Las tres partes de 8000vueltas están leídas (V67); filas F10-F13 nuevas para la salida de curva, los tipos de curva, las eses y el horizonte de mirada.
 - **Manual de Racelogic** (*Advanced Circuit Driving Techniques*, aportado por el usuario): volante
   mínimo («enderezar cada curva» valió 0,9 de 1 s en Eau Rouge); la velocidad en curva no es
   constante (frenada modulada, mínimo en el ápice); gas solo cuando no haya que soltarlo; una línea
@@ -283,3 +326,6 @@ C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\exper
 - ~~Techo en 3.ª~~ **Hecho hasta 140 km/h (V43):** volante tranquilo; el motor llega a 149,9 km/h (V42).
 - ~~Modelo del volante~~ **Hecho (V39-V41):** `experimental/common/modelo_volante.py`.
 - ~~Línea `a1mu9b`~~ **Hecha (V36):** quita las ruedas fuera de 759-771 y 1444-1454 m; no cumple todavía el criterio.
+- ~~Corregir el campo `lat_accel` del log~~ **Hecho (V67):** `log_schema` 3, `long_accel` y `tick_accels`.
+- ~~Leer las tres partes de 8000vueltas y el PDF de Porsche (PCA)~~ **Hecho (V66, V67):** `docs/TECNICA_CONDUCCION.md`.
+- ~~Técnica de pedales implementada~~ **Hecho (V65):** `--pedal-technique` cumple V19 en 4 vueltas (`140704Z`); sus criterios del gas no se cumplen todavía.

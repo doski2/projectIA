@@ -61,6 +61,21 @@ REVERSE_K_HEADING = 0.50
 REVERSE_STEER_SMOOTH = 0.45
 REVERSE_BRAKE_MIN = 0.20
 REVERSE_BRAKE_MAX = 0.85
+# Técnica de pedales (V65): si el coche va tanto por debajo de la consigna que ya no hace falta frenar, se deja de esperar la curva y se vuelve a acelerar.
+LIFT_RESUME_MS = 4.0
+PEDAL_TICK_S = 1.0 / 60.0
+# Pedal de freno que da cada deceleración en recta, sin bloqueo (m/s², pedal); medido en V55-V66 con `resumen_sesion.py` (0,40-0,55 → 8,3-8,9; 0,55-0,70 → 9,6-9,9; 0,70-1,00 → 11,6-11,7).
+PEDAL_DECEL_TABLE = ((0.0, 0.0), (3.5, 0.11), (6.2, 0.30), (8.6, 0.475), (9.7, 0.625), (11.65, 0.85), (13.0, 1.0))
+
+
+def pedal_for_decel(decel: float) -> float:
+    """Pedal de freno (0-1) que da `decel` m/s² en recta según `PEDAL_DECEL_TABLE` (interpolación lineal)."""
+    if decel <= PEDAL_DECEL_TABLE[0][0]:
+        return PEDAL_DECEL_TABLE[0][1]
+    for (d0, p0), (d1, p1) in zip(PEDAL_DECEL_TABLE, PEDAL_DECEL_TABLE[1:]):
+        if decel <= d1:
+            return p0 + (p1 - p0) * (decel - d0) / (d1 - d0)
+    return PEDAL_DECEL_TABLE[-1][1]
 
 
 def slip_angle(telem: TelemetryFrame) -> float:
@@ -155,6 +170,25 @@ class TeacherConfig:
     # corrompe (en el check del 29/10 pasó de 0,02 a 0,55 en una sesión). `track_applied_pedals` la acerca a lo aplicado:
     # por tick, `pi_kt` × (aplicado − pedido). Con el teacher al volante no hace nada.
     pi_kt: float = 0.05
+    # Técnica de pedales (V65), opt-in, solo con el modelo físico (`lat_accel_limit`). Fases: «drive» (el PI de siempre), «entry» (la consigna que viene obliga a bajar: el gas se corta del todo
+    # y queda cortado, el freno entra al pasar el margen y se suelta en proporción al exceso hasta llegar a la consigna, es decir, hasta el vértice) y «exit» (desde el vértice el gas solo sube,
+    # con pendiente limitada, mientras la velocidad esté por debajo de la consigna; la consigna no baja). False = como siempre (producción).
+    pedal_technique: bool = False
+    lift_band_ms: float = 0.5  # se corta el gas cuando la velocidad llega a (consigna − esto) con una curva por delante
+    lift_drop_ms: float = 3.0  # «curva por delante» = su límite está al menos esto por debajo de la velocidad actual (los baches de curvatura no cuentan)
+    lift_rate: float = 0.4  # suavizado del corte de gas (el de siempre, 0,08, tarda ≈ 0,45 s)
+    # Frenada de entrada con perfil continuo (V68, F1), opt-in y solo con `pedal_technique`: la consigna es un perfil v*(s) por barrido hacia atrás desde los límites laterales, con la deceleración
+    # disponible a_frenada = a_b · √(1 − (a_lat / brake_circle)²) (a_b = `brake_decel_straight`, 8 si es 0): sin el salto de 8 a 4 m/s² al entrar en la curva. El freno sigue el perfil por avance
+    # (deceleración necesaria a `brake_ff_ahead_m` metros → pedal por la tabla medida) más `brake_profile_gain` de pedal por m/s de exceso, sin margen. False = como siempre.
+    brake_profile: bool = False
+    brake_circle: float = 14.6  # radio del círculo de adherencia (m/s², cota lateral de D21)
+    brake_ff_ahead_m: float = 10.0
+    brake_profile_gain: float = 0.12
+    brake_profile_offset_ms: float = 1.0  # el perfil se eleva esta velocidad (m/s): la ley de siempre toma las curvas por encima del límite (frena al pasar un margen de 1,5 m/s); con 1,0 el coche de juguete entra a las curvas igual que ella y tarda 0,2 s más (con 1,5 entraba 1 m/s más rápido y tardaba 1,2 s menos)
+    brake_profile_lift_drop_ms: float = 1.5  # con perfil, una curva por delante cuenta si su límite está al menos esto por debajo de la velocidad (los baches de la curvatura de Sugo hacen mínimos de ≈ 3 m/s)
+    brake_on_ms2: float = 0.8  # deceleración necesaria a partir de la cual empieza a frenar (por debajo, gas cortado y sin freno)
+    trail_offset_ms: float = 1.0  # la suelta del freno termina con este exceso sobre la consigna (0 = hasta llegar a la consigna; la ley de siempre soltaba a 1,5; con 1,0 el coche de juguete no pierde tiempo)
+    exit_slew_per_s: float = 1.5  # subida máxima del gas por segundo desde el vértice (el gas llega a fondo en ≈ 0,7 s)
 
 
 class TeachingController:
@@ -168,25 +202,86 @@ class TeachingController:
         self._prev_brake = 0.0
         self._gear_engagement_frames = 0
         self._vlim_cache: Dict[float, List[float]] = {}  # límite lateral por metro de vuelta, uno por cada `lat_accel_limit` usado
+        self._profile_cache: Dict[Tuple[float, float, float, float], List[float]] = {}  # perfil de frenada v*(s) por metro (V68)
         self._speed_i = self.config.pi_ff  # integral del PI de velocidad (solo modo físico)
         self._pi_axis: Optional[float] = None  # eje de pedal pedido por el PI en este tick (None = no pasó por el PI)
+        self._phase = "drive"  # técnica de pedales (V65): "drive", "entry" o "exit"
+        self._exit_target = 0.0  # consigna que no baja durante «exit»
 
     def _lateral_speed_limits(self) -> List[float]:
         """`v_lim(d) = sqrt(a_lat / |κ(d)|)` en m/s, un valor por metro, con la curvatura suavizada (±7 m)."""
         a_lat = self.config.lat_accel_limit
         assert a_lat is not None, "el modelo físico de curva necesita lat_accel_limit"
+        return [min(MAX_CURVE_SPEED_MS, math.sqrt(a_lat / k)) for k in self._smoothed_kappa()]
+
+    def _smoothed_kappa(self) -> List[float]:
+        """|κ| por metro de vuelta, suavizada (±7 m) y con suelo `MIN_CURVATURE`."""
         n = max(1, int(self.ref.track_length))
         kappa = [abs(self.ref.curvature(float(d))) for d in range(n)]
         half = 7
-        limits = []
+        out = []
         for d in range(n):
             window = [kappa[(d + i) % n] for i in range(-half, half + 1)]
-            k = max(sum(window) / len(window), MIN_CURVATURE)
-            limits.append(min(MAX_CURVE_SPEED_MS, math.sqrt(a_lat / k)))
-        return limits
+            out.append(max(sum(window) / len(window), MIN_CURVATURE))
+        return out
+
+    def braking_profile(self) -> List[float]:
+        """Perfil de velocidad de frenada v*(s) en m/s, uno por metro (V68, F1): `v*(i) = min(v_lim(i), √(v*(i+1)² + 2 · a_frenada(i) · 1 m))` hacia atrás, dos vueltas al circuito.
+
+        `a_frenada(i) = a_b · √(1 − (a_lat / brake_circle)²)` con `a_lat = v*(i+1)² · |κ(i)|`: cuanto más giro, menos freno disponible (círculo de adherencia)."""
+        cfg = self.config
+        a_lat = cfg.lat_accel_limit
+        assert a_lat is not None, "el perfil de frenada necesita lat_accel_limit"
+        a_b = cfg.brake_decel_straight if cfg.brake_decel_straight > 0.0 else 8.0
+        off = cfg.brake_profile_offset_ms
+        key = (a_lat, a_b, cfg.brake_circle, off)
+        prof = self._profile_cache.get(key)
+        if prof is None:
+            vlim = self._vlim_cache.get(a_lat)
+            if vlim is None:
+                vlim = self._vlim_cache[a_lat] = self._lateral_speed_limits()
+            kappa = self._smoothed_kappa()
+            prof = [v if v >= MAX_CURVE_SPEED_MS else min(MAX_CURVE_SPEED_MS, v + off) for v in vlim]
+            n = len(prof)
+            for _ in range(2):
+                for i in range(n - 1, -1, -1):
+                    nxt = prof[(i + 1) % n]
+                    lat = min(cfg.brake_circle, nxt * nxt * kappa[i])
+                    a_long = a_b * math.sqrt(max(0.0, 1.0 - (lat / cfg.brake_circle) ** 2))
+                    cand = math.sqrt(nxt * nxt + 2.0 * a_long)
+                    if cand < prof[i]:
+                        prof[i] = cand
+            self._profile_cache[key] = prof
+        return prof
+
+    def profile_at(self, lap_distance: float, ahead_m: float = 0.0) -> float:
+        """v*(s) en m/s a `ahead_m` metros por delante de `lap_distance` (interpolación lineal entre metros)."""
+        prof = self.braking_profile()
+        n = len(prof)
+        x = lap_distance + ahead_m
+        i = int(math.floor(x))
+        f = x - i
+        return prof[i % n] * (1.0 - f) + prof[(i + 1) % n] * f
+
+    def profile_info(self, lap_distance: float) -> Tuple[float, float, float]:
+        """(consigna, distancia, velocidad) del próximo mínimo del perfil por delante: distancia 0 = el perfil sube o está plano aquí; > 0 = una curva que viene."""
+        prof = self.braking_profile()
+        n = len(prof)
+        i0 = int(lap_distance)
+        best = self.profile_at(lap_distance)
+        limit = int(self.config.curve_lookahead_m)
+        for d in range(limit + 1):
+            a, b = prof[(i0 + d) % n], prof[(i0 + d + 1) % n]
+            if a <= b:
+                return best, float(d), a
+        return best, float(limit), prof[(i0 + limit) % n]
 
     def physical_curve_target(self, lap_distance: float, decel: Optional[float] = None) -> float:
         """Velocidad máxima ahora para poder bajar, con `brake_decel` (o `decel`), a la `v_lim` de cada punto que viene."""
+        return self.physical_curve_info(lap_distance, decel)[0]
+
+    def physical_curve_info(self, lap_distance: float, decel: Optional[float] = None) -> Tuple[float, float, float]:
+        """(consigna, distancia, `v_lim`) del punto que fija la consigna: distancia 0 = el límite de aquí mismo; > 0 = una curva que viene."""
         decel = self.config.brake_decel if decel is None else decel
         a_lat = self.config.lat_accel_limit
         assert a_lat is not None, "el modelo físico de curva necesita lat_accel_limit"
@@ -195,12 +290,15 @@ class TeachingController:
             vlim = self._vlim_cache[a_lat] = self._lateral_speed_limits()
         n = len(vlim)
         best = MAX_CURVE_SPEED_MS
+        s_bind, v_bind = 0.0, MAX_CURVE_SPEED_MS
         s = 0.0
         while s <= self.config.curve_lookahead_m:
             v_lim = vlim[int(lap_distance + s) % n]
-            best = min(best, math.sqrt(v_lim * v_lim + 2.0 * decel * s))
+            cand = math.sqrt(v_lim * v_lim + 2.0 * decel * s)
+            if cand < best:
+                best, s_bind, v_bind = cand, s, v_lim
             s += CURVE_SAMPLE_M
-        return best
+        return best, s_bind, v_bind
 
     def braking_on_straight(self, lap_distance: float, signed_cte: float) -> bool:
         """True si hay que usar la frenada fuerte de recta (V31): activada en la configuración y el coche va recto y sobre la línea."""
@@ -233,6 +331,8 @@ class TeachingController:
         self._gear_engagement_frames = 0
         self._speed_i = self.config.pi_ff
         self._pi_axis = None
+        self._phase = "drive"
+        self._exit_target = 0.0
 
     def signed_lateral_error(
         self,
@@ -369,14 +469,19 @@ class TeachingController:
         applied = throttle - brake
         self._speed_i = max(0.0, min(cfg.pi_i_max, self._speed_i + cfg.pi_kt * (applied - self._pi_axis)))
 
-    def _pi_speed_pedals(self, speed: float, curve_target: float, curv_ahead: float) -> Tuple[float, float, str]:
-        """Gas por PI sobre el error de velocidad; entre la consigna y el margen de exceso se suelta el gas sin frenar."""
+    def _pi_target(self, speed: float, curve_target: float) -> Tuple[float, float]:
+        """(gas pedido por el PI, error de velocidad). Actualiza la integral."""
         cfg = self.config
         err = curve_target - speed
         if abs(err) < cfg.pi_i_window_ms:
             self._speed_i = max(0.0, min(cfg.pi_i_max, self._speed_i + cfg.pi_ki * err))
         target = max(0.0, min(cfg.throttle_max, self._speed_i + cfg.pi_kp * err))
         self._pi_axis = target
+        return target, err
+
+    def _pi_speed_pedals(self, speed: float, curve_target: float, curv_ahead: float) -> Tuple[float, float, str]:
+        """Gas por PI sobre el error de velocidad; entre la consigna y el margen de exceso se suelta el gas sin frenar."""
+        target, err = self._pi_target(speed, curve_target)
         reason = "maintain_speed"
         if err > 0.5:
             if abs(curv_ahead) > 0.02:
@@ -386,6 +491,67 @@ class TeachingController:
                 reason = "accel_straight"
         throttle, brake = self._pedals_from_axis(target)
         return throttle, brake, reason
+
+    def _technique_pedals(
+        self, speed: float, curve_target: float, curv_ahead: float, s_bind: float, v_bind: float, on_straight: bool, ref_brake: float, v_ahead: Optional[float] = None,
+    ) -> Tuple[float, float, str]:
+        """Pedales con la técnica de curva (V65): gas cortado del todo antes de frenar, freno que se suelta hasta el vértice y gas que solo sube desde el vértice."""
+        cfg = self.config
+        # «Curva por delante»: la consigna la fija una curva que viene (no la banda de velocidad) y su límite está claramente por debajo de la velocidad actual.
+        approaching = curve_target < self.speed_target_ms - 0.01 and s_bind >= CURVE_SAMPLE_M and speed - v_bind > (cfg.brake_profile_lift_drop_ms if v_ahead is not None else cfg.lift_drop_ms)
+        over = speed - curve_target  # siempre con la consigna real: levantar y frenar no pueden depender de la consigna «congelada» de la salida (si no, la curva que viene llega sin aviso)
+        pi_target = curve_target
+        if self._phase == "exit" and s_bind < CURVE_SAMPLE_M:  # límite local (un bache de la curvatura): la consigna del PI no baja durante la salida
+            pi_target = max(curve_target, self._exit_target)
+            self._exit_target = pi_target
+        free = curve_target >= self.speed_target_ms - 0.3
+        if self._phase == "entry":
+            leave = (not approaching or over < -LIFT_RESUME_MS) and self._prev_brake <= 0.02 and over <= max(0.3, cfg.trail_offset_ms)
+            if leave:
+                self._phase = "exit"
+                self._exit_target = curve_target
+                pi_target = curve_target
+        elif (approaching and over >= -cfg.lift_band_ms) or over > (0.3 if v_ahead is not None else cfg.speed_margin_ms):  # con perfil el margen ya está en la consigna (`brake_profile_offset_ms`)
+            self._phase = "entry"
+        elif self._phase == "exit" and free:
+            self._phase = "drive"
+
+        if self._phase == "entry" and v_ahead is not None:  # frenada por perfil (V68): por avance más corrección, sin margen
+            a_nec = max(0.0, (speed * speed - v_ahead * v_ahead) / (2.0 * cfg.brake_ff_ahead_m))
+            if a_nec > cfg.brake_on_ms2 or over > 0.3:
+                pedal = min(1.0, pedal_for_decel(a_nec) + cfg.brake_profile_gain * max(0.0, over))
+                if pedal > 0.0:
+                    throttle, brake = self._pedals_from_axis(-pedal)
+                    return throttle, brake, "brake_overspeed"
+            throttle, brake = self._pedals_from_axis(0.0, cfg.lift_rate)
+            return throttle, brake, "lift_lock"
+
+        if self._phase == "entry":
+            if over > cfg.speed_margin_ms or self._prev_brake > 0.02:
+                gain_ms = cfg.brake_overspeed_straight_ms if on_straight else LEGACY_BRAKE_OVERSPEED_MS
+                trail = cfg.trail_offset_ms if self._prev_brake > 0.02 else 0.0  # el arranque es el de siempre; solo la suelta termina antes
+                brake = min(1.0, max(0.0, over - trail) / gain_ms)
+                if ref_brake > 0.1 and over > cfg.speed_margin_ms:
+                    brake = max(brake, ref_brake * 0.5)
+                if brake > 0.0:
+                    throttle, brake = self._pedals_from_axis(-brake)
+                    return throttle, brake, "brake_overspeed"
+            throttle, brake = self._pedals_from_axis(0.0, cfg.lift_rate)
+            return throttle, brake, "lift_lock"
+
+        if self._phase == "exit":
+            pi_gas, err = self._pi_target(speed, pi_target)
+            if err > 0.0:
+                prev = self._prev_throttle
+                axis = min(max(pi_gas, prev), prev + cfg.exit_slew_per_s * PEDAL_TICK_S)
+                if err > 0.5 and abs(curv_ahead) > 0.02:
+                    axis = min(axis, max(0.45, prev))  # el tope de curva cerrada no baja un gas que ya subía
+                throttle, brake = self._pedals_from_axis(axis, 1.0)
+            else:
+                throttle, brake = self._pedals_from_axis(pi_gas)
+            return throttle, brake, "accel_exit"
+
+        return self._pi_speed_pedals(speed, curve_target, curv_ahead)
 
     def compute_pedals(
         self,
@@ -429,10 +595,15 @@ class TeachingController:
         spd_ahead_100 = self.ref.speed_lookahead(lap_distance, 100.0)
         ref_brake = self.ref.reference_brake(lap_distance)
 
+        s_bind, v_bind = 0.0, MAX_CURVE_SPEED_MS
         if self.config.lat_accel_limit is not None:
             straight = self.braking_on_straight(lap_distance, signed_cte)
             decel = self.config.brake_decel_straight if straight and self.config.brake_decel_straight > 0.0 else None
-            curve_target = min(target, max(MIN_CURVE_TARGET_MS, self.physical_curve_target(lap_distance, decel)))
+            if self.config.pedal_technique and self.config.brake_profile:
+                best, s_bind, v_bind = self.profile_info(lap_distance)
+            else:
+                best, s_bind, v_bind = self.physical_curve_info(lap_distance, decel)
+            curve_target = min(target, max(MIN_CURVE_TARGET_MS, best))
         else:
             curve_factor = 1.0 - min(abs(curv_ahead) * 12.0, 0.45)
             curve_target = target * max(0.4, curve_factor)
@@ -475,6 +646,12 @@ class TeachingController:
             reason = "wheelspin_reduce"
             throttle, brake = self._pedals_from_axis(max(0.0, self._prev_throttle - 0.15))
             return throttle, brake, reason
+
+        if self.config.pedal_technique and self.config.lat_accel_limit is not None:
+            v_ahead = self.profile_at(lap_distance, self.config.brake_ff_ahead_m) if self.config.brake_profile else None
+            return self._technique_pedals(
+                speed, curve_target, curv_ahead, s_bind, v_bind, self.braking_on_straight(lap_distance, signed_cte), ref_brake, v_ahead,
+            )
 
         if speed > curve_target + self.config.speed_margin_ms:
             overspeed = speed - curve_target

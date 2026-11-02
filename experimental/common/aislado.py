@@ -103,6 +103,7 @@ def build_argv(
     lat_gain_v0_kmh: float = 0.0, steer_ff_v0_kmh: float = -1.0, steer_preview_s: float = 0.0,
     throttle_max: float = 0.85, brake_decel_straight: float = 0.0, brake_overspeed_straight_ms: float = 8.0,
     brake_slip_limit: float = 0.0, brake_slip_hold: float = 0.0, steer_ff_cap_kmh: float = 0.0,
+    pedal_technique: bool = False, pedal_exit_slew: float = 1.5, brake_profile: bool = False, brake_circle: float = 14.6,
 ) -> List[str]:
     argv = [
         str(python), str(APP / "src" / "learn_driver.py"),
@@ -156,7 +157,16 @@ def build_argv(
         argv += ["--brake-slip-limit", f"{brake_slip_limit:g}"]
     if brake_slip_hold:  # V49: memoria del pedal límite del limitador; 0 = sin memoria
         argv += ["--brake-slip-hold", f"{brake_slip_hold:g}"]
-    return argv + (["--teacher-only"] if teacher_only else [])
+    if pedal_technique:  # V65: gas cortado antes de frenar, freno que se suelta hasta el vértice, gas que solo sube desde el vértice
+        argv += ["--pedal-technique"]
+        if pedal_exit_slew != 1.5:
+            argv += ["--pedal-exit-slew", f"{pedal_exit_slew:g}"]
+    if brake_profile:  # V68 (F1): perfil continuo de frenada con el círculo de adherencia
+        argv += ["--brake-profile"]
+        if brake_circle != 14.6:
+            argv += ["--brake-circle", f"{brake_circle:g}"]
+    # --hold-stage con el teacher solo: sin ello dos vueltas limpias dan el objetivo por cumplido y la sesión se cierra aunque --laps sea mayor (V64)
+    return argv + (["--teacher-only", "--hold-stage"] if teacher_only else [])
 
 
 def run_isolated(
@@ -171,6 +181,7 @@ def run_isolated(
     lat_gain_v0_kmh: float = 0.0, steer_ff_v0_kmh: float = -1.0, steer_preview_s: float = 0.0,
     throttle_max: float = 0.85, brake_decel_straight: float = 0.0, brake_overspeed_straight_ms: float = 8.0,
     brake_slip_limit: float = 0.0, brake_slip_hold: float = 0.0, steer_ff_cap_kmh: float = 0.0,
+    pedal_technique: bool = False, pedal_exit_slew: float = 1.5, brake_profile: bool = False, brake_circle: float = 14.6,
 ) -> int:
     DATA.mkdir(parents=True, exist_ok=True)
     model = DATA / f"{experiment}_model.pt"
@@ -206,6 +217,7 @@ def run_isolated(
                 throttle_max=throttle_max, brake_decel_straight=brake_decel_straight,
                 brake_overspeed_straight_ms=brake_overspeed_straight_ms, brake_slip_limit=brake_slip_limit,
                 brake_slip_hold=brake_slip_hold, steer_ff_cap_kmh=steer_ff_cap_kmh,
+                pedal_technique=pedal_technique, pedal_exit_slew=pedal_exit_slew, brake_profile=brake_profile, brake_circle=brake_circle,
             ),
             cwd=APP, env=env,
         ).returncode
@@ -283,6 +295,14 @@ if __name__ == "__main__":
                     help="Ganancia de CTE del teacher programada por velocidad (V18): por encima de esta velocidad se multiplica por (v0/v)²; 0 = producción")
     ap.add_argument("--steer-ff-cap-kmh", type=float, default=0.0,
                     help="Con --steer-ff-gain (V57): por encima de esta velocidad (p. ej. 100 km/h) el factor de la anticipación de volante deja de crecer; 0 = sin tope (producción)")
+    ap.add_argument("--pedal-technique", action="store_true",
+                    help="Técnica de pedales del teacher (V65): gas cortado del todo antes de frenar, freno que se suelta hasta el vértice y gas que solo sube desde el vértice; sin esto, producción")
+    ap.add_argument("--brake-profile", action="store_true",
+                    help="Con --pedal-technique (V68, F1): consigna de velocidad continua con el círculo de adherencia y freno por avance sin margen; usa --brake-decel-straight como deceleración en recta; sin esto, producción")
+    ap.add_argument("--brake-circle", type=float, default=14.6,
+                    help="Con --brake-profile: radio del círculo de adherencia en m/s² (por defecto 14,6, D21)")
+    ap.add_argument("--pedal-exit-slew", type=float, default=1.5,
+                    help="Con --pedal-technique: subida máxima del gas por segundo desde el vértice (por defecto 1,5: de 0 a fondo en ≈ 0,7 s)")
     ap.add_argument("--steer-ff-gain", type=float, default=0.0,
                     help="Anticipación de volante del teacher escalada con la velocidad (H58): factor 1 + G · (v² − 60²) por encima de 60 km/h; 0 = producción")
     ap.add_argument("--ident", choices=("acel", "rodar", "acelrodar", "frenar", "arco"), default="",
@@ -315,7 +335,7 @@ if __name__ == "__main__":
         ap.error(str(exc))
     problem = a2_error(a.ident, a.max_gear, a.lat_accel_limit, a.teacher_only, a.experiment, a.speed_band, cap_limit,
                          bool(a.steer_ff_gain or a.steer_slip_gain or a.lat_gain_v0_kmh or a.steer_ff_v0_kmh >= 0.0 or a.steer_preview_s
-                         or a.throttle_max != 0.85 or a.brake_decel_straight or a.brake_overspeed_straight_ms != 8.0 or a.brake_slip_limit or a.brake_slip_hold or a.steer_ff_cap_kmh))
+                         or a.throttle_max != 0.85 or a.brake_decel_straight or a.brake_overspeed_straight_ms != 8.0 or a.brake_slip_limit or a.brake_slip_hold or a.steer_ff_cap_kmh or a.pedal_technique or a.brake_profile))
     if problem:
         ap.error(problem)
     if a.ident in ("acel", "acelrodar") and a.ident_cap_kmh <= a.speed_band:
@@ -358,6 +378,16 @@ if __name__ == "__main__":
         ap.error("--brake-slip-hold necesita --brake-slip-limit (la memoria es del limitador)")
     if not 0.0 < a.throttle_max <= 1.0:
         ap.error("--throttle-max debe estar entre 0 (sin incluir) y 1")
+    if a.brake_profile and not a.pedal_technique:
+        ap.error("--brake-profile necesita --pedal-technique (el perfil continuo es de las fases de entrada de esa técnica)")
+    if a.brake_circle <= 0:
+        ap.error("--brake-circle debe ser positivo (m/s²)")
+    if a.brake_circle != 14.6 and not a.brake_profile:
+        ap.error("--brake-circle necesita --brake-profile")
+    if a.pedal_exit_slew <= 0:
+        ap.error("--pedal-exit-slew debe ser positivo (gas por segundo)")
+    if a.pedal_exit_slew != 1.5 and not a.pedal_technique:
+        ap.error("--pedal-exit-slew necesita --pedal-technique")
     if a.steer_ff_cap_kmh < 0:
         ap.error("--steer-ff-cap-kmh no puede ser negativo (0 = sin tope)")
     if a.steer_ff_cap_kmh and not a.steer_ff_gain:
@@ -382,7 +412,8 @@ if __name__ == "__main__":
                        lat_gain_v0_kmh=a.lat_gain_v0_kmh, steer_ff_v0_kmh=a.steer_ff_v0_kmh, steer_preview_s=a.steer_preview_s,
                        throttle_max=a.throttle_max, brake_decel_straight=a.brake_decel_straight,
                        brake_overspeed_straight_ms=a.brake_overspeed_straight_ms, brake_slip_limit=a.brake_slip_limit,
-                       brake_slip_hold=a.brake_slip_hold, steer_ff_cap_kmh=a.steer_ff_cap_kmh)
+                       brake_slip_hold=a.brake_slip_hold, steer_ff_cap_kmh=a.steer_ff_cap_kmh,
+                       pedal_technique=a.pedal_technique, pedal_exit_slew=a.pedal_exit_slew, brake_profile=a.brake_profile, brake_circle=a.brake_circle)
     log = latest_log(experiment, t0)
     if log is None:
         print("[experimental] no se encontró el log de la prueba; sin informe")

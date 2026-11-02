@@ -250,8 +250,8 @@ def run_checks(path: Path, header: dict, ticks: List[dict], ref,
     stats: Dict[str, Any] = {"ticks": len(ticks)}
 
     # 1. Cabecera
-    ok = header.get("log_schema") == 2 and header.get("origin") == "experimental" and header.get("experiment")
-    add("Cabecera (log_schema 2, origin experimental, experiment)", OK if ok else FAIL,
+    ok = (header.get("log_schema") or 0) >= 2 and header.get("origin") == "experimental" and header.get("experiment")
+    add("Cabecera (log_schema ≥ 2, origin experimental, experiment)", OK if ok else FAIL,
         f"log_schema={header.get('log_schema')} origin={header.get('origin')} experiment={header.get('experiment')}")
     if len(ticks) < 200:
         add("Ticks suficientes", FAIL, f"solo {len(ticks)} ticks")
@@ -312,7 +312,8 @@ def run_checks(path: Path, header: dict, ticks: List[dict], ref,
 
     # 5. Eje lateral: el que mejor sigue a v · yaw_rate (la producción asume el eje 2; ver DECISIONES H1)
     yaw = _col(ticks, "yaw_rate")
-    lat = _col(ticks, "lat_accel")  # campo antiguo = local_acceleration[2]
+    lat = _col(ticks, "lat_accel")  # log_schema ≥ 3: lateral real (eje 0); esquemas 1 y 2: local_acceleration[2], la longitudinal (H1)
+    schema = header.get("log_schema") or 1
     target = _smooth((v_kmh / 3.6) * yaw)
     lcorr = [_corr(_smooth(la[:, i]), target) for i in range(3)]
     if any(c is not None for c in lcorr):
@@ -325,9 +326,18 @@ def run_checks(path: Path, header: dict, ticks: List[dict], ref,
             f"eje {lat_axis}, correlación {c_lat:.2f} ({'mismo signo' if c_lat > 0 else 'signo contrario'}); "
             f"todos los ejes: {[None if c is None else round(c, 2) for c in lcorr]}")
         c_old = stats["old_lat_accel_corr"]
-        add("Campo antiguo lat_accel (= local_acceleration[2]) es realmente lateral",
-            OK if c_old is not None and abs(c_old) > 0.8 else FAIL,
-            f"correlación con v · yaw_rate {c_old:.2f}" if c_old is not None else "sin datos")
+        detalle_old = f"correlación con v · yaw_rate {c_old:.2f}" if c_old is not None else "sin datos"
+        es_lateral = c_old is not None and abs(c_old) > 0.8
+        if schema >= 3:
+            add("Campo lat_accel (log_schema ≥ 3) es la aceleración lateral", OK if es_lateral else FAIL, detalle_old)
+            lon = _col(ticks, "long_accel")
+            if (dt > 0).all():
+                c_lon = _corr(_smooth(lon), dv)
+                add("Campo long_accel (log_schema ≥ 3) sigue a dv/dt", OK if c_lon is not None and c_lon > 0.6 else FAIL,
+                    f"correlación {c_lon:.2f}" if c_lon is not None else "sin datos")
+        else:  # esquemas 1 y 2: el nombre engaña (H1); es informativo y no un fallo
+            add("Campo antiguo lat_accel (log_schema ≤ 2, = local_acceleration[2], longitudinal): no usarlo para la lateral",
+                WARN if es_lateral else OK, detalle_old + ("" if not es_lateral else " (inesperado: parece lateral)"))
         axes = [stats.get("a_long_axis"), lat_axis]
         if len(set(axes)) < 2:
             add("Ejes longitudinal y lateral distintos", FAIL, f"ambos resultan ser el eje {axes[0]}")

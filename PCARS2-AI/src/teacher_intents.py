@@ -144,6 +144,10 @@ def normalize_reason(raw: str) -> str:
         return "recover_line"
     if raw in ("off_surface", "safety_off_surface"):
         return "safety_off_track"
+    if raw == "lift_lock":
+        return "maintain_speed"  # técnica de pedales (V65): gas cortado antes de la curva; el vocabulario del BC no crece
+    if raw == "accel_exit":
+        return "accel_curve_limited"  # técnica de pedales (V65): gas que sube desde el vértice
     if raw in REASON_TO_ID:
         return raw
     if raw.startswith("safety_"):

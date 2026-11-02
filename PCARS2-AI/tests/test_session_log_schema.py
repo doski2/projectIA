@@ -1,7 +1,7 @@
 import json
 from types import SimpleNamespace
 
-from session_log import GAME_PROFILE, LOG_SCHEMA, TeachingSessionRecorder, default_log_path, vehicle_diag, vehicle_extra
+from session_log import GAME_PROFILE, LOG_SCHEMA, TeachingSessionRecorder, default_log_path, tick_accels, vehicle_diag, vehicle_extra
 
 
 def _frame(**extra):
@@ -216,3 +216,16 @@ def test_rain_over_limit():
     assert rain_over_limit(gs, 41) is False
     assert rain_over_limit(gs, 40) is True
     assert rain_over_limit(None, 40) is False  # el paquete 4 aún no ha llegado
+
+
+def test_log_schema_3_has_the_real_lateral_acceleration_and_an_explicit_longitudinal_one():
+    assert LOG_SCHEMA == 3
+    d = vehicle_diag(_frame())
+    assert d["lat_accel"] == 1.5 and d["long_accel"] == -3.0  # local_accel = [1.5, 0.25, 3.0]: lateral = eje 0, longitudinal = −eje 2
+    assert tick_accels(d) == (1.5, -3.0)  # la misma lectura desde el tick
+
+
+def test_tick_accels_ignores_the_ambiguous_lat_accel_field_of_old_logs():
+    viejo = {"lat_accel": 3.0, "local_accel": [1.5, 0.25, 3.0]}  # log_schema 2: lat_accel era el eje 2
+    assert tick_accels(viejo) == (1.5, -3.0)
+    assert tick_accels({"lat_accel": 3.0}) is None

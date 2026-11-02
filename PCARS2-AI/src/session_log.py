@@ -18,14 +18,14 @@ import time
 from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 MIN_HTML_TICKS = 15
 MIN_HTML_DURATION_S = 5.0
 
 # Versión del formato del log. 1 = sin campo (logs antiguos); 2 = bloque `vehicle` ampliado
 # (ver `vehicle_extra`) y cabecera con `origin` / `experiment`.
-LOG_SCHEMA = 2
+LOG_SCHEMA = 3  # 3: `lat_accel` es la aceleración lateral real y aparece `long_accel`; en el esquema 2 `lat_accel` era la longitudinal (H1)
 
 # Perfil de ajustes del juego con el que se graba. Se cambia a mano si se tocan los ajustes
 # (ver experimental/docs/DECISIONES.md, sección 6). Los logs sin este campo son del perfil R0.
@@ -245,6 +245,17 @@ def timing_diag(timings) -> dict:
     }
 
 
+def tick_accels(vehicle: dict) -> Optional[Tuple[float, float]]:
+    """(aceleración lateral, aceleración longitudinal) en m/s² de un tick de cualquier log, o None si no trae `local_accel`.
+
+    La longitudinal es positiva al acelerar y negativa al frenar. Lee siempre `local_accel` (eje 0 lateral, eje 2 longitudinal con el signo invertido) y no el campo `lat_accel`,
+    que en los logs de `log_schema` 1 y 2 era la longitudinal (H1) y en los de 3 es la lateral."""
+    la = vehicle.get("local_accel")
+    if not la or len(la) < 3:
+        return None
+    return float(la[0]), -float(la[2])
+
+
 def vehicle_diag(telem) -> dict:
     """Respuesta real del coche (UDP) para comparar con el volante enviado."""
     diag = {
@@ -253,11 +264,13 @@ def vehicle_diag(telem) -> dict:
         "game_throttle": round(telem.throttle / 255.0, 3),
         "game_brake": round(telem.brake / 255.0, 3),
         "yaw_rate": round(telem.angular_velocity[1], 4),
-        # Nombre heredado: el eje 2 es en realidad la aceleración LONGITUDINAL (signo invertido), no la lateral (H1).
-        # La lateral está en `local_accel[0]` (ver `vehicle_extra`). No se renombra para no romper los lectores de logs.
-        "lat_accel": round(telem.local_acceleration[2], 3),
+        # Desde `log_schema` 3: aceleración lateral real (eje 0, el que sigue a velocidad · guiñada, H1). En los esquemas 1 y 2 este campo era
+        # el eje 2, que es la aceleración LONGITUDINAL con el signo invertido: para leer cualquier log use `tick_accels`, que no depende del esquema.
+        "lat_accel": round(telem.local_acceleration[0], 3),
         "terrain": list(telem.terrain),
         "tyre_rps": [round(v, 1) for v in telem.tyre_rps],
+        # Aceleración longitudinal (eje 2 con el signo cambiado): positiva al acelerar, negativa al frenar.
+        "long_accel": round(-telem.local_acceleration[2], 3),
     }
     diag.update(vehicle_extra(telem))
     return diag

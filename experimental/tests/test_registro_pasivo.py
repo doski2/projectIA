@@ -42,7 +42,7 @@ def test_pasivo_records_ticks_and_damage_event(tmp_path):
     path = rp.run("t", minutes=1, after_damage_s=0, session=cast(rp.DriveSession, FakeSession(ref)), out_dir=tmp_path)
     assert path is not None and path.is_file()
     header, ticks, events = load_log(path)
-    assert header["experiment"] == "pasivo_t" and header["origin"] == "experimental" and header["log_schema"] == 2
+    assert header["experiment"] == "pasivo_t" and header["origin"] == "experimental" and header["log_schema"] == 3
     assert len(ticks) == 40 and {t["drive_source"] for t in ticks} == {"manual"}
     assert ticks[0]["throttle"] > 0 and "tyre_flags" in ticks[0]["vehicle"]
     dmg = damage_events(events)

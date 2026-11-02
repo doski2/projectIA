@@ -15,6 +15,8 @@ def test_argv_isolates_model_and_buffer():
     assert "--stop-on-damage" in argv
     assert "--teacher-only" not in argv
     assert "--teacher-only" in aislado.build_argv(Path("py"), "c0_log", 40, 2, teacher_only=True)
+    assert "--hold-stage" not in argv
+    assert "--hold-stage" in aislado.build_argv(Path("py"), "c0_log", 40, 4, teacher_only=True)  # V64: --laps 4 da 4 vueltas, no 2
 
 
 def test_experiment_name_per_band_with_teacher():
@@ -367,6 +369,17 @@ def test_steer_ff_cap_goes_to_learn_driver_only_when_set_and_counts_as_a_teacher
     assert argv[argv.index("--steer-ff-cap-kmh") + 1] == "100" and argv[argv.index("--steer-ff-gain") + 1] == "0.003"
 
 
+def test_pedal_technique_goes_to_learn_driver_only_when_set_and_counts_as_a_teacher_option():
+    base = aislado.build_argv(Path("python"), "a2_x", 125.0, 3, teacher_only=True)
+    assert "--pedal-technique" not in base and "--pedal-exit-slew" not in base
+    argv = aislado.build_argv(Path("python"), "a2_x", 125.0, 3, teacher_only=True, pedal_technique=True)
+    assert "--pedal-technique" in argv and "--pedal-exit-slew" not in argv  # la pendiente por defecto no se pasa
+    argv = aislado.build_argv(Path("python"), "a2_x", 125.0, 3, teacher_only=True, pedal_technique=True, pedal_exit_slew=1.2)
+    assert argv[argv.index("--pedal-exit-slew") + 1] == "1.2"
+    cap = aislado.ident_max_cap_kmh(3)
+    assert aislado.a2_error("", 3, aislado.LAT_ACCEL_LIMIT, True, "teacher_125", 125.0, cap, True) is not None
+
+
 def test_brake_slip_hold_goes_to_learn_driver_only_when_set():
     assert "--brake-slip-hold" not in aislado.build_argv(Path("python"), "a1_frenar", 60.0, 3, teacher_only=True, ident="frenar", ident_caps="130", max_gear=3, brake_slip_limit=0.25)
     argv = aislado.build_argv(Path("python"), "a1_frenar", 60.0, 3, teacher_only=True, ident="frenar", ident_caps="130", max_gear=3, brake_slip_limit=0.25, brake_slip_hold=0.85)
@@ -374,5 +387,16 @@ def test_brake_slip_hold_goes_to_learn_driver_only_when_set():
 
 
 def test_brake_slip_hold_counts_as_a_teacher_option_for_the_a2_name_rule():
+    cap = aislado.ident_max_cap_kmh(3)
+    assert aislado.a2_error("", 3, aislado.LAT_ACCEL_LIMIT, True, "teacher_125", 125.0, cap, True) is not None
+
+
+def test_brake_profile_goes_to_learn_driver_only_when_set_and_counts_as_a_teacher_option():
+    base = aislado.build_argv(Path("python"), "a2_x", 125.0, 3, teacher_only=True, pedal_technique=True)
+    assert "--brake-profile" not in base and "--brake-circle" not in base
+    argv = aislado.build_argv(Path("python"), "a2_x", 125.0, 3, teacher_only=True, pedal_technique=True, brake_profile=True)
+    assert "--brake-profile" in argv and "--brake-circle" not in argv  # el círculo por defecto (14,6) no se pasa
+    argv = aislado.build_argv(Path("python"), "a2_x", 125.0, 3, teacher_only=True, pedal_technique=True, brake_profile=True, brake_circle=11.0)
+    assert argv[argv.index("--brake-circle") + 1] == "11"
     cap = aislado.ident_max_cap_kmh(3)
     assert aislado.a2_error("", 3, aislado.LAT_ACCEL_LIMIT, True, "teacher_125", 125.0, cap, True) is not None

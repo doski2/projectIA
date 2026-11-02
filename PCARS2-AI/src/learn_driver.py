@@ -118,6 +118,22 @@ def parse_args() -> argparse.Namespace:
         help="Con --steer-ff-gain (V57): por encima de esta velocidad (p. ej. 100 km/h) el factor de la anticipación de volante deja de crecer; a más velocidad la anticipación se pasa de lo que pide el coche. 0 = sin tope (producción).",
     )
     parser.add_argument(
+        "--pedal-technique", action="store_true",
+        help="Técnica de pedales del teacher (V65), solo con --lat-accel-limit: gas cortado del todo antes de frenar y sin rebotes, freno que se suelta hasta el vértice y gas que solo sube desde el vértice. Sin esto, producción.",
+    )
+    parser.add_argument(
+        "--brake-profile", action="store_true",
+        help="Con --pedal-technique (V68, F1): la consigna de velocidad es un perfil continuo con el presupuesto del círculo de adherencia (sin el salto de 8 a 4 m/s² al entrar en la curva) y el freno lo sigue por avance, sin margen. Usa --brake-decel-straight como deceleración en recta. Sin esto, producción.",
+    )
+    parser.add_argument(
+        "--brake-circle", type=float, default=14.6,
+        help="Con --brake-profile: radio del círculo de adherencia en m/s² (por defecto la cota lateral de D21, 14,6).",
+    )
+    parser.add_argument(
+        "--pedal-exit-slew", type=float, default=1.5,
+        help="Con --pedal-technique: subida máxima del gas por segundo desde el vértice (1,5 = de 0 a fondo en ≈ 0,7 s; 0,8 = ≈ 1,2 s).",
+    )
+    parser.add_argument(
         "--steer-slip-gain", type=float, default=0.0,
         help="Contravolante del teacher por deriva (V17): volante por radián de deriva por encima de 3°, y la ganancia de CTE baja a 0 a los 8°. 0 = producción.",
     )
@@ -192,6 +208,12 @@ def parse_args() -> argparse.Namespace:
         "--rain-limit", type=int, default=0,
         help="Cierra la sesión cuando la densidad de lluvia del juego (0-255) llega a este valor. 0 = sin límite. "
              "El evento `conditions` registra la lluvia siempre. Sin valor calibrado: hace falta lluvia real (P21).",
+    )
+    parser.add_argument(
+        "--hold-stage", action="store_true",
+        help="No sube de etapa ni de banda y no cierra la sesión al cumplir el objetivo: acaba solo por --max-laps (o Ctrl+C). "
+             "Sin esta opción, dos vueltas limpias dan el objetivo por cumplido y cierran la sesión aunque --max-laps sea mayor "
+             "(las sesiones --ident ya están exentas).",
     )
     parser.add_argument(
         "--teacher-only", action="store_true",
@@ -477,6 +499,10 @@ def run(args: argparse.Namespace) -> int:
         speed_target_kmh=effective_speed, lat_accel_limit=args.lat_accel_limit or None,
         ff_speed_gain=float(getattr(args, "steer_ff_gain", 0.0) or 0.0),
         ff_speed_cap_kmh=float(getattr(args, "steer_ff_cap_kmh", 0.0) or 0.0),
+        pedal_technique=bool(getattr(args, "pedal_technique", False)),
+        brake_profile=bool(getattr(args, "brake_profile", False)),
+        brake_circle=float(getattr(args, "brake_circle", 14.6) or 14.6),
+        exit_slew_per_s=float(getattr(args, "pedal_exit_slew", 1.5) or 1.5),
         slip_steer_gain=float(getattr(args, "steer_slip_gain", 0.0) or 0.0),
         lat_gain_v0_kmh=float(getattr(args, "lat_gain_v0_kmh", 0.0) or 0.0),
         steer_preview_s=float(getattr(args, "steer_preview_s", 0.0) or 0.0),
@@ -902,7 +928,7 @@ def run(args: argparse.Namespace) -> int:
 
                 if ramp is not None:
                     advance_ramp(prog, ramp, lap_result.clean, lambda: ramp.save(ramp_state), _persist_progress)
-                elif not ident_kind:  # las sesiones de identificación (A1) no avanzan el currículo: acaban por --max-laps o por la maniobra
+                elif not (ident_kind or args.hold_stage):  # las sesiones de identificación (A1) y --hold-stage no avanzan el currículo: acaban por --max-laps o por la maniobra
                     advance_progress(prog, _persist_progress)
 
                 laps_since_learn += 1
@@ -913,7 +939,7 @@ def run(args: argparse.Namespace) -> int:
                     if tuner.start_async():
                         laps_since_learn = 0
 
-                if prog.goal_reached and not tuner.running and not ident_kind:
+                if prog.goal_reached and not tuner.running and not (ident_kind or args.hold_stage):
                     print("[Learn] Objetivo cumplido — cerrando sesión")
                     break
 

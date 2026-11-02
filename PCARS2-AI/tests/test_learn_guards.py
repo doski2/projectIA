@@ -39,12 +39,12 @@ def test_vehicle_diag_fields():
 
     t = SimpleNamespace(
         steering=-64, raw_steering=127, angular_velocity=(0.0, 0.2, 0.0),
-        local_acceleration=(0.0, 0.0, 3.0), terrain=(0, 0, 7, 7),
+        local_acceleration=(2.0, 0.0, 3.0), terrain=(0, 0, 7, 7),
         tyre_rps=(10.123, 10.0, 9.0, 9.0), throttle=255, brake=0,
     )
     d = vehicle_diag(t)
     assert d["game_steer"] == -0.504 and d["raw_steer"] == 1.0
-    assert d["yaw_rate"] == 0.2 and d["lat_accel"] == 3.0
+    assert d["yaw_rate"] == 0.2 and d["lat_accel"] == 2.0 and d["long_accel"] == -3.0  # log_schema 3: lateral real y longitudinal (+ al acelerar)
     assert d["game_throttle"] == 1.0 and d["game_brake"] == 0.0
     assert d["terrain"] == [0, 0, 7, 7] and d["tyre_rps"][0] == 10.1
 

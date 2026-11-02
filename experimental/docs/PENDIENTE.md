@@ -231,7 +231,7 @@ Back no repara.
 y la frenada supuesta (4 m/s²), valores del PI (`pi_kp`, `pi_ki`, `pi_ff` puede bajar a ~0,1,
 `pi_kt` del anti-windup).
 
-- El informe marca «fallo» en `lat_accel` antiguo (esperado por H1): pasarlo a informativo. No
+- ~~El informe marca «fallo» en `lat_accel` antiguo (esperado por H1)~~ **hecho en V67 de `circuito_virtual`** (`log_schema` 3 trae `lat_accel` lateral real y `long_accel`; para los esquemas 1-2 el aviso es informativo). No
 
   detecta un Back.
 
