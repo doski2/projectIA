@@ -102,7 +102,7 @@ def build_argv(
     max_gear: int = 2, reference: str = DEFAULT_REFERENCE, lat_accel_limit: float = LAT_ACCEL_LIMIT, steer_slip_gain: float = 0.0,
     lat_gain_v0_kmh: float = 0.0, steer_ff_v0_kmh: float = -1.0, steer_preview_s: float = 0.0,
     throttle_max: float = 0.85, brake_decel_straight: float = 0.0, brake_overspeed_straight_ms: float = 8.0,
-    brake_slip_limit: float = 0.0, brake_slip_hold: float = 0.0,
+    brake_slip_limit: float = 0.0, brake_slip_hold: float = 0.0, steer_ff_cap_kmh: float = 0.0,
 ) -> List[str]:
     argv = [
         str(python), str(APP / "src" / "learn_driver.py"),
@@ -150,6 +150,8 @@ def build_argv(
         argv += ["--max-gear", str(max_gear)]
     if steer_ff_gain:  # H58: anticipación de volante escalada con la velocidad; 0 = la de producción
         argv += ["--steer-ff-gain", f"{steer_ff_gain:g}"]
+    if steer_ff_cap_kmh:  # V57: tope de velocidad en el factor de la anticipación; 0 = sin tope
+        argv += ["--steer-ff-cap-kmh", f"{steer_ff_cap_kmh:g}"]
     if brake_slip_limit:  # V43: limitador de frenada por deslizamiento; 0 = apagado
         argv += ["--brake-slip-limit", f"{brake_slip_limit:g}"]
     if brake_slip_hold:  # V49: memoria del pedal límite del limitador; 0 = sin memoria
@@ -168,7 +170,7 @@ def run_isolated(
     max_gear: int = 2, reference: str = DEFAULT_REFERENCE, lat_accel_limit: float = LAT_ACCEL_LIMIT, steer_slip_gain: float = 0.0,
     lat_gain_v0_kmh: float = 0.0, steer_ff_v0_kmh: float = -1.0, steer_preview_s: float = 0.0,
     throttle_max: float = 0.85, brake_decel_straight: float = 0.0, brake_overspeed_straight_ms: float = 8.0,
-    brake_slip_limit: float = 0.0, brake_slip_hold: float = 0.0,
+    brake_slip_limit: float = 0.0, brake_slip_hold: float = 0.0, steer_ff_cap_kmh: float = 0.0,
 ) -> int:
     DATA.mkdir(parents=True, exist_ok=True)
     model = DATA / f"{experiment}_model.pt"
@@ -203,7 +205,7 @@ def run_isolated(
                 steer_ff_v0_kmh=steer_ff_v0_kmh, steer_preview_s=steer_preview_s,
                 throttle_max=throttle_max, brake_decel_straight=brake_decel_straight,
                 brake_overspeed_straight_ms=brake_overspeed_straight_ms, brake_slip_limit=brake_slip_limit,
-                brake_slip_hold=brake_slip_hold,
+                brake_slip_hold=brake_slip_hold, steer_ff_cap_kmh=steer_ff_cap_kmh,
             ),
             cwd=APP, env=env,
         ).returncode
@@ -279,6 +281,8 @@ if __name__ == "__main__":
                     help="Velocidad (km/h) desde la que crece la anticipación de volante de --steer-ff-gain (por defecto 60); con 0 el factor es 1 + G · v² (V21)")
     ap.add_argument("--lat-gain-v0-kmh", type=float, default=0.0,
                     help="Ganancia de CTE del teacher programada por velocidad (V18): por encima de esta velocidad se multiplica por (v0/v)²; 0 = producción")
+    ap.add_argument("--steer-ff-cap-kmh", type=float, default=0.0,
+                    help="Con --steer-ff-gain (V57): por encima de esta velocidad (p. ej. 100 km/h) el factor de la anticipación de volante deja de crecer; 0 = sin tope (producción)")
     ap.add_argument("--steer-ff-gain", type=float, default=0.0,
                     help="Anticipación de volante del teacher escalada con la velocidad (H58): factor 1 + G · (v² − 60²) por encima de 60 km/h; 0 = producción")
     ap.add_argument("--ident", choices=("acel", "rodar", "acelrodar", "frenar", "arco"), default="",
@@ -311,7 +315,7 @@ if __name__ == "__main__":
         ap.error(str(exc))
     problem = a2_error(a.ident, a.max_gear, a.lat_accel_limit, a.teacher_only, a.experiment, a.speed_band, cap_limit,
                          bool(a.steer_ff_gain or a.steer_slip_gain or a.lat_gain_v0_kmh or a.steer_ff_v0_kmh >= 0.0 or a.steer_preview_s
-                         or a.throttle_max != 0.85 or a.brake_decel_straight or a.brake_overspeed_straight_ms != 8.0 or a.brake_slip_limit or a.brake_slip_hold))
+                         or a.throttle_max != 0.85 or a.brake_decel_straight or a.brake_overspeed_straight_ms != 8.0 or a.brake_slip_limit or a.brake_slip_hold or a.steer_ff_cap_kmh))
     if problem:
         ap.error(problem)
     if a.ident in ("acel", "acelrodar") and a.ident_cap_kmh <= a.speed_band:
@@ -354,6 +358,10 @@ if __name__ == "__main__":
         ap.error("--brake-slip-hold necesita --brake-slip-limit (la memoria es del limitador)")
     if not 0.0 < a.throttle_max <= 1.0:
         ap.error("--throttle-max debe estar entre 0 (sin incluir) y 1")
+    if a.steer_ff_cap_kmh < 0:
+        ap.error("--steer-ff-cap-kmh no puede ser negativo (0 = sin tope)")
+    if a.steer_ff_cap_kmh and not a.steer_ff_gain:
+        ap.error("--steer-ff-cap-kmh necesita --steer-ff-gain (el tope es del factor de esa anticipación)")
     if a.steer_ff_gain < 0 or a.steer_slip_gain < 0 or a.lat_gain_v0_kmh < 0 or a.steer_preview_s < 0:
         ap.error("--steer-ff-gain, --steer-slip-gain, --lat-gain-v0-kmh y --steer-preview-s no pueden ser negativos")
     if a.ident:
@@ -374,7 +382,7 @@ if __name__ == "__main__":
                        lat_gain_v0_kmh=a.lat_gain_v0_kmh, steer_ff_v0_kmh=a.steer_ff_v0_kmh, steer_preview_s=a.steer_preview_s,
                        throttle_max=a.throttle_max, brake_decel_straight=a.brake_decel_straight,
                        brake_overspeed_straight_ms=a.brake_overspeed_straight_ms, brake_slip_limit=a.brake_slip_limit,
-                       brake_slip_hold=a.brake_slip_hold)
+                       brake_slip_hold=a.brake_slip_hold, steer_ff_cap_kmh=a.steer_ff_cap_kmh)
     log = latest_log(experiment, t0)
     if log is None:
         print("[experimental] no se encontró el log de la prueba; sin informe")

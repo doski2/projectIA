@@ -120,7 +120,7 @@ class Ley:
     k_curvature: float = 2.5
     k_lookahead: float = 1.8
     ff_gain: float = 0.003  # `--steer-ff-gain` con `--steer-ff-v0-kmh 0`
-    ff_cap_kmh: float = 0.0  # tope de velocidad en el factor 1 + g·v² (0 = sin tope); opción propuesta en V41, aún no existe en el teacher
+    ff_cap_kmh: float = 0.0  # tope de velocidad en el factor 1 + g·v² (0 = sin tope); opción `--steer-ff-cap-kmh` del teacher (V57)
     preview_s: float = 0.3  # `--steer-preview-s`
     smooth: float = 0.35
 

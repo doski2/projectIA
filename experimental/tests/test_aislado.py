@@ -361,6 +361,12 @@ def test_brake_slip_limit_counts_as_a_teacher_option_for_the_a2_name_rule():
     assert aislado.a2_error("frenar", 3, aislado.LAT_ACCEL_LIMIT, True, "a1_frenar_g3_slip02", 60.0, cap, True) is None
 
 
+def test_steer_ff_cap_goes_to_learn_driver_only_when_set_and_counts_as_a_teacher_option():
+    assert "--steer-ff-cap-kmh" not in aislado.build_argv(Path("python"), "a2_x", 125.0, 3, teacher_only=True, steer_ff_gain=0.003)
+    argv = aislado.build_argv(Path("python"), "a2_x", 125.0, 3, teacher_only=True, steer_ff_gain=0.003, steer_ff_cap_kmh=100.0)
+    assert argv[argv.index("--steer-ff-cap-kmh") + 1] == "100" and argv[argv.index("--steer-ff-gain") + 1] == "0.003"
+
+
 def test_brake_slip_hold_goes_to_learn_driver_only_when_set():
     assert "--brake-slip-hold" not in aislado.build_argv(Path("python"), "a1_frenar", 60.0, 3, teacher_only=True, ident="frenar", ident_caps="130", max_gear=3, brake_slip_limit=0.25)
     argv = aislado.build_argv(Path("python"), "a1_frenar", 60.0, 3, teacher_only=True, ident="frenar", ident_caps="130", max_gear=3, brake_slip_limit=0.25, brake_slip_hold=0.85)
