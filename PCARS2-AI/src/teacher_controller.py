@@ -196,6 +196,10 @@ class TeacherConfig:
     # Recorte de picos cortos de la consigna (V79, F13), opt-in y solo con `brake_profile`: quita del perfil los picos más estrechos que estos metros (se aplanan al valle más alto de alrededor), de modo que el
     # coche no acelera en un tramo corto entre dos curvas para frenar enseguida (gas, freno, gas de C5-C6, C9, C10 y C12-C14). Solo baja el perfil, nunca lo sube. 0 = sin recorte.
     profile_peak_min_m: float = 0.0
+    # Umbral de prominencia del recorte (V81), solo con `profile_peak_min_m`: un pico solo se aplana si sobresale al menos estos km/h por encima del valle de alrededor (medido sobre el perfil
+    # lateral, antes del barrido hacia atrás). Con 60 m sin umbral, el pico de 1,4 km/h que hay en 735-746 m, justo antes de C4, se igualaba al valle: el coche seguía con el gas unos 7 m más, entraba a C4
+    # 1,3 km/h más rápido y la deriva subía (V80-V81). Los picos de C5-C6 sobresalen ≫ 100 km/h. 0 = sin umbral.
+    profile_peak_min_kmh: float = 0.0
     brake_profile_lift_drop_ms: float = 1.5  # con perfil, una curva por delante cuenta si su límite está al menos esto por debajo de la velocidad (los baches de la curvatura de Sugo hacen mínimos de ≈ 3 m/s)
     # Tope del gas en la salida por el círculo de adherencia (V72, F3), opt-in y solo con `pedal_technique`: en «exit» el gas no pasa de `throttle_max · √(1 − (a_lat / exit_circle)²)` con la aceleración
     # lateral **medida** (suavizada), y nunca baja de `exit_circle_floor`. A 11,7 m/s² con círculo 14,6 el tope es 0,60 (la sesión 170252Z salía a 0,93-1,00 en C11). 0 = sin tope.
@@ -207,11 +211,14 @@ class TeacherConfig:
     exit_slew_per_s: float = 1.5  # subida máxima del gas por segundo desde el vértice (el gas llega a fondo en ≈ 0,7 s)
 
 
-def open_profile_peaks(prof, width_m: float):
+def open_profile_peaks(prof, width_m: float, min_drop_ms: float = 0.0):
     """Apertura morfológica circular de un perfil de velocidad por metro (V79): quita los picos más estrechos que `width_m` metros.
 
     Un pico entre dos mínimos cercanos (p. ej. el tramo de 35 m entre C5 y C6) se aplana al valle más alto de alrededor: el resultado nunca supera al perfil de entrada y los tramos
     anchos (rectas largas, curvas largas) no cambian. `width_m` <= 0 devuelve una copia sin tocar.
+
+    `min_drop_ms` > 0 (V81): solo se aplanan los picos que el recorte baja al menos esos m/s en algún metro; los demás se dejan como estaban. Un pico es cada tramo seguido de metros
+    que el recorte bajaría.
     """
     n = len(prof)
     half = int(width_m // 2)
@@ -219,7 +226,27 @@ def open_profile_peaks(prof, width_m: float):
         return list(prof)
     half = min(half, n // 2)
     eroded = [min(prof[(i + k) % n] for k in range(-half, half + 1)) for i in range(n)]
-    return [max(eroded[(i + k) % n] for k in range(-half, half + 1)) for i in range(n)]
+    opened = [max(eroded[(i + k) % n] for k in range(-half, half + 1)) for i in range(n)]
+    if min_drop_ms <= 0.0:
+        return opened
+    drop = [prof[i] - opened[i] for i in range(n)]
+    start = min(range(n), key=lambda i: prof[i])  # el mínimo del perfil nunca se recorta: de ahí se recorre la vuelta sin partir ningún tramo
+    out = list(prof)
+    i = 0
+    while i < n:
+        a = (start + i) % n
+        if drop[a] <= 1e-9:
+            i += 1
+            continue
+        j = i
+        while j < n and drop[(start + j) % n] > 1e-9:
+            j += 1
+        idx = [(start + k) % n for k in range(i, j)]
+        if max(drop[x] for x in idx) >= min_drop_ms:
+            for x in idx:
+                out[x] = opened[x]
+        i = j
+    return out
 
 
 class TeachingController:
@@ -233,7 +260,7 @@ class TeachingController:
         self._prev_brake = 0.0
         self._gear_engagement_frames = 0
         self._vlim_cache: Dict[float, List[float]] = {}  # límite lateral por metro de vuelta, uno por cada `lat_accel_limit` usado
-        self._profile_cache: Dict[Tuple[float, float, float, float], List[float]] = {}  # perfil de frenada v*(s) por metro (V68)
+        self._profile_cache: Dict[Tuple[float, ...], List[float]] = {}  # perfil de frenada v*(s) por metro (V68)
         self._speed_i = self.config.pi_ff  # integral del PI de velocidad (solo modo físico)
         self._pi_axis: Optional[float] = None  # eje de pedal pedido por el PI en este tick (None = no pasó por el PI)
         self._phase = "drive"  # técnica de pedales (V65): "drive", "entry" o "exit"
@@ -266,7 +293,7 @@ class TeachingController:
         assert a_lat is not None, "el perfil de frenada necesita lat_accel_limit"
         a_b = cfg.brake_decel_straight if cfg.brake_decel_straight > 0.0 else 8.0
         off = cfg.brake_profile_offset_ms
-        key = (a_lat, a_b, cfg.brake_circle, off, cfg.profile_peak_min_m)
+        key = (a_lat, a_b, cfg.brake_circle, off, cfg.profile_peak_min_m, cfg.profile_peak_min_kmh)
         prof = self._profile_cache.get(key)
         if prof is None:
             vlim = self._vlim_cache.get(a_lat)
@@ -275,7 +302,7 @@ class TeachingController:
             kappa = self._smoothed_kappa()
             prof = [v if v >= MAX_CURVE_SPEED_MS else min(MAX_CURVE_SPEED_MS, v + off) for v in vlim]
             if cfg.profile_peak_min_m > 0.0:
-                prof = open_profile_peaks(prof, cfg.profile_peak_min_m)
+                prof = open_profile_peaks(prof, cfg.profile_peak_min_m, cfg.profile_peak_min_kmh / 3.6)
             n = len(prof)
             for _ in range(2):
                 for i in range(n - 1, -1, -1):

@@ -89,3 +89,64 @@ def test_clipping_costs_little_lap_time_and_removes_gas_then_brake(vueltas, acel
     assert _metricas(recorte)["tiempo"] <= _metricas(base)["tiempo"] + 0.5  # con 60 m el coste es de décimas
     assert _gas_y_freno_seguidos(recorte) < _gas_y_freno_seguidos(base)
     assert _metricas(recorte)["frenadas"] <= _metricas(base)["frenadas"]
+
+
+# ---- umbral de prominencia (V81): el recorte no toca los picos pequeños ----
+
+def test_prominence_threshold_flattens_only_the_peaks_that_drop_enough():
+    # dos valles de 20 y dos picos estrechos entre ellos: uno de 1 m/s sobre el valle (10 m de ancho) y otro de 10 m/s (10 m de ancho)
+    perfil = [30.0] * 40 + [20.0] + [21.0] * 10 + [20.0] + [30.0] * 30 + [20.0] + [30.0] * 10 + [20.0] + [30.0] * 40
+    todo = open_profile_peaks(perfil, 30.0)
+    solo_grande = open_profile_peaks(perfil, 30.0, min_drop_ms=3.0)
+    assert max(todo[42:51]) == 20.0  # sin umbral se aplanan los dos
+    assert all(a == b for a, b in zip(solo_grande[42:51], perfil[42:51]))  # con umbral, el pequeño queda como estaba
+    i_grande = 40 + 1 + 10 + 1 + 30 + 1  # primer metro del pico grande
+    assert all(v == 20.0 for v in solo_grande[i_grande + 1:i_grande + 9])  # y el grande sigue aplanado
+
+
+def test_prominence_zero_is_the_plain_opening_and_a_huge_threshold_changes_nothing():
+    perfil = [25.0 + 8.0 * ((i * 7919) % 13) / 12.0 for i in range(300)]
+    assert open_profile_peaks(perfil, 31.0, 0.0) == open_profile_peaks(perfil, 31.0)
+    assert open_profile_peaks(perfil, 31.0, 1e6) == perfil
+
+
+def test_prominence_threshold_never_raises_the_profile_and_keeps_the_ones_that_were_clipped_by_more():
+    perfil = [25.0 + 8.0 * ((i * 7919) % 13) / 12.0 for i in range(300)]
+    pleno = open_profile_peaks(perfil, 31.0)
+    for umbral in (0.5, 2.0, 5.0):
+        parcial = open_profile_peaks(perfil, 31.0, umbral)
+        assert all(pleno[i] - 1e-12 <= parcial[i] <= perfil[i] + 1e-12 for i in range(300))  # entre el recorte pleno y el perfil original
+        assert all(parcial[i] == perfil[i] or parcial[i] == pleno[i] for i in range(300))  # cada metro o se deja o se recorta del todo
+
+
+def test_prominence_threshold_works_across_the_start_of_the_lap():
+    perfil = [30.0] * 6 + [20.0] * 40 + [30.0] * 6 + [24.0] * 40  # el pico de 12 m pasa por el principio de la vuelta
+    assert max(open_profile_peaks(perfil, 20.0, min_drop_ms=5.0)[:6]) == 24.0  # 6 m/s de caída ≥ 5: se aplana
+    assert open_profile_peaks(perfil, 20.0, min_drop_ms=8.0)[:6] == [30.0] * 6  # < 8: se queda
+
+
+def test_prominence_is_off_by_default_and_a_huge_one_gives_the_base_profile():
+    assert TeacherConfig().profile_peak_min_kmh == 0.0
+    base = _controlador().braking_profile()
+    assert _controlador(profile_peak_min_m=60.0, profile_peak_min_kmh=0.0).braking_profile() == _controlador(profile_peak_min_m=60.0).braking_profile()
+    assert _controlador(profile_peak_min_m=60.0, profile_peak_min_kmh=1000.0).braking_profile() == base
+
+
+def test_profile_with_prominence_lies_between_the_base_and_the_full_clipping():
+    base = _controlador().braking_profile()
+    pleno = _controlador(profile_peak_min_m=60.0).braking_profile()
+    parcial = _controlador(profile_peak_min_m=60.0, profile_peak_min_kmh=8.0).braking_profile()
+    assert all(p - 1e-9 <= q <= b + 1e-9 for p, q, b in zip(pleno, parcial, base))  # el barrido hacia atrás es monótono
+    n_parcial = sum(1 for q, b in zip(parcial, base) if b - q > 0.5)
+    n_pleno = sum(1 for p, b in zip(pleno, base) if b - p > 0.5)
+    assert 0 < n_parcial < n_pleno  # recorta los picos grandes y deja los pequeños
+
+
+@pytest.mark.parametrize("acel", [1.0, 1.6])
+def test_clipping_with_prominence_keeps_the_gains_and_does_not_enter_corners_faster(vueltas, acel):
+    base = vueltas[acel]["base"]
+    parcial = _vuelta("perfil", acel, profile_peak_min_m=60.0, profile_peak_min_kmh=8.0)
+    assert _metricas(parcial)["exceso_max"] <= max(_metricas(base)["exceso_max"], 0.0) + 0.3
+    assert _metricas(parcial)["tiempo"] <= _metricas(base)["tiempo"] + 0.5
+    assert _gas_y_freno_seguidos(parcial) < _gas_y_freno_seguidos(base)
+    assert _metricas(parcial)["frenadas"] <= _metricas(base)["frenadas"]

@@ -416,3 +416,10 @@ def test_profile_peak_min_m_goes_to_learn_driver_only_when_set():
     assert "--profile-peak-min-m" not in base
     argv = aislado.build_argv(Path("python"), "a2_x", 125.0, 3, teacher_only=True, pedal_technique=True, brake_profile=True, profile_peak_min_m=60.0)
     assert argv[argv.index("--profile-peak-min-m") + 1] == "60"
+
+
+def test_profile_peak_min_kmh_goes_to_learn_driver_only_when_set():
+    base = aislado.build_argv(Path("python"), "a2_x", 125.0, 3, teacher_only=True, pedal_technique=True, brake_profile=True, profile_peak_min_m=60.0)
+    assert "--profile-peak-min-kmh" not in base
+    argv = aislado.build_argv(Path("python"), "a2_x", 125.0, 3, teacher_only=True, pedal_technique=True, brake_profile=True, profile_peak_min_m=60.0, profile_peak_min_kmh=8.0)
+    assert argv[argv.index("--profile-peak-min-kmh") + 1] == "8"
