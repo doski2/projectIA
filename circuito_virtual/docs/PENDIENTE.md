@@ -1,10 +1,10 @@
 # Pendiente de circuito_virtual
 
-Estado al cierre de la jornada del **2026-11-03** (V1-V79). Lo que no es del circuito (rampa del BC, PPO, daño
+Estado al cierre de la jornada del **2026-11-03** (V1-V83). Lo que no es del circuito (rampa del BC, PPO, daño
 de motor P26, controles de seco, reentreno v2) está en `experimental/docs/PENDIENTE.md`. El plan está
 en `docs/PLAN.md`, las decisiones en `docs/DECISIONES.md` y la historia en `docs/DIARIO.md`.
 
-**Qué significan las «V»:** cada Vnn es una entrada del registro de decisiones (hoy V1-V79), no una
+**Qué significan las «V»:** cada Vnn es una entrada del registro de decisiones (hoy V1-V83), no una
 versión del software. La versión del software es el commit de git, que cada sesión guarda en la
 cabecera de su log. Este documento recoge solo el estado actual y lo que sigue; las cifras de sesiones
 anteriores son referencia (están en `DECISIONES.md`) y cada sesión nueva se juzga contra el criterio de
@@ -12,8 +12,8 @@ volante de más abajo, no contra la anterior.
 
 ## Dónde estamos
 
-- **Estado del código:** todo comiteado. Último commit de código `c5606c9` (recorte de picos, V79, y grabador manual de D1b, V77); los documentos de V75-V79 y esta limpieza van en el commit siguiente. El log de la próxima sesión llevará en la cabecera el hash de `HEAD` de ese momento.
-- **Tests en verde:** `circuito_virtual` 78, `experimental` 112, `PCARS2-AI` 544 (ruff limpio salvo los avisos antiguos de `resumen_sesion.py` y `test_resumen_sesion.py`). Se lanzan con
+- **Estado del código:** Último commit de código `c5606c9` (recorte de picos, V79, y grabador manual de D1b, V77) y de documentos `2fa32ac`; el código del umbral de prominencia (V82) está en `5af3bf2` y los documentos de V80-V83 van en el commit siguiente (el log de V83 lleva `2fa32ac` aunque el código del umbral aún no estaba comiteado; los siguientes llevarán el hash correcto). El log de la próxima sesión llevará en la cabecera el hash de `HEAD` de ese momento.
+- **Tests en verde:** `circuito_virtual` 78, `experimental` 113, `PCARS2-AI` 552 (ruff limpio salvo los avisos antiguos de `resumen_sesion.py` y `test_resumen_sesion.py`). Se lanzan con
   `pytest` dentro de cada carpeta.
 - **Teacher** (`teacher_controller.py`, `learn_driver.py`): cada opción es opt-in y su valor por
   defecto es el de producción.
@@ -21,17 +21,19 @@ volante de más abajo, no contra la anterior.
   `sugo_smooth.json`, `sugo_optima_a1mu9.json`, `sugo_optima_a1mu9b.json`, `sugo_optima_a1mu9c15.json` y
   `sugo_optima_a1mu9c12.json`. Cómo regenerarlos, en «Comandos vigentes».
 
-## Próxima sesión: recorte de picos (V79)
+## Próxima sesión: la línea óptima con la receta vigente (V83)
 
-**Una variable respecto a la receta vigente: `--profile-peak-min-m 60`.** Aplana los picos del perfil de velocidad más estrechos que 60 m (el tramo de 35 m entre C5 y C6, la salida de C9) para que el coche no acelere y frene enseguida. Con el coche de juguete cuesta ≈ 0,08 s y quita las frenadas de C5-C6 y de la salida de C9; **no se ha probado en el juego.** Ctrl+C a mano: el usuario atento en la primera vuelta (regla de cambios de pedales), en seco y delante del juego.
+**Receta vigente provisional (V83):** la de V76 más `--profile-peak-min-m 60 --profile-peak-min-kmh 8`. Sesión `221745Z`: 119,5 / 119,4 / 119,5 s (−0,3 s), sin freno en C5-C6, perfil de entrada de C4 igual al de la base (deriva 3,9 / 2,2 / 1,8°) y la pareja 3-4 cumple V19; la 1-2 y la 2-3 fallan por C11 en la vuelta 2 (1,85 m, fallo que se repite en todas las sesiones). Las inversiones del gas no bajan (35 / 35 / 32). El comando está en «Comandos vigentes».
+
+**Una variable respecto a la receta vigente: `--reference …\sugo_optima_a1mu9c12.json`** (el solver prevé −1,4 s; con la receta antigua dio 119,3-119,5 s pero rompía zonas rápidas o la S de C2-C3 según la receta, V64). Es la vía para C3 y C12-C14, que el recorte no resolvió. Ctrl+C a mano, en seco y delante del juego; atento en la primera vuelta (línea nueva con la receta nueva). Sin juego (V83): sobre esa línea el recorte con umbral 8 cambia 19 tramos (31 sin umbral), deja el perfil de 700 a 799 m como el de la base y recorta C5-C6 (−38 y −31 km/h) y C8 (−27).
 
 ```text
-C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --teacher-only --speed-band 125 --max-gear 3 --lat-accel-limit 9.5 --steer-ff-gain 0.003 --steer-ff-v0-kmh 0 --steer-ff-cap-kmh 100 --steer-preview-s 0.3 --steer-slip-gain 5 --lat-gain-v0-kmh 60 --throttle-max 1.0 --brake-decel-straight 10 --brake-overspeed-straight-ms 2.5 --brake-slip-limit 0.25 --brake-slip-hold 0.85 --pedal-technique --brake-profile --brake-circle 10 --exit-circle 14.6 --profile-peak-min-m 60 --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_smooth.json --experiment a2_suave_125_g3_lat95_slip5_v60_ff0_cap100_pv03_gas1_fr10_perfil_c10_slip_exit146_pico60_l4 --laps 4
+C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --teacher-only --speed-band 125 --max-gear 3 --lat-accel-limit 9.5 --steer-ff-gain 0.003 --steer-ff-v0-kmh 0 --steer-ff-cap-kmh 100 --steer-preview-s 0.3 --steer-slip-gain 5 --lat-gain-v0-kmh 60 --throttle-max 1.0 --brake-decel-straight 10 --brake-overspeed-straight-ms 2.5 --brake-slip-limit 0.25 --brake-slip-hold 0.85 --pedal-technique --brake-profile --brake-circle 10 --exit-circle 14.6 --profile-peak-min-m 60 --profile-peak-min-kmh 8 --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_optima_a1mu9c12.json --experiment a2_optA1mu9c12_125_g3_lat95_slip5_v60_ff0_cap100_pv03_gas1_fr10_perfil_c10_slip_exit146_pico60_prom8_l4 --laps 4
 ```
 
-**Éxito** (todo a la vez): sin freno en C6 ni gas, freno y gas entre C5 y C6; deriva de C5 < 4° en todas las vueltas; menos inversiones del gas en curva que las 32-33 por vuelta de la base; una pareja de vueltas seguidas que cumpla V19; tiempo ≤ 120,3 s. Con 60 m, C12-C14 solo mejora a medias (con 150 m costaría ≈ 3 s en el juguete): eso se deja a la línea.
+**Éxito** (todo a la vez): pareja de vueltas que cumpla V19 y tiempo < 119,4 s. Mirar sobre todo la S de C2-C3 (en la línea óptima fallaba en las vueltas ≥ 2 con 2,4-2,5 m, V64), C4 (deriva y entrada, comparar con la tabla de V83), C5-C6 (que no vuelva el freno), C12-C14 y las ruedas fuera (la línea óptima las quitaba). **Si rompe:** volver a la receta vigente; si solo falla una zona, anotarla y decidir el ajuste de línea (cota de curvatura, margen) antes de otra sesión.
 
-**Si rompe:** tiempo > 120,3 s o el coche llega a una curva sin levantar → `--profile-peak-min-m 30` (en el juguete no cuesta nada) o volver a la receta vigente. Si funciona, el 9,5 con recorte pasa a receta vigente.
+**Pendiente aparte (no mezclar con esta sesión):** C11 en la vuelta 2 (1,77-1,85 m, el fallo de V19 que queda en la línea suavizada) y las inversiones del gas en C5-C6 (gas de mantenimiento a 85 km/h, F10).
 
 **Cómo analizar el informe** (el usuario pasa el HTML; el log está en `PCARS2-AI\logs\learning\`; anteponer `PYTHONIOENCODING=utf-8`):
 
@@ -41,17 +43,17 @@ C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\exper
 4. Perfil de la vuelta 3 en 860-950 m (C5-C6) y 2650-3120 m (C12-C14): gas, freno y velocidad cada 10-25 m.
 5. Ruedas fuera: separar el terreno 48 (pintura sobre hormigón, el piano de C4, probablemente legal) de la hierba (terreno 7, recta tras C8).
 
-**Base para comparar** (`220205Z`, `--lat-accel-limit 9.5` sin recorte, V76): vueltas 119,8 s; \|CTE\| máx. de C11 1,77 / 1,76 / 1,56 m (vueltas 2-4); deriva máx. 3,7 / 3,9 / 4,1°; lateral máx. 12,9-14,4 m/s²; pareja 2-3 cumple V19, la 1-2 falla por C11 (1,82 m) y la 3-4 por la deriva de C5 (4,1°); 14 frenadas por vuelta, 32-33 inversiones del gas en curva y 4 rebotes del gas (326, 910, 1288 y 2796 m); 237 ticks con rueda fuera (80 solo con el 48 en C4, 157 con hierba en 1444-1465 m); C5-C6: gas 0,74 → 0,92 hasta 93,6 km/h y luego freno 0,06-0,15 en 910-920 m.
+**Base para comparar** (`221745Z`, receta vigente con `--profile-peak-min-m 60 --profile-peak-min-kmh 8`, V83; la anterior sin recorte, `220205Z`, está en V76 y las del recorte sin umbral, `213645Z` y `215549Z`, en V80-V81): vueltas 119,5 / 119,4 / 119,5 s; \|CTE\| máx. de C11 1,85 / 1,69 / 1,61 m (vueltas 2-4); deriva máx. 3,9 / 2,3 / 2,3° (la de C4 3,9 / 2,2 / 1,8°); lateral máx. 13,9-14,5 m/s²; la pareja 3-4 cumple V19 y las 1-2 y 2-3 fallan por C11 en la vuelta 2; 10 frenadas por vuelta, 32-35 inversiones del gas en curva y 2 rebotes del gas (1245-1246 y 1289 m); 223 ticks con rueda fuera (terreno 48 en 25 / 15 / 16 por vuelta, hierba 36 por vuelta); C5-C6 sin freno (v mín. 74,7-75,1 y 84,7 km/h); perfil de entrada de C4 (medias de las vueltas 2-4): gas 0,15 a 745 m, 73,99 km/h a 750 m, pedal 0,14 a 755 m, 63,83 km/h a 770 m.
 
 ## Estado por tema
 
 | Tema | Estado | Qué falta |
 | --- | --- | --- |
-| A2.0 a 125 km/h con la línea suavizada | **Receta vigente provisional (V76), `220205Z` con `--lat-accel-limit 9.5`: la pareja de vueltas 2-3 cumple V19, 119,8 s** (la 1-2 falla por C11, 1,82 m; la 3-4 por la deriva de C5, 4,1°). Historia: límite 9 (V73) 120,8 s con la pareja 3-4; límite 10 (V74-V75) 118,8 s dos veces pero sin ninguna pareja (C11 1,81-1,84 m, deriva de C5 4,1-4,15°); sin la técnica 120,5 s (`124357Z`) | Recorte de picos (próxima sesión), línea óptima, prueba de banda, D1b |
-| A2.0 con la línea óptima | Probada con la receta antigua (V58-V64): `a1mu9c12` da 119,5 s con 0 ruedas fuera, pero la S de 400-600 m (C2-C3) falla en las vueltas ≥ 2 (2,4-2,5 m); los neumáticos fríos no son la causa (V64); la receta 70 / tope 100 arregla las zonas rápidas y degrada la S, la 60 / sin tope al revés. Con la receta nueva (cap 100, perfil, tope del gas) sin probar | Línea óptima con la receta vigente («Siguiente» 4); necesita saber el ancho real de la pista (D1b) |
+| A2.0 a 125 km/h con la línea suavizada | **Receta vigente provisional (V83), `221745Z`: la de V76 más `--profile-peak-min-m 60 --profile-peak-min-kmh 8`; la pareja de vueltas 3-4 cumple V19, 119,4-119,5 s** (la 1-2 y la 2-3 fallan por C11 en la vuelta 2, 1,85 m). Sin el umbral (V80-V81, dos sesiones): 119,5-119,7 s pero sin pareja por la deriva de C4. Historia: V76 (`220205Z`, sin recorte) 119,8 s con la pareja 2-3; límite 9 (V73) 120,8 s con la pareja 3-4; límite 10 (V74-V75) 118,8 s dos veces pero sin ninguna pareja (C11 1,81-1,84 m, deriva de C5 4,1-4,15°); sin la técnica 120,5 s (`124357Z`) | Línea óptima (próxima sesión), C11 de la vuelta 2, prueba de banda, D1b |
+| A2.0 con la línea óptima | Probada con la receta antigua (V58-V64): `a1mu9c12` da 119,5 s con 0 ruedas fuera, pero la S de 400-600 m (C2-C3) falla en las vueltas ≥ 2 (2,4-2,5 m); los neumáticos fríos no son la causa (V64); la receta 70 / tope 100 arregla las zonas rápidas y degrada la S, la 60 / sin tope al revés. Con la receta nueva (cap 100, perfil, tope del gas) sin probar | Línea óptima con la receta vigente («Próxima sesión», V83); necesita saber el ancho real de la pista (D1b) |
 | Techo en 3.ª (G2) | **Limpio hasta 140 km/h** (volante ±0,01, CTE ≤ 0,16 m por encima de 128 km/h). El motor llega a 149,9 km/h (112 N·m a 6756 rpm) | Repetir 150 km/h con la ganancia por velocidad |
 | Frenadas fuertes | Con pedal ≤ 0,84 (teacher de A2) no hay bloqueo; con pedal 1,0 (A1) se bloquean las delanteras. **Limitador por deslizamiento cerrado** con objetivo 0,25 y memoria 0,85 (V44-V55): 11,4-11,8 m/s² desde 150 km/h y 11,0-11,4 desde 140, 0 ruedas paradas, CTE ≤ 0,56 m | Decidir qué tabla de frenada usa el solver (V55, punto 4); revisar los cambios de marcha durante la frenada; luego 140 km/h y el techo a 150 km/h |
-| Técnica de pedales y frenada (`--pedal-technique`, `--brake-profile`, `--exit-circle`, `--profile-peak-min-m`; V65-V79) | **Terminada y en la receta vigente**, salvo el recorte de picos (V79), que está implementado y probado solo con el coche de juguete. Frenada: deceleración mediana 6,6-7,1 m/s², 27-28 % del tiempo ≥ 10 m/s², pedal 0,93, tiempo muerto 0,02 s, 46 % del freno girando, consigna sin saltos. Gas de salida con tope por el círculo (C11 de 2,2 a 1,4-1,7 m). Queda el gas, freno y gas en C5-C6, C9, C10 y C12-C14 (32-33 inversiones del gas por vuelta) | Sesión del recorte; después filas F10-F13 de `TECNICA_CONDUCCION.md` |
+| Técnica de pedales y frenada (`--pedal-technique`, `--brake-profile`, `--exit-circle`, `--profile-peak-min-m`; V65-V83) | **Terminada y en la receta vigente**, salvo el recorte de picos (V79-V80), **en la receta vigente con el umbral de prominencia (V83)**: quita la frenada de C5-C6 y deja intacto el pico de 735-746 m junto a C4. Frenada: deceleración mediana 6,6-7,1 m/s², 27-28 % del tiempo ≥ 10 m/s², pedal 0,93, tiempo muerto 0,02 s, 46 % del freno girando, consigna sin saltos. Gas de salida con tope por el círculo (C11 de 2,2 a 1,4-1,7 m). Queda el gas, freno y gas en C5-C6, C9, C10 y C12-C14 (32-33 inversiones del gas por vuelta) | Gas de mantenimiento en C5-C6 y filas F10-F13 de `TECNICA_CONDUCCION.md` |
 | Curvas numeradas (V70) | `circuito_virtual/pistas/sugo_gp/curvas.json` (C1-C14, tabla en `TECNICA_CONDUCCION.md` §9); el informe HTML, `resumen_sesion.py` y `pedales_sesion.py` las usan. C12-C14 son un solo viraje largo a la derecha (2656-3113 m), no una chicane (V78) | Regenerar con `python circuito_virtual/src/curvas.py` si cambia el mapa |
 | Registro de sesión | `log_schema` 3 desde V67: `lat_accel` lateral real y `long_accel`; los logs anteriores tienen `lat_accel` = longitudinal | Leer cualquier log con `session_log.tick_accels` |
 | Modelo del volante | `experimental/common/modelo_volante.py` acierta a más de 108 km/h y no ve las entradas en curva cerrada | Reajustarlo con cada log nuevo |
@@ -63,10 +65,10 @@ C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\exper
 Los lanza el usuario (en seco, delante del juego, Ctrl+C si el coche oscila o se sale). Siempre con
 la ruta absoluta del Python del proyecto.
 
-**A2.0, RECETA VIGENTE PROVISIONAL (V76): línea suavizada a 125 km/h con todo lo de la técnica y `--lat-accel-limit 9.5`; la pareja de vueltas 2-3 cumple V19, ≈ 119,8 s.** Cada opción está explicada en la tabla de «Receta del teacher». Las sesiones se hacen cambiando **una** opción de este comando y un nombre de experimento nuevo (acabado en `_l4`, `_l4b`…; la sesión de referencia usó `_l4`):
+**A2.0, RECETA VIGENTE PROVISIONAL (V83): línea suavizada a 125 km/h con todo lo de la técnica, `--lat-accel-limit 9.5`, `--profile-peak-min-m 60` y `--profile-peak-min-kmh 8`; la pareja de vueltas 3-4 cumple V19, ≈ 119,4-119,5 s.** Cada opción está explicada en la tabla de «Receta del teacher». Las sesiones se hacen cambiando **una** opción de este comando y un nombre de experimento nuevo (acabado en `_l4`, `_l4b`…; la sesión de referencia usó `_l4`; el 8 depende de la línea suavizada y del límite 9,5):
 
 ```text
-C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --teacher-only --speed-band 125 --max-gear 3 --lat-accel-limit 9.5 --steer-ff-gain 0.003 --steer-ff-v0-kmh 0 --steer-ff-cap-kmh 100 --steer-preview-s 0.3 --steer-slip-gain 5 --lat-gain-v0-kmh 60 --throttle-max 1.0 --brake-decel-straight 10 --brake-overspeed-straight-ms 2.5 --brake-slip-limit 0.25 --brake-slip-hold 0.85 --pedal-technique --brake-profile --brake-circle 10 --exit-circle 14.6 --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_smooth.json --experiment a2_suave_125_g3_lat95_slip5_v60_ff0_cap100_pv03_gas1_fr10_perfil_c10_slip_exit146_l4b --laps 4
+C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --teacher-only --speed-band 125 --max-gear 3 --lat-accel-limit 9.5 --steer-ff-gain 0.003 --steer-ff-v0-kmh 0 --steer-ff-cap-kmh 100 --steer-preview-s 0.3 --steer-slip-gain 5 --lat-gain-v0-kmh 60 --throttle-max 1.0 --brake-decel-straight 10 --brake-overspeed-straight-ms 2.5 --brake-slip-limit 0.25 --brake-slip-hold 0.85 --pedal-technique --brake-profile --brake-circle 10 --exit-circle 14.6 --profile-peak-min-m 60 --profile-peak-min-kmh 8 --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_smooth.json --experiment a2_suave_125_g3_lat95_slip5_v60_ff0_cap100_pv03_gas1_fr10_perfil_c10_slip_exit146_pico60_prom8_l4b --laps 4
 ```
 
 Las recetas históricas de A2.0 (base sin técnica `124357Z`, técnica de pedales `140704Z`, línea óptima `a1mu9b` con tope 100) están descritas en `DECISIONES.md` (V31-V32, V58, V65); sus comandos completos siguen en el historial de git de este archivo, antes de V79.
@@ -139,9 +141,10 @@ Con salida por tubería, anteponer `PYTHONIOENCODING=utf-8`; el procedimiento pa
 | `--pedal-technique` | apagado; en la receta vigente | Técnica de pedales (solo con el modelo físico): gas cortado del todo y enclavado antes de frenar, freno que se suelta en proporción al exceso hasta el vértice y gas que solo sube desde el vértice | V65 |
 | `--pedal-exit-slew` | 1.5 | Con `--pedal-technique`: subida máxima del gas por segundo desde el vértice (1,5 = de 0 a fondo en ≈ 0,7 s; con 0,8 el coche de juguete perdía 1,2 s) | V65 |
 | `--brake-profile` | apagado; en la receta vigente | Con `--pedal-technique` (V68): consigna de velocidad continua por barrido hacia atrás con el círculo de adherencia (sin el salto 8 → 4 m/s² al entrar en la curva) y freno por avance sin margen ni tiempo muerto | V68-V71 |
+| `--profile-peak-min-kmh` | 0 (sin umbral); **8 en la receta vigente (V83)** | Con `--profile-peak-min-m`: un pico solo se aplana si el recorte lo baja al menos estos km/h (sobre el perfil lateral, antes del barrido hacia atrás). 8 deja intactos el pico de 1,4 km/h junto a C4 y el de su salida y mantiene los de C5-C6; depende de la línea y del límite lateral (medido con `sugo_smooth.json` y 9,5) | V82 |
 | `--brake-circle` | 14.6; **10 en la receta vigente** | Con `--brake-profile`: radio del círculo en unidades de la línea. 14,6 = trail braking completo; ≈ 10 = casi terminar de frenar antes de girar (el coche hace ≈ 1,45 veces el lateral que cree la línea) | V69-V70 |
 | `--exit-circle` | 0 (apagado); **14.6 en la receta vigente** | Con `--pedal-technique` (V72, F3): en la salida el gas no pasa de `gas_max · √(1 − (lateral medido / R)²)` (0,60 a 11,7 m/s²); cuesta ≈ 0,23 s por vuelta y baja el \|CTE\| en casi todas las curvas | V72-V73 |
-| `--profile-peak-min-m` | 0 (apagado); **propuesto 60 (próxima sesión)** | Con `--brake-profile`: aplana al valle más alto de alrededor los picos de la consigna más estrechos que estos metros; el coche no acelera en un tramo corto entre dos curvas para frenar enseguida (C5-C6, C9). Con el coche de juguete: 30 m −0,03 s, 60 m +0,08 s, 100 m +0,5-0,8 s, 150 m +3-3,8 s; sin probar en el juego | V79 |
+| `--profile-peak-min-m` | 0 (apagado); **60 con `--profile-peak-min-kmh 8` en la receta vigente (V83)** | Con `--brake-profile`: aplana al valle más alto de alrededor los picos de la consigna más estrechos que estos metros; el coche no acelera en un tramo corto entre dos curvas para frenar enseguida (C5-C6, C9). Con el coche de juguete: 30 m −0,03 s, 60 m +0,08 s, 100 m +0,5-0,8 s, 150 m +3-3,8 s; en el juego (V80-V81) quita la frenada de C5-C6 y baja ≈ 0,15 s, pero cambia 32 tramos del perfil, entre ellos un pico de 1,4 km/h junto a C4 que sube su deriva | V79-V81 |
 
 `aislado.py` pasa siempre `--hold-stage` a `learn_driver.py` con `--teacher-only` (V64): sin él dos vueltas limpias cerraban la sesión aunque `--laps` fuese mayor.
 
@@ -179,7 +182,7 @@ superficie de carrera (hoy el terreno 48, pintura sobre hormigón, cuenta como f
 - **Con aviso:** las frenadas a fondo de A1 desde 100, 110, 135, 140 y 150 km/h (pedal 1,0, 11,5-11,9
   m/s²) bloquean las delanteras a los ≈ 0,3 s y hasta casi parar; el «sin bloqueo» anterior solo
   miraba las traseras (V42-V43).
-- **Sin validar:** el recorte de picos en el juego (V79); el grabador manual contra el juego (V77); frenadas sin bloqueo desde más de 123 km/h; aceleración por encima de 140 km/h con
+- **Sin validar:** el recorte con umbral de prominencia sobre la línea óptima (V83, solo comprobado sin juego) o con otro límite lateral; el grabador manual contra el juego (V77); frenadas sin bloqueo desde más de 123 km/h; aceleración por encima de 140 km/h con
   el volante tranquilo; 4.ª marcha; límite lateral por encima de 14,6 m/s² sostenidos (A1.3b);
   cualquier otra pista o coche; los bordes reales (D1b: semivía de 0,85 m y margen supuestos).
 
@@ -215,10 +218,10 @@ superficie de carrera (hoy el terreno 48, pintura sobre hormigón, cuenta como f
 
 ## Siguiente (en este orden)
 
-La historia de cada sesión de hoy está en `DECISIONES.md` V69-V79; aquí solo lo que toca.
+La historia de cada sesión de hoy está en `DECISIONES.md` V69-V83; aquí solo lo que toca.
 
 0. **Al empezar:** `git status` (debería estar limpio; puede quedar suelto el `Sportsland Sugo International track map.svg` de la raíz, que no es del proyecto); leer «Próxima sesión» (arriba) y `docs/TECNICA_CONDUCCION.md` §8-§9. Cuando el usuario diga «la curva N», es el catálogo C1-C14.
-1. **Sesión del recorte de picos** (`--profile-peak-min-m 60`): comando, criterio de éxito y análisis en «Próxima sesión».
+1. **Línea óptima con la receta vigente** (`--reference …\sugo_optima_a1mu9c12.json`, V83): comando y criterio de éxito en «Próxima sesión».
 2. **D1b por conducción manual — EN PAUSA a petición del usuario (V78: «deja las pruebas pendientes»).** El ancho real declarado (10-12,5 m) duplica los 5,4 m comprobados, así que la línea óptima está limitada por lo recorrido y no por la pista. El usuario conduce (teclado) con las dos ruedas de un lado sobre la hierba y el limitador a 60 km/h, una sesión por lado y 3 vueltas; nada del teacher en marcha a la vez (comparten el puerto UDP). Después: `bordes_logs.py actualizar`, mirar la cobertura y, si hay metros con una sola cota, hacer el extractor con ventana (V77, punto 2); calibrar la semivía con los dos lados; mirar qué ids de terreno hay al cruzar la línea blanca (46, 47, 49) y decidir el 48. Éxito (`PLAN.md`): los dos bordes medidos en ≥ 90 % de la vuelta con incertidumbre ≤ 0,3 m. Diseño original con el teacher (6-10 rondas por lado) en `PLAN.md`, solo si esto no alcanza.
 
 ```text
@@ -228,11 +231,7 @@ C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\circu
 ```
 
 3. **Prueba de banda** (a petición del usuario, solo exploratoria, no es una sesión de receta ni se juzga con V19): subir `--speed-band` para ver hasta dónde llega. El techo con 3.ª es 150 km/h (`ident_max_cap_kmh(3)`); el solver tiene tablas de aceleración hasta 140 y el techo de 3.ª está limpio hasta 140; por encima de 135 hace falta `--lat-gain-v0-kmh 70` (V42). Propuesta: 135 con la receta tal cual y luego 140 con `--lat-gain-v0-kmh 70`; el salto a 150 solo con el usuario atento (la recta tras C8 toca hierba ya a 124 km/h y la frenada a C9 pasa de 126 a 68 km/h). Antes de cada sesión, calcular lo que prevé el solver para esa banda. La recta final (3113-3567 m) y la de 2555-2655 m van hoy a 126 km/h con el gas a medias: ahí está el tiempo.
-4. **La línea óptima con la receta vigente** (una variable respecto a la receta vigente: `--reference …\sugo_optima_a1mu9c12.json`; mejor después del recorte y, si se puede, de D1b). El solver prevé −1,4 s y con la receta antigua dio 119,3-119,5 s (V64) pero rompía zonas rápidas o la S según la receta. Éxito: pareja de vueltas que cumpla V19 y tiempo < 119,8 s. Es la vía para C3 y C12-C14.
-
-```text
-C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --teacher-only --speed-band 125 --max-gear 3 --lat-accel-limit 9.5 --steer-ff-gain 0.003 --steer-ff-v0-kmh 0 --steer-ff-cap-kmh 100 --steer-preview-s 0.3 --steer-slip-gain 5 --lat-gain-v0-kmh 60 --throttle-max 1.0 --brake-decel-straight 10 --brake-overspeed-straight-ms 2.5 --brake-slip-limit 0.25 --brake-slip-hold 0.85 --pedal-technique --brake-profile --brake-circle 10 --exit-circle 14.6 --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_optima_a1mu9c12.json --experiment a2_optA1mu9c12_125_g3_lat95_slip5_v60_ff0_cap100_pv03_gas1_fr10_perfil_c10_slip_exit146_l4 --laps 4
-```
+4. **C11 en la vuelta 2** (V83): el fallo de V19 que queda en la línea suavizada (1,77-1,85 m; en 2480-2500 m el volante está en 0,00 con el coche a −1,6 / −1,7 m de la línea, cambio a 3.ª en 2490 m); una variable aparte, después de la línea óptima o si esta no mejora.
 
 5. **Pendientes menores del circuito** (observaciones del usuario curva a curva, V76): C3 se podía trazar mejor (\|CTE\| 1,24 → 1,33 m, sube por vuelta); C4 toca el piano (terreno 48) y el \|CTE\| máx. sube por vuelta (0,4 → 0,95 m); deriva de C5 ≈ 3,9-4,15° en todas las sesiones; hierba en 1444-1465 m tras C8 (el \|CTE\| pasa de +0,87 a −0,86 m en 70 m, la regla `edge_grass` recorta el gas, la velocidad no baja); ajuste de pedales en C9-C11.
 6. **Más técnica** (`TECNICA_CONDUCCION.md` §5): F10 gas con espera en la salida de curvas cerradas, F11 clasificar las curvas (C12-C14 son un solo viraje largo), F12 eses, F13 horizonte de mirada (el recorte de picos de V79 es un primer paso), F5 puntos de frenada adaptativos, F6 cambios de marcha respecto a la frenada, F7 neumáticos (se enfrían de 80 a 46 °C en 4 vueltas).
@@ -316,4 +315,4 @@ C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\exper
 - ~~Actualizar la tabla de aceleración de A1 y el tope del solver~~ **Hecho (V56).** Queda, si se quiere, una sesión de aceleración con techo 150 km/h (`--ident acel --ident-cap-kmh 150 --lat-gain-v0-kmh 70`).
 - ~~Subir el límite lateral del teacher a 10~~ **Probado (V74-V75):** gana 1,9 s pero no cumple V19; la receta vigente usa 9,5 (V76).
 - ~~Grabador pasivo para D1b manual~~ **Hecho (V77):** `circuito_virtual/src/sesion_manual.py`.
-- ~~Recorte de picos de la consigna~~ **Implementado (V79)**, falta la sesión en el juego.
+- ~~Recorte de picos de la consigna~~ **Implementado (V79) y probado dos veces en el juego (V80-V81):** sin freno en C5-C6, 119,5-119,7 s, pero sin pareja V19 por la deriva de C4; el umbral de prominencia lo arregló (V82-V83) y es parte de la receta vigente.
