@@ -101,6 +101,16 @@ class TelemetryFrame:
     engine_torque:            float = 0.0
     crash_state:              int = 0
     tick_count:               int = 0                                            # sTickCount (offset 555), uchar cíclico
+    # Tanda 3 (2026-11): temperaturas de la goma por capa y por zona en °C (el paquete las da en kelvin; 0 = no vino o fuera de rango) y compuesto de cada rueda.
+    # Left / Center / Right son los dos lados de la banda y el centro; qué lado es el interior depende de la rueda (por comprobar con datos en curva).
+    tyre_layer_c:             Tuple[int, int, int, int] = (0, 0, 0, 0)           # sTyreLayerTemp @ 224
+    tyre_carcass_c:           Tuple[int, int, int, int] = (0, 0, 0, 0)           # sTyreCarcassTemp @ 232
+    tyre_rim_c:               Tuple[int, int, int, int] = (0, 0, 0, 0)           # sTyreRimTemp @ 240
+    tyre_air_c:               Tuple[int, int, int, int] = (0, 0, 0, 0)           # sTyreInternalAirTemp @ 248
+    tyre_left_c:              Tuple[int, int, int, int] = (0, 0, 0, 0)           # sTyreTempLeft @ 256
+    tyre_center_c:            Tuple[int, int, int, int] = (0, 0, 0, 0)           # sTyreTempCenter @ 264
+    tyre_right_c:             Tuple[int, int, int, int] = (0, 0, 0, 0)           # sTyreTempRight @ 272
+    tyre_compound:            Tuple[str, str, str, str] = ("", "", "", "")       # sTyreCompound @ 378, 4 x 40 caracteres
 
 
 @dataclass
@@ -167,6 +177,21 @@ class VehicleInfo:
 def _packet_type(data: bytes) -> int:
     """Devuelve el tipo de paquete desde el PacketBase (offset 10)."""
     return data[10]
+
+
+def _kelvin_to_c(values) -> Tuple[int, int, int, int]:
+    """Kelvin (uint16) a °C enteros. 0 o un valor fuera de 200-500 K no es una temperatura de goma (campo sin rellenar o bytes mal leídos): sale 0."""
+    return tuple(int(round(v - 273.15)) if 200 <= v <= 500 else 0 for v in values)  # type: ignore[return-value]
+
+
+def _compound_names(data: bytes) -> Tuple[str, str, str, str]:
+    """Nombre del compuesto de cada rueda (sTyreCompound @ 378, 4 x 40 bytes, ASCII terminado en cero). Si los bytes no son texto imprimible, cadena vacía."""
+    names = []
+    for i in range(4):
+        raw = data[378 + 40 * i: 378 + 40 * (i + 1)].split(b"\x00", 1)[0]
+        txt = raw.decode("ascii", errors="replace").strip()
+        names.append(txt if all(32 <= ord(c) < 127 for c in txt) else "")
+    return tuple(names)  # type: ignore[return-value]
 
 
 def parse_telemetry(data: bytes) -> Optional[TelemetryFrame]:
@@ -243,6 +268,14 @@ def parse_telemetry(data: bytes) -> Optional[TelemetryFrame]:
     engine_torque            = u('f', data, 364)[0]
     crash_state              = u('B', data, 47)[0]
     tick_count               = u('B', data, 555)[0]
+    tyre_layer_c             = _kelvin_to_c(u('4H', data, 224))
+    tyre_carcass_c           = _kelvin_to_c(u('4H', data, 232))
+    tyre_rim_c               = _kelvin_to_c(u('4H', data, 240))
+    tyre_air_c               = _kelvin_to_c(u('4H', data, 248))
+    tyre_left_c              = _kelvin_to_c(u('4H', data, 256))
+    tyre_center_c            = _kelvin_to_c(u('4H', data, 264))
+    tyre_right_c             = _kelvin_to_c(u('4H', data, 272))
+    tyre_compound            = _compound_names(data)
 
     # IA humana vs juego: se resuelve en el recorder con sCarIndex del paquete Timings.
     viewed_is_ai = False
@@ -290,6 +323,14 @@ def parse_telemetry(data: bytes) -> Optional[TelemetryFrame]:
         engine_torque=engine_torque,
         crash_state=crash_state,
         tick_count=tick_count,
+        tyre_layer_c=tyre_layer_c,
+        tyre_carcass_c=tyre_carcass_c,
+        tyre_rim_c=tyre_rim_c,
+        tyre_air_c=tyre_air_c,
+        tyre_left_c=tyre_left_c,
+        tyre_center_c=tyre_center_c,
+        tyre_right_c=tyre_right_c,
+        tyre_compound=tyre_compound,
     )
 
 

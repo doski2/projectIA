@@ -69,7 +69,7 @@ from brake_slip import BrakeSlipConfig, BrakeSlipLimiter
 from obs_universal import OBS_SCHEMA, OBS_UNIVERSAL_DIM, build_obs_universal
 from reference_recorder import ReferenceLine
 from safety_monitor import SafetyMonitor
-from session_log import DamageWatch, TeachingSessionRecorder, conditions_diag, default_log_path, rain_over_limit, timing_diag, vehicle_diag
+from session_log import DamageWatch, TeachingSessionRecorder, compound_diag, conditions_diag, default_log_path, rain_over_limit, timing_diag, vehicle_diag
 from teacher_controller import TeacherConfig, TeachingController, resolve_teacher_decision
 from track_deviation import maybe_build_track_diag
 from teacher_intents import rule_for_reason
@@ -714,6 +714,7 @@ def run(args: argparse.Namespace) -> int:
     print_session_lap_board(lap_summary_rows)
     lap_completion.reset(start_lap, _init_dist)
     last_conditions: Optional[dict] = None
+    last_compound: Optional[list] = None
     damage_watch = DamageWatch(limit_pct=args.damage_limit, jump_pct=args.damage_jump)
     base_lat_limit = teacher.config.lat_accel_limit
     arc_closing = False
@@ -935,6 +936,10 @@ def run(args: argparse.Namespace) -> int:
             if conditions is not None and conditions != last_conditions:
                 session_rec.record_event({"type": "conditions", **conditions})  # llega cada ~10 s; solo si cambia
                 last_conditions = conditions
+            compound = compound_diag(telem)
+            if compound is not None and compound != last_compound:  # solo si cambia: el nombre del compuesto de cada rueda (lisos / lluvia)
+                session_rec.record_event({"type": "tyre_compound", "compound": compound})
+                last_compound = compound
             game_state = session.game_state
             if game_state is not None and rain_over_limit(game_state, args.rain_limit):
                 session_rec.record_event({"type": "rain_stop", "rain": int(game_state.rain_density),

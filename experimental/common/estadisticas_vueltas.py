@@ -30,7 +30,12 @@ MAGNITUDES: Dict[str, Tuple[str, int]] = {
     "velocidad": ("velocidad (km/h)", 0), "cte": ("|CTE| (m)", 2), "deriva": ("deriva (°)", 1), "lateral": ("|lateral| (m/s²)", 1),
     "longitudinal": ("longitudinal (m/s², + acelera)", 1), "gas": ("gas", 2), "freno": ("freno", 2), "volante": ("|volante|", 2),
     "gomas": ("gomas, media de las 4 (°C)", 0), "frenos": ("frenos, media de los 4 (°C)", 0), "presion": ("presión de las gomas, media (bar)", 2),
+    # desde log_schema 4 (el log antiguo da «-»): media de las 4 ruedas, ignorando los 0 (campo sin rellenar)
+    "goma_izq": ("goma, lado «left» (°C)", 0), "goma_centro": ("goma, centro (°C)", 0), "goma_dcha": ("goma, lado «right» (°C)", 0),
+    "goma_capa": ("goma, capa (°C)", 0), "goma_carcasa": ("goma, carcasa (°C)", 0), "goma_aire": ("goma, aire interior (°C)", 0),
 }
+_CAMPOS_GOMA = {"goma_izq": "tyre_left_c", "goma_centro": "tyre_center_c", "goma_dcha": "tyre_right_c",
+                "goma_capa": "tyre_layer_c", "goma_carcasa": "tyre_carcass_c", "goma_aire": "tyre_air_c"}
 
 
 def _deriva(vehicle: dict) -> float:
@@ -48,7 +53,8 @@ def valores_tick(t: dict) -> Dict[str, Optional[float]]:
     v = t.get("vehicle") or {}
     acc = tick_accels(v)
     presion = _media(v.get("air_pressure") or [])
-    return {
+    zonas = {nombre: _media([x for x in (v.get(campo) or []) if x]) for nombre, campo in _CAMPOS_GOMA.items()}
+    return {**zonas,
         "velocidad": float(t["speed_kmh"]), "cte": abs(float(t["signed_cte"])), "deriva": _deriva(v),
         "lateral": abs(acc[0]) if acc else None, "longitudinal": acc[1] if acc else None,
         "gas": float(t["throttle"]), "freno": float(t["brake"]), "volante": abs(float(t["steering"])),

@@ -219,7 +219,7 @@ def test_rain_over_limit():
 
 
 def test_log_schema_3_has_the_real_lateral_acceleration_and_an_explicit_longitudinal_one():
-    assert LOG_SCHEMA == 3
+    assert LOG_SCHEMA == 4  # 4 añade las temperaturas de la goma por zona; la lateral y la longitudinal siguen como en 3
     d = vehicle_diag(_frame())
     assert d["lat_accel"] == 1.5 and d["long_accel"] == -3.0  # local_accel = [1.5, 0.25, 3.0]: lateral = eje 0, longitudinal = −eje 2
     assert tick_accels(d) == (1.5, -3.0)  # la misma lectura desde el tick

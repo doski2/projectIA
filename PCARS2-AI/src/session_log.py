@@ -25,7 +25,7 @@ MIN_HTML_DURATION_S = 5.0
 
 # Versión del formato del log. 1 = sin campo (logs antiguos); 2 = bloque `vehicle` ampliado
 # (ver `vehicle_extra`) y cabecera con `origin` / `experiment`.
-LOG_SCHEMA = 3  # 3: `lat_accel` es la aceleración lateral real y aparece `long_accel`; en el esquema 2 `lat_accel` era la longitudinal (H1)
+LOG_SCHEMA = 4  # 4: temperaturas de la goma por capa y zona en °C (`tyre_layer_c`… `tyre_right_c`) y evento `tyre_compound`; 3: `lat_accel` es la lateral real y aparece `long_accel` (en el esquema 2 era la longitudinal, H1)
 
 # Perfil de ajustes del juego con el que se graba. Se cambia a mano si se tocan los ajustes
 # (ver experimental/docs/DECISIONES.md, sección 6). Los logs sin este campo son del perfil R0.
@@ -82,6 +82,14 @@ _VEHICLE_EXTRA = (
     ("crash_state", "crash_state", None),
     ("tick_count", "tick_count", None),
     ("car_flags", "car_flags", None),  # bit 4 = ABS activo: señal directa de poco agarre al frenar
+    # tanda 3 (log_schema 4): temperaturas de la goma en °C por capa y por zona de la banda; los logs anteriores no las traen (también cuentan como «tanda 2» para los informes)
+    ("tyre_layer_c", "tyre_layer_c", None),
+    ("tyre_carcass_c", "tyre_carcass_c", None),
+    ("tyre_rim_c", "tyre_rim_c", None),
+    ("tyre_air_c", "tyre_air_c", None),
+    ("tyre_left_c", "tyre_left_c", None),
+    ("tyre_center_c", "tyre_center_c", None),
+    ("tyre_right_c", "tyre_right_c", None),
 )
 VEHICLE_EXTRA_KEYS = tuple(key for key, _, _ in _VEHICLE_EXTRA)
 VEHICLE_EXTRA_X4B_KEYS = VEHICLE_EXTRA_KEYS[VEHICLE_EXTRA_KEYS.index("tyre_flags"):]  # logs anteriores a X4b no los traen
@@ -100,6 +108,12 @@ def vehicle_extra(telem) -> dict:
         if v is not None:
             out[key] = _fmt(v, nd)
     return out
+
+
+def compound_diag(telem) -> Optional[list]:
+    """Nombre del compuesto de cada rueda para un evento `tyre_compound`; None si el frame no lo trae o viene vacío."""
+    names = list(getattr(telem, "tyre_compound", None) or ())
+    return names if any(names) else None
 
 
 def conditions_diag(game_state) -> Optional[dict]:
