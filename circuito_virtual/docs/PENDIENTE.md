@@ -58,6 +58,15 @@ C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\exper
 
 **Base para comparar** (receta vigente de la línea óptima, 6 vueltas: `230452Z`, V86; 4 vueltas: `225202Z`, V85): vueltas 2-6 de 118,6 / 118,6 / 118,7 / 118,7 / 118,7 s; \|CTE\| máx. 1,85 / 1,56 / 1,65 / 1,61 / 1,57 m; deriva máx. 3,1 / 3,3 / 3,4 / 3,6 / 3,2° (C6 la más alta); lateral máx. 13,4-14,1 m/s²; parejas 3-4, 4-5 y 5-6 cumplen V19 (la 1-2 y la 2-3 solo fallan por C11 en las vueltas 1-2, 1,84 y 1,85 m); 12-13 frenadas por vuelta, 26-27 inversiones del gas en curva y rebotes del gas en 747 y 1286-1287 m; 17 ticks con rueda fuera (terreno 48, piano de C4, vuelta 4), 0 en la hierba; por curva (vueltas 2-6): C2 1,10-1,12 m, C3 1,04 → 1,36 m, C8 0,60 → 0,74 m, C9 0,45-0,65 m, C11 1,85 / 1,56 / 1,65 / 1,55 / 1,48 m, C12-C13 0,83-0,91 m; C5-C6 sin freno; neumáticos de 74 / 71 °C en la vuelta 1 a 51 / 38 en la 6. Con `--lat-gain-v0-kmh 60`: `223851Z`, V84. Línea suavizada: `221745Z`, V83; anteriores en V76 y V80-V81. Solver (V86) para esta línea: 118,4 s a 125 km/h, 115,3 a 135, 114,1 a 140, 112,2 a 150.
 
+## Seco y mojado: no se mezclan
+
+Todo lo de este documento (receta, base de comparación, V19, solver μ 9, previsiones) es **en seco**. Las sesiones en mojado son exploratorias, van aparte y nunca se comparan con la base ni se juzgan con V19.
+
+- **Cómo se distinguen:** el registro `conditions` del log trae `rain` (0 en seco; 153 el 2026-11-04) y las temperaturas. El informe `informe_lineas_teacher.py` los separa por ese campo (tabla en seco y tabla en mojado), no por el nombre. Aun así, el experimento lleva `a2_mojado_` en el nombre.
+- **Los datos de seco no se tocan:** los buffers de BC (`c0_log`, `teacher_<banda>`) no incluyen los `a2_*`, y las tablas de A1 / `parametros_a1.json` salen de logs concretos.
+- **Primera sesión en mojado** (2026-11-04, `213459Z`, banda 100, límite lateral 6, sin recorte de picos, 2 vueltas): 146,55 / 146,58 s, sin bloqueo ni ABS; la vuelta 1 limpia (|CTE| 0,78 m, deriva 1,2°), la 2 con un patinazo en C5-C6 (|CTE| 4,66 m, deriva 8,3°, hierba y franja a 930-950 m) y salidas en C8 y C10-C11. Hipótesis sin comprobar: sin el recorte el coche acelera entre C5 y C6 y entra en C6 pasado. Si se repite, una variable: añadir `--profile-peak-min-m 60` (el umbral de 8 km/h está calibrado para 9,5, no para 6).
+- **Próxima en seco:** la prueba de banda 135 sigue como está.
+
 ## Estado por tema
 
 | Tema | Estado | Qué falta |
@@ -207,6 +216,7 @@ superficie de carrera (hoy el terreno 48, pintura sobre hormigón, cuenta como f
   argumentos válidos, ni para «probar» la CLI: lanza una sesión real y borra el buffer del
   experimento (incidente c0_log, memoria `feedback-no-ejecutar-aislado-para-probar`). Para
   comprobar una línea de comandos: `build_argv` y `a2_error` de `aislado.py` desde Python. Lo mismo con `sesion_manual.py` (abre el puerto UDP y escribe un log): solo `--help` y tests.
+- **Seco y mojado van separados** (sección «Seco y mojado»): las sesiones con lluvia llevan `a2_mojado_` en el experimento y no se comparan con la base ni con V19.
 - **Una sola variable por sesión** y primero el volante, después la velocidad (V19).
 - **Las sesiones anteriores son referencia, no vara de medir** (memoria
   `feedback-versiones-anteriores-solo-referencia`): cada sesión se juzga contra el criterio y su

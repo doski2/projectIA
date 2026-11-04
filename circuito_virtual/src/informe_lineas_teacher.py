@@ -57,7 +57,11 @@ def resumen_sesion(log: Path, zonas: Dict[str, Tuple[float, float]] = ZONAS) -> 
         if cab.get("type") != "session":
             return None
         ticks = []
+        lluvia = 0.0
         for linea in fh:
+            if '"type": "conditions"' in linea:
+                lluvia = max(lluvia, float(json.loads(linea).get("rain") or 0.0))
+                continue
             if '"type": "tick"' not in linea:
                 continue
             t = json.loads(linea)
@@ -81,11 +85,13 @@ def resumen_sesion(log: Path, zonas: Dict[str, Tuple[float, float]] = ZONAS) -> 
         pico_zona[nombre] = max(vals) if vals else float("nan")
     return {"log": log.name[:16], "linea": Path(str(cab.get("reference") or "")).stem, "banda": float(cab.get("speed_band_kmh") or 0.0),
             "experimento": str(cab.get("experiment") or ""), "git": str(cab.get("git") or ""), "vueltas": len(completas), "vuelta_s": min(tiempos.values()),
-            "cte_max": float(cte.max()), "zonas": pico_zona, "fuera": int(sum(1 for tk in ticks if tk[5])), "v_max": max(tk[4] for tk in ticks)}
+            "cte_max": float(cte.max()), "zonas": pico_zona, "fuera": int(sum(1 for tk in ticks if tk[5])), "v_max": max(tk[4] for tk in ticks), "lluvia": lluvia, "mojado": lluvia > 0.0}
 
 
-def sesiones(banda_min: float = 100.0, logs: Path = LOGS) -> List[Dict]:
-    """Sesiones A2.0 (experimento `a2_*`) a `banda_min` km/h o más, de la más antigua a la más reciente."""
+def sesiones(banda_min: float = 100.0, logs: Path = LOGS, mojado: bool = False) -> List[Dict]:
+    """Sesiones A2.0 (experimento `a2_*`) a `banda_min` km/h o más, de la más antigua a la más reciente.
+
+    Seco y mojado no se mezclan nunca: `mojado=False` devuelve solo las de `rain` = 0 en el registro de condiciones y `mojado=True` solo las de lluvia."""
     out = []
     for log in sorted(logs.glob("*_sugo_gp_l1_linea.jsonl")):
         with open(log, encoding="utf-8") as fh:
@@ -96,7 +102,7 @@ def sesiones(banda_min: float = 100.0, logs: Path = LOGS) -> List[Dict]:
         if not str(cab.get("experiment") or "").startswith("a2_") or float(cab.get("speed_band_kmh") or 0.0) < banda_min:
             continue
         r = resumen_sesion(log)
-        if r:
+        if r and r["mojado"] == mojado:
             out.append(r)
     return out
 
@@ -208,6 +214,7 @@ def generar(dir_pista: Path, salida: Path, banda_min: float = 100.0) -> Path:
     coche = lo.coche_a1(9.0, tope_kmh=TOPE_SOLVER_KMH)
     lineas = cargar_lineas(mapa, dir_pista)
     ses = sesiones(banda_min)
+    ses_mojado = sesiones(0.0, mojado=True)
     doc = f"""<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Líneas del teacher en {html.escape(mapa.nombre)}</title>
 <style>body{{font-family:system-ui,sans-serif;max-width:1250px;margin:24px auto;padding:0 16px;color:#222}}table{{border-collapse:collapse;font-size:.88em}}
 td,th{{border:1px solid #ccc;padding:3px 8px;text-align:left}}img{{max-width:100%}}h2{{margin-top:28px}}.n{{color:#666;font-size:.9em}}.mal{{background:#f9d6d6}}.exp{{font-size:.8em;color:#555}}</style></head><body>
@@ -215,7 +222,8 @@ td,th{{border:1px solid #ccc;padding:3px 8px;text-align:left}}img{{max-width:100
 <p class="n">Generado por <code>circuito_virtual/src/informe_lineas_teacher.py</code>. Los tiempos previstos son del solver (<code>perfil_velocidad.solve</code>, coche del teacher: tablas de A1, μ 9, tope {TOPE_SOLVER_KMH:g} km/h):
 dicen cuánto gana cada línea con el mismo coche. Qué pasó en el juego con cada una, en <code>circuito_virtual/docs/DECISIONES.md</code> (V15-V62).</p>
 <h2>Líneas</h2>{tabla_lineas(mapa, coche, lineas)}
-<h2>Sesiones A2.0 de vuelta completa (banda ≥ {banda_min:g} km/h)</h2>{tabla_sesiones(ses)}
+<h2>Sesiones A2.0 en seco de vuelta completa (banda ≥ {banda_min:g} km/h)</h2>{tabla_sesiones(ses)}
+<h2>Sesiones A2.0 en mojado (aparte: no se comparan con las de seco ni con V19)</h2>{tabla_sesiones(ses_mojado)}
 <h2>Planta</h2><img src="{figura_planta(mapa, lo_c, hi_c, lineas)}" alt="planta">
 <h2>Desplazamiento lateral</h2><img src="{figura_n(mapa, lo_c, hi_c, lineas)}" alt="n">
 <h2>Variación de curvatura</h2><img src="{figura_curvatura(mapa, lineas)}" alt="curvatura">

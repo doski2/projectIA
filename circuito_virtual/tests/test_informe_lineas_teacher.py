@@ -8,9 +8,9 @@ import pytest
 from circuito_virtual.src import informe_lineas_teacher as il
 
 
-def _log(ruta: Path, experimento: str, banda: float, cte: float, terreno=(1, 1, 1, 1)) -> Path:
+def _log(ruta: Path, experimento: str, banda: float, cte: float, terreno=(1, 1, 1, 1), lluvia: int = 0) -> Path:
     cab = {"type": "session", "reference": r"C:\x\sugo_optima_a1mu9c12.json", "speed_band_kmh": banda, "experiment": experimento, "git": "abc1234"}
-    lineas = [json.dumps(cab)]
+    lineas = [json.dumps(cab), json.dumps({"type": "conditions", "t_s": 1.0, "rain": lluvia})]
     t = 0.0
     for vuelta in (1, 2, 3):
         for d in range(0, 3560, 10):
@@ -41,3 +41,11 @@ def test_sesiones_solo_toma_a2_y_la_banda_pedida(tmp_path):
     s = il.sesiones(100.0, tmp_path)
     assert [x["experimento"] for x in s] == ["a2_x"]
     assert len(il.sesiones(70.0, tmp_path)) == 2
+
+
+def test_seco_y_mojado_no_se_mezclan(tmp_path):
+    _log(tmp_path / "20260101T000001Z_sugo_gp_l1_linea.jsonl", "a2_seco", 125.0, 0.3)
+    _log(tmp_path / "20260101T000002Z_sugo_gp_l1_linea.jsonl", "a2_mojado_x", 100.0, 0.3, lluvia=153)
+    assert [x["experimento"] for x in il.sesiones(0.0, tmp_path)] == ["a2_seco"]
+    m = il.sesiones(0.0, tmp_path, mojado=True)
+    assert [x["experimento"] for x in m] == ["a2_mojado_x"] and m[0]["mojado"] and m[0]["lluvia"] == 153
