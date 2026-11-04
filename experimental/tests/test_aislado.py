@@ -423,3 +423,12 @@ def test_profile_peak_min_kmh_goes_to_learn_driver_only_when_set():
     assert "--profile-peak-min-kmh" not in base
     argv = aislado.build_argv(Path("python"), "a2_x", 125.0, 3, teacher_only=True, pedal_technique=True, brake_profile=True, profile_peak_min_m=60.0, profile_peak_min_kmh=8.0)
     assert argv[argv.index("--profile-peak-min-kmh") + 1] == "8"
+
+
+def test_lat_adapt_goes_to_learn_driver_only_when_asked_and_its_values_only_when_not_default():
+    base = aislado.build_argv(Path("python"), "a2_x", 125.0, 3, teacher_only=True)
+    assert not any(a.startswith("--lat-adapt") for a in base)
+    argv = aislado.build_argv(Path("python"), "a2_x", 125.0, 3, teacher_only=True, lat_adapt=True)
+    assert "--lat-adapt" in argv and "--lat-adapt-max-scale" not in argv and "--lat-adapt-cap" not in argv
+    argv = aislado.build_argv(Path("python"), "a2_x", 100.0, 2, teacher_only=True, lat_adapt=True, lat_adapt_max_scale=1.5, lat_adapt_cap=9.0)
+    assert argv[argv.index("--lat-adapt-max-scale") + 1] == "1.5" and argv[argv.index("--lat-adapt-cap") + 1] == "9"

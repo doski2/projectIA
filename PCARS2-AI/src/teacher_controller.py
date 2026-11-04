@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from obs_builder import wheelspin_norm
 from pcars2_gear import (
@@ -261,6 +261,7 @@ class TeachingController:
         self._gear_engagement_frames = 0
         self._vlim_cache: Dict[float, List[float]] = {}  # límite lateral por metro de vuelta, uno por cada `lat_accel_limit` usado
         self._profile_cache: Dict[Tuple[float, ...], List[float]] = {}  # perfil de frenada v*(s) por metro (V68)
+        self._lat_scales: Optional[List[float]] = None  # multiplicador del límite lateral por metro de vuelta (--lat-adapt); None = el mismo límite en toda la vuelta
         self._speed_i = self.config.pi_ff  # integral del PI de velocidad (solo modo físico)
         self._pi_axis: Optional[float] = None  # eje de pedal pedido por el PI en este tick (None = no pasó por el PI)
         self._phase = "drive"  # técnica de pedales (V65): "drive", "entry" o "exit"
@@ -271,7 +272,17 @@ class TeachingController:
         """`v_lim(d) = sqrt(a_lat / |κ(d)|)` en m/s, un valor por metro, con la curvatura suavizada (±7 m)."""
         a_lat = self.config.lat_accel_limit
         assert a_lat is not None, "el modelo físico de curva necesita lat_accel_limit"
-        return [min(MAX_CURVE_SPEED_MS, math.sqrt(a_lat / k)) for k in self._smoothed_kappa()]
+        scales = self._lat_scales
+        if scales is None:
+            return [min(MAX_CURVE_SPEED_MS, math.sqrt(a_lat / k)) for k in self._smoothed_kappa()]
+        n = len(scales)
+        return [min(MAX_CURVE_SPEED_MS, math.sqrt(a_lat * scales[d % n] / k)) for d, k in enumerate(self._smoothed_kappa())]
+
+    def set_lat_scales(self, scales: Optional[Sequence[float]]) -> None:
+        """Fija el multiplicador del límite lateral por metro de vuelta (`--lat-adapt`, ver `lat_adapt.py`) o lo quita con None. Obliga a recalcular el perfil."""
+        self._lat_scales = None if scales is None else [float(s) for s in scales]
+        self._vlim_cache.clear()
+        self._profile_cache.clear()
 
     def _smoothed_kappa(self) -> List[float]:
         """|κ| por metro de vuelta, suavizada (±7 m) y con suelo `MIN_CURVATURE`."""

@@ -13,6 +13,7 @@ import os
 import sys
 import threading
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable, List, Optional
 
 from auto_shift import (
@@ -52,6 +53,7 @@ from ramp_gate import DROP, END_EVENTS, RISE, RampGate, bands_from
 from speed_perturbation import SpeedPerturber
 from ident_arc import ArcRamp, FREE_LATERAL_MS2
 from ident_maneuver import KINDS as IDENT_KINDS, IdentManeuver, find_straights, select_straights
+from lat_adapt import LatAdaptConfig, LatAdapter
 from learn_guards import StuckOffTrackAbort, SustainedCteGuard, is_poor_demo
 from learn_progress import read_saved_speed_band, read_saved_stage, save_learn_progress
 from learning_curriculum import (
@@ -136,6 +138,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--profile-peak-min-kmh", type=float, default=0.0,
         help="Con --profile-peak-min-m (V81): solo se aplana un pico si el recorte lo baja al menos estos km/h (medido sobre el perfil lateral, antes del barrido hacia atrás); deja intactos los picos pequeños, p. ej. el de 1,4 km/h junto a C4. 0 = sin umbral.",
+    )
+    parser.add_argument(
+        "--lat-adapt", action="store_true",
+        help="Límite lateral por curva que se ajusta solo vuelta a vuelta (lat_adapt.py): sube un 4 %% las curvas limpias con margen y baja un 8 %% las que salen fuera de V19. Necesita --lat-accel-limit. Sin esto, el mismo límite en toda la vuelta.",
+    )
+    parser.add_argument(
+        "--lat-adapt-max-scale", type=float, default=1.15,
+        help="Con --lat-adapt: multiplicador máximo de una curva sobre --lat-accel-limit (por defecto 1,15). Con un límite base prudente (p. ej. 6 en mojado) conviene subirlo.",
+    )
+    parser.add_argument(
+        "--lat-adapt-cap", type=float, default=10.0,
+        help="Con --lat-adapt: el límite lateral de ninguna curva pasa de este valor en m/s² (por defecto 10; con 10 en toda la vuelta se ganaba 1,9 s pero no cumplía V19).",
     )
     parser.add_argument(
         "--exit-circle", type=float, default=0.0,
@@ -527,6 +541,19 @@ def run(args: argparse.Namespace) -> int:
         **({"ff_speed_v0_kmh": float(args.steer_ff_v0_kmh)} if getattr(args, "steer_ff_v0_kmh", -1.0) >= 0.0 else {}),
         max_gear=int(getattr(args, "max_gear", TEACHING_MAX_GEAR) or TEACHING_MAX_GEAR),
     ))
+    lat_adapter: Optional[LatAdapter] = None
+    if getattr(args, "lat_adapt", False):
+        if not args.lat_accel_limit:
+            raise SystemExit("--lat-adapt necesita --lat-accel-limit")
+        curvas_json = Path(args.reference).with_name("curvas.json")
+        if not curvas_json.is_file():
+            raise SystemExit(f"--lat-adapt necesita el catálogo de curvas junto a la referencia: {curvas_json}")
+        lat_adapter = LatAdapter.from_curvas_json(
+            curvas_json, base_limit=float(args.lat_accel_limit), track_length=float(ref.track_length),
+            config=LatAdaptConfig(max_scale=float(args.lat_adapt_max_scale)), cap_limit=float(args.lat_adapt_cap),
+        )
+        print(f"[Learn] --lat-adapt: límite lateral por curva, base {args.lat_accel_limit:g} m/s², multiplicador {lat_adapter.cfg.min_scale:g}-{lat_adapter.max_scale:g}, "
+              f"tope {args.lat_adapt_cap:g} m/s² (el ajuste va en la vuelta siguiente)")
     safety = SafetyMonitor(ref=ref, surface_profile=ns_str(args, "safety_profile"))
     brake_slip_limit = float(getattr(args, "brake_slip_limit", 0.0) or 0.0)
     brake_slip_hold = float(getattr(args, "brake_slip_hold", 0.0) or 0.0)
@@ -893,6 +920,17 @@ def run(args: argparse.Namespace) -> int:
                 vehicle={**vehicle_diag(telem), **(brake_slip.diag() if brake_slip is not None else {})},
                 timing=timing_diag(timings),
             )
+            if lat_adapter is not None:
+                adapt = lat_adapter.observe(
+                    timings.current_lap, timings.lap_distance, decision.signed_cte,
+                    telem.local_velocity[0], telem.local_velocity[2], flags.off_surface,
+                )
+                if adapt is not None:
+                    teacher.set_lat_scales(lat_adapter.scales_per_m(int(ref.track_length)))
+                    session_rec.record_event({"type": "lat_adapt", **adapt})
+                    changed = {k: v for k, v in adapt["decisions"].items() if v in ("sube", "baja")}
+                    print(f"[Learn] --lat-adapt, vuelta {adapt['lap']}: " + (", ".join(f"C{k} {v}" for k, v in changed.items()) or "sin cambios")
+                          + " | límites m/s²: " + " ".join(f"C{k}={v:g}" for k, v in lat_adapter.limits().items()))
             conditions = conditions_diag(session.game_state)
             if conditions is not None and conditions != last_conditions:
                 session_rec.record_event({"type": "conditions", **conditions})  # llega cada ~10 s; solo si cambia
