@@ -12,8 +12,8 @@ volante de más abajo, no contra la anterior.
 
 ## Dónde estamos
 
-- **Estado del código:** Último commit de código `5af3bf2` (umbral de prominencia del recorte, V82; antes `c5606c9`: recorte de picos, V79, y grabador manual de D1b, V77). Documentos: V80-V83 en `f1c276a`, V84-V85 en `18dda11` y V86 en el commit siguiente. Los logs de la próxima sesión llevarán en la cabecera el hash de `HEAD` de ese momento.
-- **Tests en verde:** `circuito_virtual` 78, `experimental` 113, `PCARS2-AI` 552 (ruff limpio salvo los avisos antiguos de `resumen_sesion.py` y `test_resumen_sesion.py`). Se lanzan con
+- **Estado del código (2026-11-05):** último commit de código `33475de` (lectura de las temperaturas de la goma por capa y zona y del compuesto, `log_schema` 4). Antes: `70b2bff` (`--lat-adapt`, límite lateral por curva), `5af3bf2` (umbral de prominencia del recorte, V82), `c5606c9` (recorte de picos, V79, y grabador manual de D1b, V77). Los logs de la próxima sesión llevarán en la cabecera el hash de `HEAD` de ese momento. Las sesiones de mojado y `--lat-adapt` de 2026-11-04/05 todavía no tienen entrada V (solo están en «Seco y mojado»).
+- **Tests en verde:** `circuito_virtual` 79, `experimental` 117, `PCARS2-AI` 565 (ruff limpio salvo los avisos antiguos de `resumen_sesion.py` y `test_resumen_sesion.py`). Se lanzan con
   `pytest` dentro de cada carpeta.
 - **Teacher** (`teacher_controller.py`, `learn_driver.py`): cada opción es opt-in y su valor por
   defecto es el de producción.
@@ -21,7 +21,24 @@ volante de más abajo, no contra la anterior.
   `sugo_smooth.json`, `sugo_optima_a1mu9.json`, `sugo_optima_a1mu9b.json`, `sugo_optima_a1mu9c15.json` y
   `sugo_optima_a1mu9c12.json`. Cómo regenerarlos, en «Comandos vigentes».
 
-## Próxima sesión: prueba de banda 135 km/h con la línea óptima (V86)
+## Al retomar (cierre del 2026-11-05)
+
+**Dónde se quedó:** el 2026-11-04 se hicieron cuatro sesiones en mojado (`213459Z`, `220304Z`, `223106Z` con `--lat-adapt`, `225613Z` de control) y salió que el ajuste del límite lateral por curva funciona (ver «Seco y mojado»). Después se añadió la lectura de las temperaturas de la goma por zona y del compuesto. **Esa lectura no se ha probado con el juego**: el siguiente log es el primero con `log_schema` 4.
+
+**Qué hacer según el tiempo:**
+
+1. **Sigue lloviendo (o mojado):** repetir la pareja de la sesión `223106Z` (ajuste) y `225613Z` (control), 6 vueltas cada una, con los comandos de «Seco y mojado» (el del ajuste lleva `--lat-adapt --lat-adapt-max-scale 1.4`; el control es el mismo sin esas dos opciones). Condiciones iguales: `rain` parecido a 153, pista a 13 °C y gomas a 84 °C al empezar. Una sola variable: el ajuste.
+2. **Seco:** primero la prueba de banda 135 de la sección siguiente (la receta tal cual, sin `--lat-adapt`). El ajuste lateral en seco va después, con la receta vigente y `--lat-adapt` (límite base 9,5, tope 10 m/s²), también con su pareja de control.
+3. **En cualquier caso, al abrir el primer log nuevo, comprobar los datos nuevos** (5 minutos, sin tocar nada):
+   - `PYTHONIOENCODING=utf-8 .venv\Scripts\python.exe experimental\common\estadisticas_vueltas.py <log>`: deben salir las filas «goma, lado left / centro / lado right / capa / carcasa / aire interior» con valores de decenas de °C. Si salen `-` o ceros, el offset no coincide con el juego y hay que mirar los bytes en bruto.
+   - Buscar el evento `tyre_compound` en el log (`grep tyre_compound`): dice el nombre del compuesto de cada rueda (¿lisos o lluvia en mojado?).
+   - En curva, ver qué lado (left / right) se calienta más en cada rueda para saber cuál es el interior; un foro cuenta que sale invertido según la rueda.
+   - Un `log_schema` 4 pesa algo más (≈ +10 %); si molesta, guardar menos campos.
+4. **Después, por orden** (en «Seco y mojado»): banda 110 en mojado con el ajuste, ajuste del freno por zona, tope del gas de salida por curva, volante. Cada uno con su pareja de control; todos juntos solo cuando cada uno haya ganado solo.
+
+**Pendientes pequeños que se pueden hacer sin juego:** guardar los multiplicadores de `--lat-adapt` entre sesiones (aporta poco hasta validar el ajuste); decidir el terreno 48 (piano de C4, puede estar bajando C4 para siempre); registrar cuándo actúan `edge_grass` y `safety_off_surface`; entrada V87 en `DECISIONES.md` con todo lo del 2026-11-04/05 y regenerar el informe `informe_lineas_teacher.py`.
+
+## Próxima sesión en seco: prueba de banda 135 km/h con la línea óptima (V86)
 
 **Receta vigente confirmada (V85-V86): línea óptima `a1mu9c12` a 125 km/h con la técnica de pedales, `--lat-accel-limit 9.5`, `--lat-gain-v0-kmh 70`, `--profile-peak-min-m 60` y `--profile-peak-min-kmh 8`.** Seis vueltas (`230452Z`): 118,6-118,7 s estables, parejas 3-4, 4-5 y 5-6 cumplen V19, C3 / C8 / C9 se estabilizan (1,36 / 0,74 / 0,54 m), 17 ticks con rueda fuera (piano de C4) y ninguno en la hierba, neumáticos de 74 a 51 (delanteros) y 38 (traseros) sin romper nada. Comando en «Comandos vigentes».
 
