@@ -12,14 +12,32 @@ volante de más abajo, no contra la anterior.
 
 ## Dónde estamos
 
-- **Estado del código (2026-11-05):** último commit de código `33475de` (lectura de las temperaturas de la goma por capa y zona y del compuesto, `log_schema` 4). Antes: `70b2bff` (`--lat-adapt`, límite lateral por curva), `5af3bf2` (umbral de prominencia del recorte, V82), `c5606c9` (recorte de picos, V79, y grabador manual de D1b, V77). Los logs de la próxima sesión llevarán en la cabecera el hash de `HEAD` de ese momento. Las sesiones de mojado y `--lat-adapt` de 2026-11-04/05 todavía no tienen entrada V (solo están en «Seco y mojado»).
-- **Tests en verde:** `circuito_virtual` 79, `experimental` 117, `PCARS2-AI` 565 (ruff limpio salvo los avisos antiguos de `resumen_sesion.py` y `test_resumen_sesion.py`). Se lanzan con
+- **Estado del código (2026-11-05):** último commit de código `5b55507` (informe con zoom interactivo). Antes: `33475de` (lectura de las temperaturas de la goma por capa y zona y del compuesto, `log_schema` 4; las tres temperaturas por zona left / center / right salen siempre 0 en el UDP, capa, carcasa, aire y compuesto sí). Antes: `70b2bff` (`--lat-adapt`, límite lateral por curva), `5af3bf2` (umbral de prominencia del recorte, V82), `c5606c9` (recorte de picos, V79, y grabador manual de D1b, V77). Los logs de la próxima sesión llevarán en la cabecera el hash de `HEAD` de ese momento. Las sesiones de mojado y `--lat-adapt` de 2026-11-04/05 todavía no tienen entrada V (solo están en «Seco y mojado»).
+- **Tests en verde:** `circuito_virtual` 79, `experimental` 123, `PCARS2-AI` 565 (ruff limpio salvo los avisos antiguos de `resumen_sesion.py` y `test_resumen_sesion.py`). Se lanzan con
   `pytest` dentro de cada carpeta.
 - **Teacher** (`teacher_controller.py`, `learn_driver.py`): cada opción es opt-in y su valor por
   defecto es el de producción.
 - **Archivos locales no versionados** (4,5 MB cada uno): `circuito_virtual/pistas/sugo_gp/` con
   `sugo_smooth.json`, `sugo_optima_a1mu9.json`, `sugo_optima_a1mu9b.json`, `sugo_optima_a1mu9c15.json` y
   `sugo_optima_a1mu9c12.json`. Cómo regenerarlos, en «Comandos vigentes».
+
+## Resultado del 2026-11-05 (tarde, seco, pista 16 °C): bandas 135 y 140 y primera pareja del ajuste en seco
+
+Receta vigente (`a1mu9c12`, límite 9,5, recorte 60 / 8) con `--speed-band` cambiado; solo cambia la banda y, en la última pareja, `--lat-adapt`. Aún sin entrada V (entrada V87 pendiente junto con lo del mojado).
+
+| Sesión | Banda | Vueltas 2 a N | V19 |
+| --- | --- | --- | --- |
+| `212431Z` | 135 | 115,8 / 115,9 / 116,0 s (solver 115,3) | cumple las tres parejas |
+| `213925Z` | 140 | 114,9 / 114,9 / 115,0 s (solver 114,1) | falla solo la deriva de C3 en las vueltas 2 y 3 (5,1 y 5,6°) |
+| `215030Z` (control, 6 vueltas) | 140 | 114,9-115,0 s | parejas 1-2, 4-5 y 5-6 cumplen; C3 vuelve a 5,4° en la vuelta 3 |
+| `220315Z` (`--lat-adapt`, 6 vueltas) | 140 | 114,9 / **114,3 / 114,4 / 114,3 / 114,4** s | mismas parejas; C3 5,6° en la vuelta 3, luego ≤ 3,7° |
+
+- **El ajuste gana 0,6 s por vuelta (−0,5 %)** desde la vuelta 3 y mantiene V19 igual que el control. C3 baja a ×0,957 y C6 a ×0,92 y quedan limpias; C11 se queda en ×1,0 (|CTE| 1,45-1,63 m); el resto sube.
+- **El tope de 10 m/s² (`--lat-adapt-cap`) es lo que frena el ajuste:** casi todas las curvas llegan a ×1,0526 (= 10 / 9,5) en la vuelta 3 y ahí se quedan. Con 140 km/h el techo de la banda manda en las rectas (C10, C12-C14), pero en las curvas de la 2.ª-3.ª marcha el tope es el límite.
+- **El spike de C3 en la vuelta 2-3 no es del ajuste:** sale en el control y en la sesión de 140 sin ajuste (gomas 46-50 °C). Pendiente: mirarlo con el zoom nuevo (no se sabe la causa).
+- **Qué mide el ajuste (y qué no):** al cerrar cada vuelta, por curva: |CTE| máximo, deriva máxima (ángulo entre la velocidad y el morro, de `local_velocity`) y ruedas fuera. Sube un 4 % si |CTE| ≤ 1,2 m, deriva ≤ 3° y 0 fuera; baja un 8 % (y se congela 2 vueltas) si |CTE| > 1,8 m, deriva > 4° o alguna rueda fuera. **No mira las correcciones del volante** (eso sería el ajuste del volante, el último del orden) **ni actúa dentro de la vuelta:** lo que ve en una vuelta se aplica en la siguiente.
+- **Siguiente:** misma sesión de ajuste con `--lat-adapt-cap 11 --lat-adapt-max-scale 1.2` (una sola variable; se compara con `220315Z`, no con el control). Como una curva que se pasa baja sola, subir el tope es seguro; el riesgo es que los picos (como C3) bajen la curva y se quede congelada 2 vueltas.
+- **Informe con zoom** (`informe_zoom.py`, commit `5b55507`): velocidad, Δ velocidad frente a una vuelta de referencia, CTE, volante y gas − freno, con zoom, desplazamiento, ir a la curva y valores al pasar el ratón. Regenerar con `experimental/common/informe_c0.py <log>`.
 
 ## Al retomar (cierre del 2026-11-05)
 
