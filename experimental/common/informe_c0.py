@@ -25,6 +25,10 @@ sys.path.insert(0, str(APP / "src"))
 
 from session_log import VEHICLE_EXTRA_KEYS as NEW_FIELDS  # noqa: E402  (una sola lista de campos)
 from session_log import VEHICLE_EXTRA_X4B_KEYS as X4B_FIELDS  # noqa: E402
+try:  # como módulo (tests, aislado.py) o como script
+    from experimental.common.informe_zoom import zoom_html  # noqa: E402
+except ImportError:
+    from informe_zoom import zoom_html  # type: ignore  # noqa: E402
 
 OK, WARN, FAIL, SKIP = "ok", "aviso", "fallo", "omitido"
 Check = Tuple[str, str, str]  # (nombre, estado, detalle)
@@ -641,6 +645,7 @@ def build_report(log_path: Path, open_browser: bool = False) -> Dict[str, Any]:
         + dmg_html
         + sec_html
         + curvas_html(curv)
+        + (zoom_html(ticks, cat) if len(ticks) >= 200 else "")
         + "".join(f"<h2>{escape(t)}</h2><img src='data:image/png;base64,{b}'>" for t, b in plots)
         + f"<h2>Incidencias ({len(inc)})</h2><table><tr><th>Tipo</th><th>Vuelta</th><th>Tick</th>"
         f"<th>lap_distance</th><th>Duración (ticks)</th><th>Razón</th></tr>{irows}</table>"
