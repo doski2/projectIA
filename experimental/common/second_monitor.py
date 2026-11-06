@@ -24,6 +24,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Tuple
+from xml.etree import ElementTree
 
 RUEDAS = ("FL", "FR", "RL", "RR")  # el orden de `Wheels` en la app: FrontLeft, FrontRight, RearLeft, RearRight
 RAIZ_POR_DEFECTO = Path.home() / "Documents" / "SecondMonitor" / "Telemetry" / "Recent"
@@ -184,21 +185,62 @@ def sesiones(raiz: Path = RAIZ_POR_DEFECTO) -> List[Path]:
     return [p for h, p in sorted((x for x in con_hora if x[0] is not None), key=lambda x: x[0])]  # type: ignore[type-var]
 
 
-def sesion_de_log(log: Path, raiz: Path = RAIZ_POR_DEFECTO, ventana_min: float = 20.0) -> Optional[Path]:
-    """La sesión de la app que corresponde a nuestro log: la que empieza más cerca después del arranque del log (`session.ts`, UTC), como mucho `ventana_min` minutos."""
+def tiempos_de_sesion(carpeta: Path) -> Dict[int, float]:
+    """{vuelta: tiempo en s} del `_Session.xml` de una sesión de la app."""
+    try:
+        raiz = ElementTree.parse(Path(carpeta) / "_Session.xml").getroot()
+    except (OSError, ElementTree.ParseError):
+        return {}
+    out: Dict[int, float] = {}
+    for e in raiz.iter("LapSummaryDto"):
+        try:
+            out[int(e.get("LapNumber", ""))] = float(e.get("LapTimeSeconds", ""))
+        except ValueError:
+            continue
+    return out
+
+
+def tiempos_de_log(log: Path) -> List[float]:
+    """Tiempos de las vueltas cerradas de nuestro log (registros `lap`)."""
+    out: List[float] = []
+    with open(log, encoding="utf-8") as fh:
+        for linea in fh:
+            if '"type": "lap"' not in linea:
+                continue
+            d = json.loads(linea)
+            if d.get("type") == "lap" and isinstance(d.get("lap_time_s"), (int, float)):
+                out.append(float(d["lap_time_s"]))
+            for x in d.get("laps", []) if isinstance(d.get("laps"), list) else []:
+                if isinstance(x.get("lap_time_s"), (int, float)):
+                    out.append(float(x["lap_time_s"]))
+    return out
+
+
+def sesion_de_log(log: Path, raiz: Path = RAIZ_POR_DEFECTO, antes_min: float = 30.0, despues_min: float = 20.0, tol_s: float = 0.15) -> Optional[Path]:
+    """La sesión de la app que corresponde a nuestro log.
+
+    Candidatas: las que empiezan entre `antes_min` minutos antes y `despues_min` después del arranque del log (`session.ts`, UTC; la app arranca su sesión al entrar en la pista,
+    que puede ser antes de lanzar el comando). Entre ellas gana la que más tiempos de vuelta comparte con el log (diferencia ≤ `tol_s`); sin coincidencias, la que empieza más cerca.
+    """
     with open(log, encoding="utf-8") as fh:
         ts = json.loads(fh.readline()).get("ts")
     if not ts:
         return None
     inicio_log = datetime.fromisoformat(ts).astimezone().replace(tzinfo=None)  # a hora local de este equipo, sin zona
-    mejor: Optional[Tuple[float, Path]] = None
+    propios = tiempos_de_log(log)
+    mejor: Optional[Tuple[int, float, Path]] = None  # (coincidencias, -distancia en minutos, carpeta)
     for p in sesiones(raiz):
         h = inicio_de(p)
         assert h is not None
         d = (h - inicio_log).total_seconds() / 60.0
-        if -2.0 <= d <= ventana_min and (mejor is None or d < mejor[0]):
-            mejor = (d, p)
-    return mejor[1] if mejor else None
+        if not -antes_min <= d <= despues_min:
+            continue
+        ajenos = list(tiempos_de_sesion(p).values())
+        coincide = sum(1 for t in ajenos if any(abs(t - u) <= tol_s for u in propios))
+        clave = (coincide, -abs(d))
+        if mejor is None or clave > mejor[:2]:
+            mejor = (coincide, -abs(d), p)
+    return mejor[2] if mejor else None
 
 
 def leer_sesion(carpeta: Path) -> Dict[int, List[Dict[str, Any]]]:
