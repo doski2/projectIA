@@ -53,6 +53,7 @@ from ramp_gate import DROP, END_EVENTS, RISE, RampGate, bands_from
 from speed_perturbation import SpeedPerturber
 from ident_arc import ArcRamp, FREE_LATERAL_MS2
 from ident_maneuver import KINDS as IDENT_KINDS, IdentManeuver, find_straights, select_straights
+from exit_adapt import ExitAdaptConfig, ExitAdapter
 from lat_adapt import LatAdaptConfig, LatAdapter, load_map, save_map
 from learn_guards import StuckOffTrackAbort, SustainedCteGuard, is_poor_demo
 from learn_progress import read_saved_speed_band, read_saved_stage, save_learn_progress
@@ -163,6 +164,14 @@ def parse_args() -> argparse.Namespace:
         "--lat-adapt-fixed", action="store_true",
         help="Con --lat-adapt-load: usa el mapa cargado y no aprende más (se registra todo pero no cambia ningún multiplicador); para comparar una sola variable.",
     )
+    parser.add_argument(
+        "--exit-adapt", action="store_true",
+        help="Gas de salida por curva que se ajusta solo vuelta a vuelta (exit_adapt.py): el radio de --exit-circle de cada curva sube un 4 %% si su salida es limpia y el tope recortaba el gas, y baja un 8 %% si las traseras patinan, hay deriva > 5° o |CTE| > 2 m. Necesita --exit-circle y --pedal-technique.",
+    )
+    parser.add_argument("--exit-adapt-max-scale", type=float, default=1.3, help="Con --exit-adapt: multiplicador máximo del radio de una curva (por defecto 1,3).")
+    parser.add_argument("--exit-adapt-save", default="", help="Con --exit-adapt: guarda el mapa de multiplicadores del gas de salida (mismo formato y misma regla de cola limpia que --lat-adapt-save).")
+    parser.add_argument("--exit-adapt-load", default="", help="Con --exit-adapt: arranca con este mapa (mismas condiciones y recorte que --lat-adapt-load; nunca acelera más que el ajuste normal).")
+    parser.add_argument("--exit-adapt-fixed", action="store_true", help="Con --exit-adapt-load: usa el mapa cargado y no aprende más (se mide y se registra, pero no cambia nada).")
     parser.add_argument(
         "--exit-circle", type=float, default=0.0,
         help="Con --pedal-technique (V72, F3): en la salida de curva el gas no pasa de gas_max · √(1 − (lateral medido / este radio)²) (p. ej. 14,6 = cota lateral de D21); con 11,7 m/s² laterales el tope es 0,60. 0 = sin tope.",
@@ -576,6 +585,29 @@ def run(args: argparse.Namespace) -> int:
                   + (" · mapa fijo: no aprende" if getattr(args, "lat_adapt_fixed", False) else ""))
         print(f"[Learn] --lat-adapt: límite lateral por curva, base {args.lat_accel_limit:g} m/s², multiplicador {lat_adapter.cfg.min_scale:g}-{lat_adapter.max_scale:g}, "
               f"tope {args.lat_adapt_cap:g} m/s² (el ajuste va en la vuelta siguiente)")
+    exit_adapter: Optional[ExitAdapter] = None
+    if getattr(args, "exit_adapt", False):
+        if not float(getattr(args, "exit_circle", 0.0) or 0.0) or not getattr(args, "pedal_technique", False):
+            raise SystemExit("--exit-adapt necesita --exit-circle y --pedal-technique")
+        curvas_json = Path(args.reference).with_name("curvas.json")
+        if not curvas_json.is_file():
+            raise SystemExit(f"--exit-adapt necesita el catálogo de curvas junto a la referencia: {curvas_json}")
+        if getattr(args, "exit_adapt_fixed", False) and not getattr(args, "exit_adapt_load", ""):
+            raise SystemExit("--exit-adapt-fixed necesita --exit-adapt-load")
+        exit_adapter = ExitAdapter.from_curvas_json(
+            curvas_json, base_limit=float(args.exit_circle), track_length=float(ref.track_length),
+            config=ExitAdaptConfig(max_scale=float(args.exit_adapt_max_scale), learn=not getattr(args, "exit_adapt_fixed", False)),
+        )
+        if getattr(args, "exit_adapt_load", ""):
+            try:
+                exit_adapter.load_prior(load_map(Path(args.exit_adapt_load)))
+            except (OSError, ValueError) as exc:
+                raise SystemExit(f"--exit-adapt-load: no puedo leer el mapa {args.exit_adapt_load}: {exc}") from exc
+            print(f"[Learn] --exit-adapt-load: mapa {args.exit_adapt_load} (se aplica al llegar las condiciones de hoy; si no son compatibles se ignora)"
+                  + (" · mapa fijo: no aprende" if getattr(args, "exit_adapt_fixed", False) else ""))
+        print(f"[Learn] --exit-adapt: radio del círculo de salida por curva, base {args.exit_circle:g}, multiplicador {exit_adapter.cfg.min_scale:g}-{exit_adapter.max_scale:g} (el ajuste va en la vuelta siguiente)")
+    exit_started = False
+    exit_save_path = str(getattr(args, "exit_adapt_save", "") or "")
     adapt_started = False  # el mapa cargado y las condiciones de salida se fijan en el primer tick con las condiciones conocidas
     adapt_save_path = str(getattr(args, "lat_adapt_save", "") or "")
     safety = SafetyMonitor(ref=ref, surface_profile=ns_str(args, "safety_profile"))
@@ -963,6 +995,43 @@ def run(args: argparse.Namespace) -> int:
                               + " ".join(f"C{k}={v:g}" for k, v in lat_adapter.limits().items()))
                     elif start_info is not None:
                         print(f"[Learn] --lat-adapt-load: mapa IGNORADO ({start_info['reason']}); sigo con el ajuste desde 1,0")
+            if exit_adapter is not None and not exit_started:
+                game_state_now = session.game_state
+                if game_state_now is not None or session_rec.elapsed_s() >= 30.0:
+                    exit_started = True
+                    cond = conditions_diag(game_state_now) or {}
+                    tyres_now = list(getattr(telem, "tyre_temp", None) or ())
+                    compound_now = compound_diag(telem)
+                    now_cond = {"rain": cond.get("rain", 0), "track_c": cond.get("track_c"), "ambient_c": cond.get("ambient_c"),
+                                "tyre_start_c": round(sum(tyres_now) / len(tyres_now), 1) if tyres_now else None,
+                                "compound": "/".join(compound_now) if compound_now else None}
+                    start_info = exit_adapter.start(now_cond)
+                    session_rec.record_event({"type": "exit_adapt_start", "conditions": now_cond, **(start_info or {"applied": False, "reason": "sin mapa cargado"})})
+                    if start_info is not None and start_info["applied"]:
+                        teacher.set_exit_scales(exit_adapter.scales_per_m(int(ref.track_length)))
+                        print(f"[Learn] --exit-adapt-load: mapa aplicado, desajuste de condiciones {start_info['mismatch']:g} | radios: "
+                              + " ".join(f"C{k}={v:g}" for k, v in exit_adapter.limits().items()))
+                    elif start_info is not None:
+                        print(f"[Learn] --exit-adapt-load: mapa IGNORADO ({start_info['reason']}); sigo con el ajuste desde 1,0")
+            if exit_adapter is not None:
+                tyres_tick = telem.tyre_temp
+                rps_tick = telem.tyre_rps
+                exit_upd = exit_adapter.observe(
+                    timings.current_lap, timings.lap_distance, decision.signed_cte,
+                    telem.local_velocity[0], telem.local_velocity[2], flags.off_surface,
+                    tyre_c=(sum(tyres_tick) / len(tyres_tick)) if tyres_tick else None,
+                    exit_phase=teacher.exit_phase, cap_bound=teacher.exit_bound, throttle=final[0],
+                    rps_front=(abs(rps_tick[0]) + abs(rps_tick[1])) / 2.0, rps_rear=(abs(rps_tick[2]) + abs(rps_tick[3])) / 2.0,
+                )
+                if exit_upd is not None:
+                    teacher.set_exit_scales(exit_adapter.scales_per_m(int(ref.track_length)))
+                    session_rec.record_event({"type": "exit_adapt", **exit_upd})
+                    if exit_save_path and exit_adapter.cfg.learn and exit_adapter.clean_tail():
+                        save_map(Path(exit_save_path), exit_adapter.snapshot({"experiment": str(getattr(args, "experiment", "") or ""), "lap": exit_upd["lap"]}))
+                        print(f"[Learn] --exit-adapt-save: mapa guardado en {exit_save_path} (vuelta {exit_upd['lap']}, dos últimas limpias)")
+                    cambios = {k: v for k, v in exit_upd["decisions"].items() if v in ("sube", "baja")}
+                    print(f"[Learn] --exit-adapt, vuelta {exit_upd['lap']}: " + (", ".join(f"C{k} {v}" for k, v in cambios.items()) or "sin cambios")
+                          + " | radios: " + " ".join(f"C{k}={v:g}" for k, v in exit_adapter.limits().items()))
             if lat_adapter is not None:
                 tyres_tick = telem.tyre_temp
                 adapt = lat_adapter.observe(

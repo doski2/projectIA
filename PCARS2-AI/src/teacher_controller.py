@@ -267,6 +267,25 @@ class TeachingController:
         self._phase = "drive"  # técnica de pedales (V65): "drive", "entry" o "exit"
         self._exit_target = 0.0  # consigna que no baja durante «exit»
         self._lat_ema = 0.0  # |aceleración lateral| medida y suavizada (tope del gas por el círculo, V72)
+        self._exit_scales: Optional[List[float]] = None  # multiplicador del radio del círculo de salida por metro de vuelta (--exit-adapt); None = el mismo radio en toda la vuelta
+        self.exit_bound = False  # en este tick el tope del círculo de salida estaba recortando el gas (lo lee exit_adapt.py)
+
+    @property
+    def exit_phase(self) -> bool:
+        """True mientras la técnica de pedales está en la fase de salida de curva."""
+        return self._phase == "exit"
+
+    def set_exit_scales(self, scales: Optional[Sequence[float]]) -> None:
+        """Fija el multiplicador del radio de `exit_circle` por metro de vuelta (`--exit-adapt`, ver `exit_adapt.py`) o lo quita con None. No hace falta recalcular nada: se lee en cada tick."""
+        self._exit_scales = None if scales is None else [float(x) for x in scales]
+
+    def _exit_circle_at(self, lap_distance: float) -> float:
+        """Radio del círculo de salida en este punto de la vuelta (0 = sin tope)."""
+        circle = self.config.exit_circle
+        scales = self._exit_scales
+        if circle <= 0.0 or not scales:
+            return circle
+        return circle * scales[int(lap_distance) % len(scales)]
 
     def _lateral_speed_limits(self) -> List[float]:
         """`v_lim(d) = sqrt(a_lat / |κ(d)|)` en m/s, un valor por metro, con la curvatura suavizada (±7 m)."""
@@ -406,6 +425,7 @@ class TeachingController:
         self._phase = "drive"
         self._exit_target = 0.0
         self._lat_ema = 0.0
+        self.exit_bound = False
 
     def signed_lateral_error(
         self,
@@ -567,10 +587,11 @@ class TeachingController:
 
     def _technique_pedals(
         self, speed: float, curve_target: float, curv_ahead: float, s_bind: float, v_bind: float, on_straight: bool, ref_brake: float, v_ahead: Optional[float] = None,
-        lat_accel: float = 0.0,
+        lat_accel: float = 0.0, lap_distance: float = 0.0,
     ) -> Tuple[float, float, str]:
         """Pedales con la técnica de curva (V65): gas cortado del todo antes de frenar, freno que se suelta hasta el vértice y gas que solo sube desde el vértice."""
         cfg = self.config
+        self.exit_bound = False
         self._lat_ema += cfg.exit_lat_alpha * (abs(lat_accel) - self._lat_ema)
         # «Curva por delante»: la consigna la fija una curva que viene (no la banda de velocidad) y su límite está claramente por debajo de la velocidad actual.
         approaching = curve_target < self.speed_target_ms - 0.01 and s_bind >= CURVE_SAMPLE_M and speed - v_bind > (cfg.brake_profile_lift_drop_ms if v_ahead is not None else cfg.lift_drop_ms)
@@ -616,15 +637,17 @@ class TeachingController:
 
         if self._phase == "exit":
             pi_gas, err = self._pi_target(speed, pi_target)
-            cap = exit_gas_cap(self._lat_ema, cfg.exit_circle, cfg.throttle_max, cfg.exit_circle_floor)
+            cap = exit_gas_cap(self._lat_ema, self._exit_circle_at(lap_distance), cfg.throttle_max, cfg.exit_circle_floor)
             if err > 0.0:
                 prev = self._prev_throttle
                 axis = min(max(pi_gas, prev), prev + cfg.exit_slew_per_s * PEDAL_TICK_S)
                 if err > 0.5 and abs(curv_ahead) > 0.02:
                     axis = min(axis, max(0.45, prev))  # el tope de curva cerrada no baja un gas que ya subía
+                self.exit_bound = axis > cap + 1e-6
                 axis = min(axis, cap)  # el círculo de adherencia: con el coche aún girando el gas no pasa de lo que deja el lateral (V72)
                 throttle, brake = self._pedals_from_axis(axis, 1.0 if axis >= prev else 0.25)
             else:
+                self.exit_bound = pi_gas > cap + 1e-6
                 throttle, brake = self._pedals_from_axis(min(pi_gas, cap))
             return throttle, brake, "accel_exit"
 
@@ -728,7 +751,7 @@ class TeachingController:
             v_ahead = self.profile_at(lap_distance, self.config.brake_ff_ahead_m) if self.config.brake_profile else None
             return self._technique_pedals(
                 speed, curve_target, curv_ahead, s_bind, v_bind, self.braking_on_straight(lap_distance, signed_cte), ref_brake, v_ahead,
-                abs(telem.local_acceleration[0]),
+                abs(telem.local_acceleration[0]), lap_distance,
             )
 
         if speed > curve_target + self.config.speed_margin_ms:

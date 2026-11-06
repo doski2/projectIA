@@ -444,3 +444,18 @@ def test_lat_adapt_map_options_go_to_learn_driver_only_with_lat_adapt():
     assert "--lat-adapt-fixed" in argv and "--lat-adapt-save" not in argv
     sin = aislado.build_argv(Path("python"), "a2_x", 140.0, 3, teacher_only=True, lat_adapt_load="C:/m/seco.json")
     assert "--lat-adapt-load" not in sin
+
+
+def test_exit_adapt_goes_to_learn_driver_only_when_asked_with_its_map_options():
+    base = aislado.build_argv(Path("python"), "a2_x", 140.0, 3, teacher_only=True, pedal_technique=True, exit_circle=18.0)
+    assert not any(a.startswith("--exit-adapt") for a in base)
+    argv = aislado.build_argv(Path("python"), "a2_x", 140.0, 3, teacher_only=True, pedal_technique=True, exit_circle=18.0, exit_adapt=True)
+    assert "--exit-adapt" in argv and not any(a in argv for a in ("--exit-adapt-max-scale", "--exit-adapt-load", "--exit-adapt-save", "--exit-adapt-fixed"))
+    argv = aislado.build_argv(Path("python"), "a2_x", 140.0, 3, teacher_only=True, pedal_technique=True, exit_circle=18.0, exit_adapt=True, exit_adapt_max_scale=1.5,
+                              exit_adapt_load="C:/m/sal.json", exit_adapt_save="C:/m/nuevo.json")
+    assert argv[argv.index("--exit-adapt-max-scale") + 1] == "1.5" and argv[argv.index("--exit-adapt-load") + 1] == "C:/m/sal.json"
+    assert argv[argv.index("--exit-adapt-save") + 1] == "C:/m/nuevo.json" and "--exit-adapt-fixed" not in argv
+    argv = aislado.build_argv(Path("python"), "a2_x", 140.0, 3, teacher_only=True, pedal_technique=True, exit_circle=18.0, exit_adapt=True, exit_adapt_load="C:/m/sal.json", exit_adapt_fixed=True)
+    assert "--exit-adapt-fixed" in argv and "--exit-adapt-save" not in argv
+    sin = aislado.build_argv(Path("python"), "a2_x", 140.0, 3, teacher_only=True, pedal_technique=True, exit_circle=18.0, exit_adapt_load="C:/m/sal.json")
+    assert "--exit-adapt-load" not in sin
