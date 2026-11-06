@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "base_limit": 9.5,
+  "cap_limit": 12.0,
+  "max_scale": 1.263157894736842,
+  "scales": {
+    "1": 1.2632,
+    "2": 1.0742,
+    "3": 0.9535,
+    "4": 1.2393,
+    "5": 1.0587,
+    "6": 0.9504,
+    "7": 1.2632,
+    "8": 1.2632,
+    "9": 1.2632,
+    "10": 1.1545,
+    "11": 1.0,
+    "12": 1.2632,
+    "13": 1.2632,
+    "14": 1.2632
+  },
+  "conditions": {
+    "rain": 0,
+    "track_c": 21,
+    "ambient_c": 14,
+    "tyre_start_c": 85.2,
+    "compound": "Lisos/Lisos/Lisos/Lisos",
+    "tyre_ref_c": 53.8
+  },
+  "tyre_by_lap": {
+    "2": 58.3,
+    "3": 52.8,
+    "4": 50.3
+  },
+  "laps_closed": 3,
+  "clean_tail": false,
+  "meta": {
+    "experiment": "mapa de 16 C tras 4 vueltas con 21 C (C3, C5 y C6 bajados por el ajuste)",
+    "log": "20261106T182808Z"
+  }
+}
