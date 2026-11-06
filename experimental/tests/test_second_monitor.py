@@ -131,11 +131,8 @@ def test_session_is_matched_by_lap_times_even_when_the_app_started_before_the_lo
     log = tmp_path / "log.jsonl"
     ts = datetime(2026, 11, 6, 21, 17, 43).astimezone(timezone.utc).isoformat()
     filas = [{"type": "session", "ts": ts}, {"type": "lap", "lap_num": 2, "lap_time_s": 112.006}, {"type": "lap", "lap_num": 3, "lap_time_s": 112.12}]
-    log.write_text("
-".join(json.dumps(f) for f in filas) + "
-", encoding="utf-8")
+    log.write_text("\n".join(json.dumps(f) for f in filas) + "\n", encoding="utf-8")
     assert sm.tiempos_de_log(log) == [112.006, 112.12] and sm.tiempos_de_sesion(antes) == {2: 112.006, 3: 112.1}
     assert sm.sesion_de_log(log, raiz) == antes
-    log.write_text(json.dumps({"type": "session", "ts": ts}) + "
-", encoding="utf-8")  # sin tiempos de vuelta, gana la más cercana
+    log.write_text(json.dumps({"type": "session", "ts": ts}) + "\n", encoding="utf-8")  # sin tiempos de vuelta, gana la más cercana
     assert sm.sesion_de_log(log, raiz) == despues
