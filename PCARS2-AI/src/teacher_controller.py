@@ -269,6 +269,19 @@ class TeachingController:
         self._lat_ema = 0.0  # |aceleración lateral| medida y suavizada (tope del gas por el círculo, V72)
         self._exit_scales: Optional[List[float]] = None  # multiplicador del radio del círculo de salida por metro de vuelta (--exit-adapt); None = el mismo radio en toda la vuelta
         self.exit_bound = False  # en este tick el tope del círculo de salida estaba recortando el gas (lo lee exit_adapt.py)
+        self._brake_scales: Optional[List[float]] = None  # multiplicador de la deceleración de frenada (`a_b`) por metro de vuelta (--brake-adapt); None = la misma en toda la vuelta
+        self._brake_scales_version = 0  # cambia con cada `set_brake_scales`: forma parte de la clave de la caché del perfil
+
+    @property
+    def entry_phase(self) -> bool:
+        """True mientras la técnica de pedales está en la fase de entrada (frenada) de una curva."""
+        return self._phase == "entry"
+
+    def set_brake_scales(self, scales: Optional[Sequence[float]]) -> None:
+        """Fija el multiplicador de la deceleración de frenada por metro de vuelta (`--brake-adapt`, ver `brake_adapt.py`) o lo quita con None. Obliga a recalcular el perfil de frenada."""
+        self._brake_scales = None if scales is None else [float(x) for x in scales]
+        self._brake_scales_version += 1
+        self._profile_cache.clear()
 
     @property
     def exit_phase(self) -> bool:
@@ -323,7 +336,7 @@ class TeachingController:
         assert a_lat is not None, "el perfil de frenada necesita lat_accel_limit"
         a_b = cfg.brake_decel_straight if cfg.brake_decel_straight > 0.0 else 8.0
         off = cfg.brake_profile_offset_ms
-        key = (a_lat, a_b, cfg.brake_circle, off, cfg.profile_peak_min_m, cfg.profile_peak_min_kmh)
+        key = (a_lat, a_b, cfg.brake_circle, off, cfg.profile_peak_min_m, cfg.profile_peak_min_kmh, self._brake_scales_version)
         prof = self._profile_cache.get(key)
         if prof is None:
             vlim = self._vlim_cache.get(a_lat)
@@ -334,11 +347,12 @@ class TeachingController:
             if cfg.profile_peak_min_m > 0.0:
                 prof = open_profile_peaks(prof, cfg.profile_peak_min_m, cfg.profile_peak_min_kmh / 3.6)
             n = len(prof)
+            bs = self._brake_scales
             for _ in range(2):
                 for i in range(n - 1, -1, -1):
                     nxt = prof[(i + 1) % n]
                     lat = min(cfg.brake_circle, nxt * nxt * kappa[i])
-                    a_long = a_b * math.sqrt(max(0.0, 1.0 - (lat / cfg.brake_circle) ** 2))
+                    a_long = a_b * (bs[i % len(bs)] if bs else 1.0) * math.sqrt(max(0.0, 1.0 - (lat / cfg.brake_circle) ** 2))
                     cand = math.sqrt(nxt * nxt + 2.0 * a_long)
                     if cand < prof[i]:
                         prof[i] = cand

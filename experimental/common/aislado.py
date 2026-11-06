@@ -107,6 +107,7 @@ def build_argv(
     lat_adapt: bool = False, lat_adapt_max_scale: float = 1.15, lat_adapt_cap: float = 10.0,
     lat_adapt_load: str = "", lat_adapt_save: str = "", lat_adapt_fixed: bool = False,
     exit_adapt: bool = False, exit_adapt_max_scale: float = 1.3, exit_adapt_load: str = "", exit_adapt_save: str = "", exit_adapt_fixed: bool = False,
+    brake_adapt: bool = False, brake_adapt_max_scale: float = 1.15, brake_adapt_load: str = "", brake_adapt_save: str = "", brake_adapt_fixed: bool = False,
 ) -> List[str]:
     argv = [
         str(python), str(APP / "src" / "learn_driver.py"),
@@ -192,6 +193,16 @@ def build_argv(
             argv += ["--exit-adapt-save", exit_adapt_save]
         if exit_adapt_fixed:
             argv += ["--exit-adapt-fixed"]
+    if brake_adapt:  # V89: deceleración de frenada por curva que se ajusta sola vuelta a vuelta
+        argv += ["--brake-adapt"]
+        if brake_adapt_max_scale != 1.15:
+            argv += ["--brake-adapt-max-scale", f"{brake_adapt_max_scale:g}"]
+        if brake_adapt_load:
+            argv += ["--brake-adapt-load", brake_adapt_load]
+        if brake_adapt_save:
+            argv += ["--brake-adapt-save", brake_adapt_save]
+        if brake_adapt_fixed:
+            argv += ["--brake-adapt-fixed"]
     if brake_profile:  # V68 (F1): perfil continuo de frenada con el círculo de adherencia
         argv += ["--brake-profile"]
         if brake_circle != 14.6:
@@ -216,6 +227,7 @@ def run_isolated(
     lat_adapt: bool = False, lat_adapt_max_scale: float = 1.15, lat_adapt_cap: float = 10.0,
     lat_adapt_load: str = "", lat_adapt_save: str = "", lat_adapt_fixed: bool = False,
     exit_adapt: bool = False, exit_adapt_max_scale: float = 1.3, exit_adapt_load: str = "", exit_adapt_save: str = "", exit_adapt_fixed: bool = False,
+    brake_adapt: bool = False, brake_adapt_max_scale: float = 1.15, brake_adapt_load: str = "", brake_adapt_save: str = "", brake_adapt_fixed: bool = False,
 ) -> int:
     DATA.mkdir(parents=True, exist_ok=True)
     model = DATA / f"{experiment}_model.pt"
@@ -257,6 +269,8 @@ def run_isolated(
                 lat_adapt_load=lat_adapt_load, lat_adapt_save=lat_adapt_save, lat_adapt_fixed=lat_adapt_fixed,
                 exit_adapt=exit_adapt, exit_adapt_max_scale=exit_adapt_max_scale, exit_adapt_load=exit_adapt_load, exit_adapt_save=exit_adapt_save,
                 exit_adapt_fixed=exit_adapt_fixed,
+                brake_adapt=brake_adapt, brake_adapt_max_scale=brake_adapt_max_scale, brake_adapt_load=brake_adapt_load, brake_adapt_save=brake_adapt_save,
+                brake_adapt_fixed=brake_adapt_fixed,
             ),
             cwd=APP, env=env,
         ).returncode
@@ -366,6 +380,16 @@ if __name__ == "__main__":
                     help="Con --exit-adapt: arranca con el mapa guardado en este JSON (mismas condiciones y recorte que --lat-adapt-load)")
     ap.add_argument("--exit-adapt-fixed", action="store_true",
                     help="Con --exit-adapt-load: usa el mapa y no aprende (para comparar una sola variable)")
+    ap.add_argument("--brake-adapt", action="store_true",
+                    help="V89: deceleración de frenada por curva que se ajusta sola vuelta a vuelta: mide con qué velocidad sobre el perfil se suelta el freno; baja un 8 %% la deceleración de una frenada que llega pasada (> 1 m/s) y sube un 4 %% la que llega por debajo con holgura y sin forzar. Necesita --brake-decel-straight, --brake-profile y --pedal-technique")
+    ap.add_argument("--brake-adapt-max-scale", type=float, default=1.15,
+                    help="Con --brake-adapt: multiplicador máximo de la deceleración de una frenada (por defecto 1,15)")
+    ap.add_argument("--brake-adapt-save", default="",
+                    help="Con --brake-adapt: guarda el mapa de multiplicadores de frenada en este JSON (misma regla de cola limpia que --lat-adapt-save)")
+    ap.add_argument("--brake-adapt-load", default="",
+                    help="Con --brake-adapt: arranca con el mapa guardado en este JSON (mismas condiciones y recorte que --lat-adapt-load)")
+    ap.add_argument("--brake-adapt-fixed", action="store_true",
+                    help="Con --brake-adapt-load: usa el mapa y no aprende (para comparar una sola variable)")
     ap.add_argument("--brake-circle", type=float, default=14.6,
                     help="Con --brake-profile: radio del círculo de adherencia en m/s² (por defecto 14,6, D21)")
     ap.add_argument("--pedal-exit-slew", type=float, default=1.5,
@@ -402,7 +426,7 @@ if __name__ == "__main__":
         ap.error(str(exc))
     problem = a2_error(a.ident, a.max_gear, a.lat_accel_limit, a.teacher_only, a.experiment, a.speed_band, cap_limit,
                          bool(a.steer_ff_gain or a.steer_slip_gain or a.lat_gain_v0_kmh or a.steer_ff_v0_kmh >= 0.0 or a.steer_preview_s
-                         or a.throttle_max != 0.85 or a.brake_decel_straight or a.brake_overspeed_straight_ms != 8.0 or a.brake_slip_limit or a.brake_slip_hold or a.steer_ff_cap_kmh or a.pedal_technique or a.brake_profile or a.exit_circle or a.profile_peak_min_m or a.profile_peak_min_kmh or a.lat_adapt or a.exit_adapt))
+                         or a.throttle_max != 0.85 or a.brake_decel_straight or a.brake_overspeed_straight_ms != 8.0 or a.brake_slip_limit or a.brake_slip_hold or a.steer_ff_cap_kmh or a.pedal_technique or a.brake_profile or a.exit_circle or a.profile_peak_min_m or a.profile_peak_min_kmh or a.lat_adapt or a.exit_adapt or a.brake_adapt))
     if problem:
         ap.error(problem)
     if a.ident in ("acel", "acelrodar") and a.ident_cap_kmh <= a.speed_band:
@@ -475,6 +499,20 @@ if __name__ == "__main__":
         ap.error("--exit-adapt-fixed necesita --exit-adapt-load")
     if a.exit_adapt_fixed and a.exit_adapt_save:
         ap.error("--exit-adapt-fixed no aprende, así que no hay nada que guardar con --exit-adapt-save")
+    if a.brake_adapt and (a.ident or not a.teacher_only):
+        ap.error("--brake-adapt solo se usa con --teacher-only y sin --ident (A2.0)")
+    if a.brake_adapt and not (a.brake_decel_straight and a.brake_profile and a.pedal_technique):
+        ap.error("--brake-adapt necesita --brake-decel-straight, --brake-profile y --pedal-technique")
+    if (a.brake_adapt_max_scale != 1.15 or a.brake_adapt_load or a.brake_adapt_save or a.brake_adapt_fixed) and not a.brake_adapt:
+        ap.error("--brake-adapt-max-scale, --brake-adapt-load, --brake-adapt-save y --brake-adapt-fixed necesitan --brake-adapt")
+    if a.brake_adapt_max_scale < 1.0:
+        ap.error("--brake-adapt-max-scale debe ser ≥ 1")
+    if a.brake_adapt_fixed and not a.brake_adapt_load:
+        ap.error("--brake-adapt-fixed necesita --brake-adapt-load")
+    if a.brake_adapt_fixed and a.brake_adapt_save:
+        ap.error("--brake-adapt-fixed no aprende, así que no hay nada que guardar con --brake-adapt-save")
+    a.brake_adapt_load = str(Path(a.brake_adapt_load).resolve()) if a.brake_adapt_load else ""
+    a.brake_adapt_save = str(Path(a.brake_adapt_save).resolve()) if a.brake_adapt_save else ""
     a.exit_adapt_load = str(Path(a.exit_adapt_load).resolve()) if a.exit_adapt_load else ""
     a.exit_adapt_save = str(Path(a.exit_adapt_save).resolve()) if a.exit_adapt_save else ""
     a.lat_adapt_load = str(Path(a.lat_adapt_load).resolve()) if a.lat_adapt_load else ""  # learn_driver corre con otro directorio de trabajo
@@ -527,7 +565,9 @@ if __name__ == "__main__":
                        lat_adapt=a.lat_adapt, lat_adapt_max_scale=a.lat_adapt_max_scale, lat_adapt_cap=a.lat_adapt_cap,
                        lat_adapt_load=a.lat_adapt_load, lat_adapt_save=a.lat_adapt_save, lat_adapt_fixed=a.lat_adapt_fixed,
                        exit_adapt=a.exit_adapt, exit_adapt_max_scale=a.exit_adapt_max_scale, exit_adapt_load=a.exit_adapt_load, exit_adapt_save=a.exit_adapt_save,
-                       exit_adapt_fixed=a.exit_adapt_fixed)
+                       exit_adapt_fixed=a.exit_adapt_fixed,
+                       brake_adapt=a.brake_adapt, brake_adapt_max_scale=a.brake_adapt_max_scale, brake_adapt_load=a.brake_adapt_load, brake_adapt_save=a.brake_adapt_save,
+                       brake_adapt_fixed=a.brake_adapt_fixed)
     log = latest_log(experiment, t0)
     if log is None:
         print("[experimental] no se encontró el log de la prueba; sin informe")

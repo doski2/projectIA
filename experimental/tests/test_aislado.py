@@ -459,3 +459,18 @@ def test_exit_adapt_goes_to_learn_driver_only_when_asked_with_its_map_options():
     assert "--exit-adapt-fixed" in argv and "--exit-adapt-save" not in argv
     sin = aislado.build_argv(Path("python"), "a2_x", 140.0, 3, teacher_only=True, pedal_technique=True, exit_circle=18.0, exit_adapt_load="C:/m/sal.json")
     assert "--exit-adapt-load" not in sin
+
+
+def test_brake_adapt_goes_to_learn_driver_only_when_asked_with_its_map_options():
+    kw = dict(teacher_only=True, pedal_technique=True, brake_profile=True, brake_decel_straight=11.0)
+    base = aislado.build_argv(Path("python"), "a2_x", 140.0, 3, **kw)
+    assert not any(a.startswith("--brake-adapt") for a in base)
+    argv = aislado.build_argv(Path("python"), "a2_x", 140.0, 3, brake_adapt=True, **kw)
+    assert "--brake-adapt" in argv and not any(a in argv for a in ("--brake-adapt-max-scale", "--brake-adapt-load", "--brake-adapt-save", "--brake-adapt-fixed"))
+    argv = aislado.build_argv(Path("python"), "a2_x", 140.0, 3, brake_adapt=True, brake_adapt_max_scale=1.3, brake_adapt_load="C:/m/fr.json", brake_adapt_save="C:/m/nuevo.json", **kw)
+    assert argv[argv.index("--brake-adapt-max-scale") + 1] == "1.3" and argv[argv.index("--brake-adapt-load") + 1] == "C:/m/fr.json"
+    assert argv[argv.index("--brake-adapt-save") + 1] == "C:/m/nuevo.json" and "--brake-adapt-fixed" not in argv
+    argv = aislado.build_argv(Path("python"), "a2_x", 140.0, 3, brake_adapt=True, brake_adapt_load="C:/m/fr.json", brake_adapt_fixed=True, **kw)
+    assert "--brake-adapt-fixed" in argv and "--brake-adapt-save" not in argv
+    sin = aislado.build_argv(Path("python"), "a2_x", 140.0, 3, brake_adapt_load="C:/m/fr.json", **kw)
+    assert "--brake-adapt-load" not in sin
