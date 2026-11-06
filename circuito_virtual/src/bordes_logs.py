@@ -111,7 +111,6 @@ class Observaciones:
         z_l: List[float] = []
         t_l: List[List[int]] = []
         v_l: List[float] = []
-        c_l: List[float] = []
         sin_pos = {"s": [], "cte": [], "t": [], "v": []}
         with open(ruta, encoding="utf-8") as fh:
             for linea in fh:

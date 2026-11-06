@@ -316,7 +316,7 @@ def test_lat_gain_v0_goes_to_learn_driver_only_when_set():
 def test_las_opciones_propias_del_teacher_exigen_prefijo_a2_y_teacher_only():
     base: Dict[str, Any] = dict(ident="", max_gear=2, lat_accel_limit=aislado.LAT_ACCEL_LIMIT, teacher_only=True, experiment="a2_x", speed_band=100.0, cap_limit=115.0)
     assert aislado.a2_error(**base, extra_teacher_options=True) is None
-    assert "a2_" in aislado.a2_error(**{**base, "experiment": ""}, extra_teacher_options=True)  # el nombre por defecto borraría `teacher_<banda>`
+    assert "a2_" in (aislado.a2_error(**{**base, "experiment": ""}, extra_teacher_options=True) or "")  # el nombre por defecto borraría `teacher_<banda>`
     assert aislado.a2_error(**{**base, "teacher_only": False}, extra_teacher_options=True)
     assert aislado.a2_error(**{**base, "experiment": ""}) is None  # sin opciones propias, producción
 
@@ -432,3 +432,15 @@ def test_lat_adapt_goes_to_learn_driver_only_when_asked_and_its_values_only_when
     assert "--lat-adapt" in argv and "--lat-adapt-max-scale" not in argv and "--lat-adapt-cap" not in argv
     argv = aislado.build_argv(Path("python"), "a2_x", 100.0, 2, teacher_only=True, lat_adapt=True, lat_adapt_max_scale=1.5, lat_adapt_cap=9.0)
     assert argv[argv.index("--lat-adapt-max-scale") + 1] == "1.5" and argv[argv.index("--lat-adapt-cap") + 1] == "9"
+
+
+def test_lat_adapt_map_options_go_to_learn_driver_only_with_lat_adapt():
+    base = aislado.build_argv(Path("python"), "a2_x", 140.0, 3, teacher_only=True, lat_adapt=True)
+    assert not any(a in base for a in ("--lat-adapt-load", "--lat-adapt-save", "--lat-adapt-fixed"))
+    argv = aislado.build_argv(Path("python"), "a2_x", 140.0, 3, teacher_only=True, lat_adapt=True, lat_adapt_load="C:/m/seco.json", lat_adapt_save="C:/m/nuevo.json")
+    assert argv[argv.index("--lat-adapt-load") + 1] == "C:/m/seco.json" and argv[argv.index("--lat-adapt-save") + 1] == "C:/m/nuevo.json"
+    assert "--lat-adapt-fixed" not in argv
+    argv = aislado.build_argv(Path("python"), "a2_x", 140.0, 3, teacher_only=True, lat_adapt=True, lat_adapt_load="C:/m/seco.json", lat_adapt_fixed=True)
+    assert "--lat-adapt-fixed" in argv and "--lat-adapt-save" not in argv
+    sin = aislado.build_argv(Path("python"), "a2_x", 140.0, 3, teacher_only=True, lat_adapt_load="C:/m/seco.json")
+    assert "--lat-adapt-load" not in sin

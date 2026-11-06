@@ -122,7 +122,7 @@ def metricas(d: np.ndarray, t: np.ndarray, volante: np.ndarray, cte: np.ndarray,
 def analizar(ruta: Path, desde: float = 0.0, hasta: float = 1e9) -> Dict:
     s = cargar(ruta)
     ok = (s["seguridad"] == 0) & (s["v"] >= V_MIN_KMH) & (s["d"] >= desde) & (s["d"] <= hasta)
-    recta = mascara_recta(s["referencia"], s["d"]) if s["referencia"] else np.zeros(len(s["d"]), dtype=bool)
+    recta = mascara_recta(str(s["referencia"]), s["d"]) if s["referencia"] else np.zeros(len(s["d"]), dtype=bool)
     out: Dict = {"ruta": str(ruta), "ticks": int(len(s["d"])), "hasta_m": float(s["d"].max()), "bandas": []}
     args = (s["d"], s["t"], s["volante"], s["cte"], s["beta"])
     out["total"] = metricas(*args, ok)

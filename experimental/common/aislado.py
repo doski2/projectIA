@@ -105,6 +105,7 @@ def build_argv(
     brake_slip_limit: float = 0.0, brake_slip_hold: float = 0.0, steer_ff_cap_kmh: float = 0.0,
     pedal_technique: bool = False, pedal_exit_slew: float = 1.5, brake_profile: bool = False, brake_circle: float = 14.6, exit_circle: float = 0.0, profile_peak_min_m: float = 0.0, profile_peak_min_kmh: float = 0.0,
     lat_adapt: bool = False, lat_adapt_max_scale: float = 1.15, lat_adapt_cap: float = 10.0,
+    lat_adapt_load: str = "", lat_adapt_save: str = "", lat_adapt_fixed: bool = False,
 ) -> List[str]:
     argv = [
         str(python), str(APP / "src" / "learn_driver.py"),
@@ -174,6 +175,12 @@ def build_argv(
             argv += ["--lat-adapt-max-scale", f"{lat_adapt_max_scale:g}"]
         if lat_adapt_cap != 10.0:
             argv += ["--lat-adapt-cap", f"{lat_adapt_cap:g}"]
+        if lat_adapt_load:  # V88: arrancar con el mapa de multiplicadores guardado
+            argv += ["--lat-adapt-load", lat_adapt_load]
+        if lat_adapt_save:
+            argv += ["--lat-adapt-save", lat_adapt_save]
+        if lat_adapt_fixed:
+            argv += ["--lat-adapt-fixed"]
     if brake_profile:  # V68 (F1): perfil continuo de frenada con el círculo de adherencia
         argv += ["--brake-profile"]
         if brake_circle != 14.6:
@@ -196,6 +203,7 @@ def run_isolated(
     brake_slip_limit: float = 0.0, brake_slip_hold: float = 0.0, steer_ff_cap_kmh: float = 0.0,
     pedal_technique: bool = False, pedal_exit_slew: float = 1.5, brake_profile: bool = False, brake_circle: float = 14.6, exit_circle: float = 0.0, profile_peak_min_m: float = 0.0, profile_peak_min_kmh: float = 0.0,
     lat_adapt: bool = False, lat_adapt_max_scale: float = 1.15, lat_adapt_cap: float = 10.0,
+    lat_adapt_load: str = "", lat_adapt_save: str = "", lat_adapt_fixed: bool = False,
 ) -> int:
     DATA.mkdir(parents=True, exist_ok=True)
     model = DATA / f"{experiment}_model.pt"
@@ -234,6 +242,7 @@ def run_isolated(
                 pedal_technique=pedal_technique, pedal_exit_slew=pedal_exit_slew, brake_profile=brake_profile, brake_circle=brake_circle, exit_circle=exit_circle,
                 profile_peak_min_m=profile_peak_min_m, profile_peak_min_kmh=profile_peak_min_kmh,
                 lat_adapt=lat_adapt, lat_adapt_max_scale=lat_adapt_max_scale, lat_adapt_cap=lat_adapt_cap,
+                lat_adapt_load=lat_adapt_load, lat_adapt_save=lat_adapt_save, lat_adapt_fixed=lat_adapt_fixed,
             ),
             cwd=APP, env=env,
         ).returncode
@@ -327,6 +336,12 @@ if __name__ == "__main__":
                     help="Con --lat-adapt: multiplicador máximo de una curva sobre --lat-accel-limit (por defecto 1,15)")
     ap.add_argument("--lat-adapt-cap", type=float, default=10.0,
                     help="Con --lat-adapt: el límite lateral de ninguna curva pasa de este valor en m/s² (por defecto 10)")
+    ap.add_argument("--lat-adapt-save", default="",
+                    help="Con --lat-adapt (V88): guarda el mapa de multiplicadores por curva y sus condiciones (pista, gomas, compuesto) en este JSON al cerrar cada vuelta, solo si las dos últimas fueron limpias")
+    ap.add_argument("--lat-adapt-load", default="",
+                    help="Con --lat-adapt (V88): arranca con el mapa guardado en este JSON. Solo se usa si es compatible (seco con seco, mismo compuesto); con otras temperaturas de pista o de gomas recorta el margen y frena la subida; nunca acelera más que el ajuste normal")
+    ap.add_argument("--lat-adapt-fixed", action="store_true",
+                    help="Con --lat-adapt-load: usa el mapa y no aprende (para comparar una sola variable)")
     ap.add_argument("--brake-circle", type=float, default=14.6,
                     help="Con --brake-profile: radio del círculo de adherencia en m/s² (por defecto 14,6, D21)")
     ap.add_argument("--pedal-exit-slew", type=float, default=1.5,
@@ -418,6 +433,14 @@ if __name__ == "__main__":
         ap.error("--lat-adapt-max-scale y --lat-adapt-cap necesitan --lat-adapt")
     if a.lat_adapt_max_scale < 1.0 or a.lat_adapt_cap <= 0:
         ap.error("--lat-adapt-max-scale debe ser ≥ 1 y --lat-adapt-cap positivo")
+    if (a.lat_adapt_load or a.lat_adapt_save or a.lat_adapt_fixed) and not a.lat_adapt:
+        ap.error("--lat-adapt-load, --lat-adapt-save y --lat-adapt-fixed necesitan --lat-adapt")
+    if a.lat_adapt_fixed and not a.lat_adapt_load:
+        ap.error("--lat-adapt-fixed necesita --lat-adapt-load")
+    if a.lat_adapt_fixed and a.lat_adapt_save:
+        ap.error("--lat-adapt-fixed no aprende, así que no hay nada que guardar con --lat-adapt-save")
+    a.lat_adapt_load = str(Path(a.lat_adapt_load).resolve()) if a.lat_adapt_load else ""  # learn_driver corre con otro directorio de trabajo
+    a.lat_adapt_save = str(Path(a.lat_adapt_save).resolve()) if a.lat_adapt_save else ""
     if a.profile_peak_min_m < 0:
         ap.error("--profile-peak-min-m no puede ser negativo (0 = sin recorte)")
     if a.profile_peak_min_m and not a.brake_profile:
@@ -463,7 +486,8 @@ if __name__ == "__main__":
                        brake_slip_hold=a.brake_slip_hold, steer_ff_cap_kmh=a.steer_ff_cap_kmh,
                        pedal_technique=a.pedal_technique, pedal_exit_slew=a.pedal_exit_slew, brake_profile=a.brake_profile, brake_circle=a.brake_circle, exit_circle=a.exit_circle,
                        profile_peak_min_m=a.profile_peak_min_m, profile_peak_min_kmh=a.profile_peak_min_kmh,
-                       lat_adapt=a.lat_adapt, lat_adapt_max_scale=a.lat_adapt_max_scale, lat_adapt_cap=a.lat_adapt_cap)
+                       lat_adapt=a.lat_adapt, lat_adapt_max_scale=a.lat_adapt_max_scale, lat_adapt_cap=a.lat_adapt_cap,
+                       lat_adapt_load=a.lat_adapt_load, lat_adapt_save=a.lat_adapt_save, lat_adapt_fixed=a.lat_adapt_fixed)
     log = latest_log(experiment, t0)
     if log is None:
         print("[experimental] no se encontró el log de la prueba; sin informe")

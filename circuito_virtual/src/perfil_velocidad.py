@@ -108,7 +108,6 @@ class Track:
     @staticmethod
     def from_arrays(x: np.ndarray, z: np.ndarray, y: np.ndarray, length_m: float, kappa_half_m: int = KAPPA_HALF_M) -> "Track":
         """Pista a partir de una línea muestreada a un punto por metro (cerrada): |κ| suavizada ±7 m como el teacher (`kappa_half_m`) y pendiente ±15 m."""
-        n = len(x)
 
         def suave(a: np.ndarray, sigma: float = 3.0) -> np.ndarray:  # el ruido de posición (centímetros) se dispara al derivar dos veces
             half = int(4 * sigma)

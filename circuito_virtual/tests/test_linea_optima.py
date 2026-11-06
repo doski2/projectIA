@@ -33,15 +33,15 @@ def _rectangulo_redondeado(largo=150.0, ancho=100.0, radio=40.0) -> Mapa:
         while dist >= inicio + tramos[k][0]:
             inicio += tramos[k][0]
             # avanza hasta el final del tramo y gira con la curvatura de ese tramo
-            l, c = tramos[k]
+            largo, c = tramos[k]
             if c == 0.0:
-                pos = pos + l * np.array([math.cos(rumbo), math.sin(rumbo)])
+                pos = pos + largo * np.array([math.cos(rumbo), math.sin(rumbo)])
             else:
-                nuevo = rumbo + c * l
+                nuevo = rumbo + c * largo
                 pos = pos + (np.array([math.sin(nuevo) - math.sin(rumbo), -math.cos(nuevo) + math.cos(rumbo)])) / c
                 rumbo = nuevo
             k += 1
-        l, c = tramos[k]
+        _, c = tramos[k]
         d = dist - inicio
         if c == 0.0:
             p = pos + d * np.array([math.cos(rumbo), math.sin(rumbo)])

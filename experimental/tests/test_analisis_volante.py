@@ -20,9 +20,11 @@ def test_metricas_de_una_recta_tranquila_y_de_un_zigzag():
     t = np.arange(n) / 60.0
     d = np.arange(n) * 0.5  # 300 m
     quieto = av.metricas(d, t, np.zeros(n), np.zeros(n), np.zeros(n), np.ones(n, dtype=bool))
+    assert quieto is not None
     assert quieto["volante_rms"] == 0.0 and quieto["inversiones_100m"] == 0.0 and quieto["tasa"] == 0.0
     zigzag = 0.3 * np.sin(2 * np.pi * t / 2.0)  # periodo de 2 s
     z = av.metricas(d, t, zigzag, 2.0 * zigzag, 5.0 * zigzag, np.ones(n, dtype=bool))
+    assert z is not None
     assert z["volante_rms"] == pytest.approx(0.3 / np.sqrt(2), rel=0.02)
     assert z["inversiones_100m"] == pytest.approx(100.0 * (2 * t[-1] / 2.0) / 300.0, rel=0.25)  # 2 inversiones por periodo
     assert z["cte_max"] == pytest.approx(0.6, rel=0.02) and z["deriva_max"] == pytest.approx(1.5, rel=0.02)

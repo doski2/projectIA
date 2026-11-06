@@ -373,6 +373,7 @@ def run_checks(path: Path, header: dict, ticks: List[dict], ref,
     # 4. Aceleración longitudinal frente a derivada de la velocidad
     la = np.stack([_col(ticks, "local_accel", i) for i in range(3)], axis=1)
     dt = np.diff(t_s)
+    dv = np.zeros(len(t_s))  # solo se usa si los tiempos crecen (más abajo)
     if (dt > 0).all():
         dv = np.gradient(_smooth(v_kmh / 3.6), t_s)
         corrs = [_corr(_smooth(la[:, i]), dv) for i in range(3)]

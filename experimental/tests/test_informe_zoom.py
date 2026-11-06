@@ -16,6 +16,12 @@ def _ticks(vueltas=3, con_cte=True):
     return out
 
 
+def _datos(*args, **kwargs):
+    datos = informe_zoom.datos_zoom(*args, **kwargs)
+    assert datos is not None
+    return datos
+
+
 def _cat():
     curvas = [SimpleNamespace(id=1, s_ini=100.0, s_fin=200.0, s_apice=150.0, sentido="izq"),
               SimpleNamespace(id=2, s_ini=900.0, s_fin=50.0, s_apice=980.0, sentido="der")]  # cruza la meta
@@ -23,7 +29,7 @@ def _cat():
 
 
 def test_datos_reducidos_a_un_punto_cada_paso():
-    datos = informe_zoom.datos_zoom(_ticks(), _cat(), paso_m=1.5)
+    datos = _datos(_ticks(), _cat(), paso_m=1.5)
     assert [v["n"] for v in datos["vueltas"]] == [1, 2, 3]
     primera = datos["vueltas"][0]
     assert len(primera["d"]) < 2000 / 2  # 1000 m de vuelta a 1,5 m
@@ -34,25 +40,27 @@ def test_datos_reducidos_a_un_punto_cada_paso():
 
 
 def test_sin_cte_solo_velocidad_y_delta():
-    datos = informe_zoom.datos_zoom(_ticks(con_cte=False))
+    datos = _datos(_ticks(con_cte=False))
     assert [p["k"] for p in datos["paneles"]] == ["v", "dv"]
     assert datos["curvas"] == []
 
 
 def test_una_vuelta_no_tiene_delta():
-    assert [p["k"] for p in informe_zoom.datos_zoom(_ticks(1))["paneles"]] == ["v", "cte", "vol", "ped"]
+    assert [p["k"] for p in _datos(_ticks(1))["paneles"]] == ["v", "cte", "vol", "ped"]
 
 
 def test_ignora_ticks_sin_vuelta_y_distancia_que_retrocede():
     ticks = _ticks(2) + [{"speed_kmh": 5.0}, {"lap": 2, "lap_distance": 3.0, "speed_kmh": 1.0}]
-    datos = informe_zoom.datos_zoom(ticks)
+    datos = _datos(ticks)
     assert datos["vueltas"][1]["d"][-1] == 999.0  # el tick que retrocede a 3 m no entra
 
 
 def test_html_trae_datos_validos_y_no_cierra_el_script():
     html = informe_zoom.zoom_html(_ticks(), _cat())
     assert html.count("</script>") == 1 and "__DATOS__" not in html
-    blob = re.search(r"var D=(\{.*?\});\nvar COL", html, re.S).group(1)
+    encontrado = re.search(r"var D=(\{.*?\});\nvar COL", html, re.S)
+    assert encontrado is not None
+    blob = encontrado.group(1)
     assert len(json.loads(blob)["vueltas"]) == 3
     for clave in ("cv_", "zcurva", "zref", "wheel"):
         assert clave in html

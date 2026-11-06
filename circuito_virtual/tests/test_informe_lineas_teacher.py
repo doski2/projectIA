@@ -27,11 +27,13 @@ def test_resumen_sesion_saca_vuelta_cte_por_zona_y_ticks_fuera(tmp_path):
     fuera = next(i for i in range(200) if i not in RACING_TERRAIN_IDS)
     dentro = next(iter(RACING_TERRAIN_IDS))
     r = il.resumen_sesion(_log(tmp_path / "20260101T000000Z_sugo_gp_l1_linea.jsonl", "a2_x", 125.0, -2.0, terreno=(dentro, fuera, dentro, dentro)))
+    assert r is not None
     assert r["linea"] == "sugo_optima_a1mu9c12" and r["banda"] == 125.0 and r["vueltas"] == 2
     assert r["cte_max"] == pytest.approx(2.0) and r["zonas"]["S 400-600 m"] == pytest.approx(2.0) and r["zonas"]["2680-2870 m"] == pytest.approx(0.1)
     assert r["vuelta_s"] == pytest.approx(3559 / 10 * 0.3 - 0.0, abs=0.5)
     assert r["fuera"] == 3 * 356  # una rueda fuera en todos los ticks, también en la vuelta de salida
-    assert il.resumen_sesion(_log(tmp_path / "b_sugo_gp_l1_linea.jsonl", "a2_x", 125.0, 0.2))["fuera"] == 0
+    limpia = il.resumen_sesion(_log(tmp_path / "b_sugo_gp_l1_linea.jsonl", "a2_x", 125.0, 0.2))
+    assert limpia is not None and limpia["fuera"] == 0
 
 
 def test_sesiones_solo_toma_a2_y_la_banda_pedida(tmp_path):

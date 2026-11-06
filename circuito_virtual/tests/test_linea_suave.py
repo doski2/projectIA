@@ -1,7 +1,6 @@
 """Tests de la línea suavizada para alta velocidad (`linea_suave.py`, H61) con un óvalo sintético de solución conocida."""
 
 import math
-from pathlib import Path
 
 import numpy as np
 import pytest

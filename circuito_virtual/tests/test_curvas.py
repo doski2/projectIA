@@ -43,9 +43,12 @@ def test_opposite_corners_close_together_form_an_ese():
 
 def test_labels_and_next_corner(tmp_path):
     cat = cv.Catalogo(cv.detectar(_kappa([(500, -0.02, 20), (1500, 0.02, 20)]), 3000.0), 3000.0, "x")
-    assert cat.etiqueta(500) == "C1" and cat.curva_en(1500).id == 2
-    assert cat.etiqueta(1000) == "recta C1→C2" and cat.proxima(1000).id == 2 and cat.proxima(2000).id == 1  # tras la última, la primera (la vuelta se cierra)
-    assert cat.proxima(500).id == 1
+    segunda = cat.curva_en(1500)
+    assert cat.etiqueta(500) == "C1" and segunda is not None and segunda.id == 2
+    p1000, p2000, p500 = cat.proxima(1000), cat.proxima(2000), cat.proxima(500)
+    assert p1000 is not None and p2000 is not None and p500 is not None
+    assert cat.etiqueta(1000) == "recta C1→C2" and p1000.id == 2 and p2000.id == 1  # tras la última, la primera (la vuelta se cierra)
+    assert p500.id == 1
     cat.guardar(tmp_path / "curvas.json")
     otra = cv.Catalogo.cargar(tmp_path / "curvas.json")
     assert [c.id for c in otra.curvas] == [1, 2] and otra.longitud_m == 3000.0
