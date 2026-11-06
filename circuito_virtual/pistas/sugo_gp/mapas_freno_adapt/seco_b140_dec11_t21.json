@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "base_limit": 11.0,
+  "cap_limit": 12.649999999999999,
+  "max_scale": 1.15,
+  "scales": {
+    "1": 1.0,
+    "2": 1.0,
+    "3": 1.0,
+    "4": 1.0,
+    "5": 1.15,
+    "6": 1.0,
+    "7": 1.0,
+    "8": 1.15,
+    "9": 1.0,
+    "10": 1.0816,
+    "11": 1.0,
+    "12": 1.0,
+    "13": 1.0,
+    "14": 1.0
+  },
+  "conditions": {
+    "rain": 0,
+    "track_c": 21,
+    "ambient_c": 14,
+    "tyre_start_c": 86.5,
+    "compound": "Lisos/Lisos/Lisos/Lisos",
+    "tyre_ref_c": 50.5
+  },
+  "tyre_by_lap": {
+    "2": 60.1,
+    "3": 55.0,
+    "4": 52.8,
+    "5": 51.5,
+    "6": 50.8,
+    "7": 50.4,
+    "8": 50.2
+  },
+  "laps_closed": 7,
+  "clean_tail": true,
+  "meta": {
+    "experiment": "a2_optA1mu9c12_140_g3_lat95_slip5_v70_ff0_cap100_pv03_gas1_fr11_perfil_c10_slip_exit18_exitfijo_brakeadapt_adapt_cap13_fijo_t21_l8",
+    "lap": 8
+  }
+}

@@ -1,10 +1,10 @@
 # Pendiente de circuito_virtual
 
-Estado al cierre de la jornada del **2026-11-06** (V1-V89). Lo que no es del circuito (rampa del BC, PPO, daño
+Estado al cierre de la noche del **2026-11-06 al 07** (V1-V91). Lo que no es del circuito (rampa del BC, PPO, daño
 de motor P26, controles de seco, reentreno v2) está en `experimental/docs/PENDIENTE.md`. El plan está
 en `docs/PLAN.md`, las decisiones en `docs/DECISIONES.md` y la historia en `docs/DIARIO.md`.
 
-**Qué significan las «V»:** cada Vnn es una entrada del registro de decisiones (hoy V1-V89), no una
+**Qué significan las «V»:** cada Vnn es una entrada del registro de decisiones (hoy V1-V91), no una
 versión del software. La versión del software es el commit de git, que cada sesión guarda en la
 cabecera de su log. Este documento recoge solo el estado actual y lo que sigue; las cifras de sesiones
 anteriores son referencia (están en `DECISIONES.md`) y cada sesión nueva se juzga contra el criterio de
@@ -12,112 +12,66 @@ volante de más abajo, no contra la anterior.
 
 ## Dónde estamos
 
-- **Estado del código (2026-11-06):** **todo está commiteado** (solo queda el `1.tzip` suelto de la raíz, que se puede borrar). Últimos commits de código: `6505a2c` y `06a6742` (el lector de Second Monitor empareja la sesión por los tiempos de vuelta), `c0c6b2d` (lector `second_monitor.py`), `b5a1ce7` (mapa de 21 °C) y `ac35c38` (V88, guardar y cargar el mapa). Antes: `5b55507` (informe con zoom interactivo). Antes: `33475de` (lectura de las temperaturas de la goma por capa y zona y del compuesto, `log_schema` 4; las tres temperaturas por zona left / center / right salen siempre 0 en el UDP, capa, carcasa, aire y compuesto sí). Antes: `70b2bff` (`--lat-adapt`, límite lateral por curva), `5af3bf2` (umbral de prominencia del recorte, V82), `c5606c9` (recorte de picos, V79, y grabador manual de D1b, V77). Los logs de la próxima sesión llevarán en la cabecera el hash de `HEAD` de ese momento. Las sesiones de mojado y `--lat-adapt` de 2026-11-04/05 todavía no tienen entrada V (solo están en «Seco y mojado»).
-- **Tests en verde:** `circuito_virtual` 79, `experimental` 130, `PCARS2-AI` 579 (ruff limpio en todo `circuito_virtual`; en `experimental` quedan los avisos antiguos de `resumen_sesion.py` y `test_resumen_sesion.py`). Se lanzan con
-  `pytest` dentro de cada carpeta.
-- **Teacher** (`teacher_controller.py`, `learn_driver.py`): cada opción es opt-in y su valor por
-  defecto es el de producción.
-- **Archivos locales no versionados** (4,5 MB cada uno): `circuito_virtual/pistas/sugo_gp/` con
-  `sugo_smooth.json`, `sugo_optima_a1mu9.json`, `sugo_optima_a1mu9b.json`, `sugo_optima_a1mu9c15.json` y
-  `sugo_optima_a1mu9c12.json`. Cómo regenerarlos, en «Comandos vigentes».
+- **Estado del código (2026-11-07):** todo commiteado salvo el `1.tzip` suelto de la raíz (copia de unas vueltas de Second Monitor; se puede borrar). Commits de código de la noche: `997215a` (`--brake-adapt`), `37f1b48` (`--exit-adapt`), `c0c6b2d` y `06a6742` (lector de Second Monitor), `ac35c38` (V88, guardar y cargar el mapa). Los logs llevan en la cabecera el hash de `HEAD`: commitear antes de lanzar.
+- **Tests en verde:** `circuito_virtual` 79, `experimental` 132, `PCARS2-AI` 601 (ruff limpio en todo lo tocado; en `experimental` quedan los avisos antiguos de `resumen_sesion.py` y `test_resumen_sesion.py`). Se lanzan con `pytest` dentro de cada carpeta.
+- **Mejor vuelta: 1:51.164** (`231522Z`). La receta de la noche (V90) rueda a 1:51.2-1:51.3 de media: línea `a1mu9c12`, banda 140, límite lateral 9,5 con el mapa del agarre de tope 13, gas de salida `--exit-circle 18` con su mapa, frenada `--brake-decel-straight 11` con su mapa, y los tres ajustes por curva congelados (comando en «Comandos vigentes»).
+- **Teacher** (`teacher_controller.py`, `learn_driver.py`): cada opción es opt-in y su valor por defecto es el de producción. Los tres ajustes por curva (`--lat-adapt`, `--exit-adapt`, `--brake-adapt`) comparten esquema: un multiplicador por curva que se mide al cerrar cada vuelta y se aplica en la siguiente, con vueltas congeladas y mapa que se guarda y se carga con las condiciones de pista y gomas.
+- **Mapas versionados** (`circuito_virtual/pistas/sugo_gp/`; un archivo por condiciones, no mezclarlos): `mapas_lat_adapt/` (`seco_b140_lim95_cap12.json` 16 °C; `…_cap12_t21.json` y `…_cap13_t21.json` 21 °C, este último el vigente), `mapas_exit_adapt/seco_b140_exit18_t21.json` y `mapas_freno_adapt/seco_b140_dec11_t21.json`. Con otras condiciones el programa recorta el margen sobre 1,0 y nunca acelera más que el ajuste normal (V88).
+- **Archivos locales no versionados** (4,5 MB cada uno): `circuito_virtual/pistas/sugo_gp/` con `sugo_smooth.json`, `sugo_optima_a1mu9{,b,c15,c12}.json`. Cómo regenerarlos, en «Comandos vigentes».
+- **Informes:** `informe_c0.py <log>` genera el HTML con zoom (`informe_zoom.py`); si el usuario cierra antes de que se genere, regenerarlo. **Second Monitor** (segundo monitor) graba cada vuelta; `experimental/common/second_monitor.py --log <log>` la cruza con nuestro log.
 
-## Resultado del 2026-11-05 (tarde, seco, pista 16 °C): bandas 135 y 140 y ajuste lateral en seco (V87)
+## Resultado de la noche del 2026-11-06 (seco, pista 21 °C, ambiente 14 °C): de 1:52.234 a 1:51.164 (V89-V91)
 
-Receta vigente (`a1mu9c12`, límite 9,5, recorte 60 / 8) con `--speed-band` cambiado; solo cambia la banda y, en la última pareja, `--lat-adapt`. Entradas V87 (sesiones y hallazgos) y V88 (guardar y cargar el mapa) en `DECISIONES.md`. Tiempos de `resumen_sesion.py` (`estadisticas_vueltas.py` puede dar hasta 0,1 s menos).
+**Criterio nuevo (decisión del usuario):** con el límite lateral subido (14-17 m/s²) **V19 ya no vale** en las sesiones con `--lat-adapt` o con un mapa cargado. Se juzga por el **tiempo de vuelta** y las **temperaturas de la pista y de las gomas**; deriva, |CTE| y ruedas fuera quedan como dato y como seguridad (el pasillo mide ≈ 5,4 m, 1,9-2,0 m de |CTE| aún deja margen). Tiempos en minutos y segundos (1:51.164). Detalle y cifras por vuelta en V89-V91 (`DECISIONES.md`).
 
-| Sesión | Banda | Vueltas 2 a N | V19 |
+| Sesión | Qué cambia | Mejor vuelta | Media (vueltas 3 en adelante) |
 | --- | --- | --- | --- |
-| `212431Z` | 135 | 115,9 / 115,9 / 116,0 s (solver 115,3) | cumple las tres parejas |
-| `213925Z` | 140 | 114,9 / 114,9 / 115,0 s (solver 114,1) | falla solo la deriva de C3 en las vueltas 2 y 3 (5,1 y 5,6°) |
-| `215030Z` (control, 6 vueltas) | 140 | 114,9-115,0 s | parejas 1-2, 4-5 y 5-6 cumplen; C3 vuelve a 5,4° en la vuelta 3 |
-| `220315Z` (`--lat-adapt`, 6 vueltas) | 140 | 114,9 / **114,3 / 114,4 / 114,3 / 114,5** s | mismas parejas; C3 5,6° en la vuelta 3, luego ≤ 3,7° |
+| `192821Z` (control) | mapa de 21 °C congelado, tope 12, exit 14,6, frenada 10 | 1:52.222 | 1:52.3 |
+| `203752Z` | exit 16 | ≈ 1:51.9 | ≈ 1:52.0 |
+| `210840Z` | tope 13 con `--lat-adapt` aprendiendo | 1:51.533 | 1:51.631 |
+| `215729Z` | exit 18, mapa de tope 13 congelado | 1:51.386 | 1:51.484 |
+| `222024Z` | frenada 11 | 1:51.249 | 1:51.291 |
+| `223943Z` | `--exit-adapt` aprendiendo (10 vueltas) | 1:51.191 | 1:51.286 |
+| `231522Z` | `--brake-adapt` aprendiendo | **1:51.164** | 1:51.262 |
 
-- **El ajuste gana 0,6 s por vuelta (−0,5 %)** desde la vuelta 3 y mantiene V19 igual que el control. C3 baja a ×0,957 y C6 a ×0,92 y quedan limpias; C11 se queda en ×1,0 (|CTE| 1,45-1,63 m); el resto sube.
-- **El tope de 10 m/s² (`--lat-adapt-cap`) es lo que frena el ajuste:** casi todas las curvas llegan a ×1,0526 (= 10 / 9,5) en la vuelta 3 y ahí se quedan. Con 140 km/h el techo de la banda manda en las rectas (C10, C12-C14), pero en las curvas de la 2.ª-3.ª marcha el tope es el límite.
-- **El spike de C3 en la vuelta 2-3 no es del ajuste:** sale en el control y en la sesión de 140 sin ajuste (gomas 46-50 °C). Pendiente: mirarlo con el zoom nuevo (no se sabe la causa).
-- **Qué mide el ajuste (y qué no):** al cerrar cada vuelta, por curva: |CTE| máximo, deriva máxima (ángulo entre la velocidad y el morro, de `local_velocity`) y ruedas fuera. Sube un 4 % si |CTE| ≤ 1,2 m, deriva ≤ 3° y 0 fuera; baja un 8 % (y se congela 2 vueltas) si |CTE| > 1,8 m, deriva > 4° o alguna rueda fuera. **No mira las correcciones del volante** (eso sería el ajuste del volante, el último del orden) **ni actúa dentro de la vuelta:** lo que ve en una vuelta se aplica en la siguiente.
-- **Tope 11 (`222814Z`, 6 vueltas):** 115,0 / 114,5 / 114,2 / 113,7 / 113,3 s, sin converger; C3 bajó a ×0,846 por un patinazo al soltar el freno y volver al gas (79 km/h, 2.ª) y no pudo volver a subir porque su |CTE| (1,3 m) pasa de 1,2 m; lo mismo C11.
-- **REFERENCIA ACTUAL DEL AJUSTE (`224841Z`, `--lat-adapt-cap 12 --lat-adapt-max-scale 1.3`, banda 140, 10 vueltas, 2026-11-05):** 114,9 / 114,4 / 114,2 / 113,6 / 113,2 / 112,6 / 112,2 / 112,1 / 112,1 s: **converge en la vuelta 8** (−2,9 s frente al control a 140, −2,5 %). Las parejas 5-6 a 9-10 cumplen V19 (deriva ≤ 3,7°, |CTE| ≤ 1,67 m); las primeras fallan por un patinazo de C6 (vuelta 3, 4,3°) y de C5 (vuelta 4, 4,2°) que el ajuste baja de inmediato. Multiplicadores finales: C1, C4, C7, C8, C9, C12, C13, C14 en ×1,263 (el tope de 12), C10 ×1,17, C5 ×1,12, C2 ×1,08, C3 ×1,04, C6 y C11 ×1,0. Lateral real máximo 13,6 → 14,5 m/s² y ahí se queda: parece cerca del techo de agarre (es agarre conseguido, no demostrado como máximo).
-  - **Gomas a las 10 vueltas** (lisos, pista 16 °C): delanteras 50-55 °C estables desde la vuelta 3; traseras 35-38 °C, unos 15 °C más frías, estables desde la vuelta 5; presión 1,50 → 1,43 bar; frenos 358 → 330 °C. Desgaste crudo del UDP (`tyre_wear`, unidades sin confirmar): FL 6, FR 8, traseras 1.
-  - **Combustible:** 100 → 81,0 % (33 → 26,7 l, ≈ 0,63 l por vuelta). No explica la mejora: el control a 140 (`215030Z`) perdió ≈ 10 % de depósito en sus vueltas 2-6 y siguió en 115,0 s.
-  - **Resuelve el pendiente del terreno 48:** aparece solo en 740-760 m (piano de C4, 6-19 ticks por vuelta) y no baja C4, que sube a ×1,263 (el flag `off_surface` del ajuste no se activó nunca). El terreno 10 (pianos) sale en todas las vueltas, en C11, C5-C6 y tras C8, y no cuenta.
-  - **Las traseras no patinan con gas:** razón traseras/delanteras ≤ 0,996 con gas > 0,5 (media por tramo ≈ 0,97).
-- **Hecho en V88:** guardar y cargar el mapa de multiplicadores (con la temperatura de la pista y de las gomas); lo que toca ahora está en «Al retomar».
-- **Informe con zoom** (`informe_zoom.py`, commit `5b55507`): velocidad, Δ velocidad frente a una vuelta de referencia, CTE, volante y gas − freno, con zoom, desplazamiento, ir a la curva y valores al pasar el ratón. Regenerar con `experimental/common/informe_c0.py <log>`.
+- **Lo que ganó tiempo:** el tope 13 del agarre (−0,4 s; converge en la vuelta 3 con el mapa cargado, lateral hasta 16,5 m/s²), el exit 18 (−0,15 s) y la frenada a 11 (−0,19 s; la hierba tras C8 pasa de 90 a 1 tick). Los dos ajustes nuevos, en seco, son seguros y casi neutros.
+- **Traseras:** no suben con más gas; se estabilizan en 39-43 °C con la pista a 21 °C (36-38 °C ayer con 16 °C). Delanteras 57-60 / 53-57 °C, el lado interior 2-4 °C más caliente que el exterior.
+- **El coche sale ancho:** el |CTE| máx. se queda en 1,86-2,02 m en las salidas de C7 (recta de 1160 a 1193 m, deriva de 0,2-0,3°), C2 (425-431 m), C3 (520-532 m) y C1 (296-306 m). No es un patinazo ni lo resuelven el gas o los frenos: es lo siguiente, el **volante**.
+- **Pico de C3 de la vuelta 4** (deriva 6,4-6,5°, la trasera izquierda un 5 % más lenta que la derecha): salía en las dos sesiones con exit 14,6; con exit 16 y 18 sale 1 vez en unas 40 vueltas (vuelta 8 de `215729Z`). Causa sin demostrar.
+- **Second Monitor** trae las temperaturas izquierda / centro / derecha de las gomas, que nuestro UDP lee a 0 (V89).
 
-## Resultado del 2026-11-06 (noche, seco, pista 21 °C, ambiente 14 °C): mapa guardado, gas de salida 16 y Second Monitor (V89)
+## Al retomar (cierre del 2026-11-07, madrugada)
 
-**Criterio nuevo (decisión del usuario):** con el límite lateral subido (14-15 m/s²) **V19 ya no vale** en las sesiones con `--lat-adapt` o con un mapa cargado. Se juzga por el **tiempo de vuelta** y las **temperaturas de la pista y de las gomas**; deriva, |CTE| y ruedas fuera quedan como dato y como seguridad (el pasillo mide ≈ 5,4 m, así que 1,9-2 m de |CTE| aún deja margen). Detalle y cifras en V89 (`DECISIONES.md`).
-
-| Sesión | Qué cambia | Vueltas 2 a N | Notas |
-| --- | --- | --- | --- |
-| `182808Z` | mapa de 16 °C cargado, aprendiendo (desajuste 0,09, recorte del 9 %) | 112,17 / 112,05 / 112,05 s | patinazo de C5 en la vuelta 3 (8,2°) y de C3 en la vuelta 4 (6,4°); no se guardó (cola no limpia) |
-| `192821Z` (control) | mapa de 21 °C congelado, exit 14,6 | 112,2 / 112,2 / 112,3 s | C3 6,5° en la vuelta 4 con la trasera izq. un 5 % más lenta |
-| `201743Z` (prueba A, 4 vueltas) | exit 16 | 112,0 / 112,1 / 111,9 s | sin pico de C3; \|CTE\| 1,74-1,96 m |
-| `203752Z` (prueba A, 8 vueltas) | exit 16 | 111,9 / 112,0 / 111,9 / 112,0 / 112,0 / 112,0 / 111,9 s | traseras 55 → 41 °C (izq.) y 53 → 39 °C (dcha.), planas desde la vuelta 6-7; \|CTE\| en meseta de 1,9 m; sin pico de C3 en 7 vueltas |
-
-- **Exit 16:** gana ≈ 0,2 s por vuelta y se mantiene mientras las gomas se enfrían; **no calienta las traseras** (39-42 °C de equilibrio, no suben); el coche sale más ancho de C2, C3 y C7 (|CTE| 1,8-1,9 m, +0,3 m). C5 y C14 pasan algo más rápidas (+1,3-1,7 km/h). El pico de C3 de la vuelta 4 no vuelve: hipótesis sin demostrar, otra trayectoria al llegar a C3 tras salir más ancho de C2.
-- **Mapa de hoy:** `mapas_lat_adapt/seco_b140_lim95_cap12_t21.json` (commit `b5a1ce7`, pista 21 °C, `clean_tail` falso porque se construyó a mano a partir de los eventos del log); el de 16 °C (`seco_b140_lim95_cap12.json`) sigue intacto. **Pendiente de probar en el juego:** el guardado con la cola limpia (hoy no se ejecutó).
-- **Second Monitor** (app del segundo monitor): graba cada vuelta cerrada en `C:\Users\doski\Documents\SecondMonitor\Telemetry\Recent\<aa-mm-dd-hh-mm>-…\` (`.zLap` = gzip + protobuf). **Trae las temperaturas izquierda / centro / derecha de cada goma** (resolución 1 °C; el UDP las da a 0). Delanteras: el lado interior 2-3 °C más caliente que el exterior; traseras uniformes. Lector: `experimental/common/second_monitor.py --log <log> [--desde m --hasta m]` (empareja la sesión por los tiempos de vuelta). El usuario no tiene que pasar nada: dice «analiza la última sesión».
-
-## Al retomar (cierre del 2026-11-06, noche)
-
-**Dónde se quedó:** receta con `--exit-circle 16` y mapa de 21 °C congelado: 112,0 s estable en 8 vueltas (candidata a receta, V89). Siguiente por decisión del usuario: **probar el tope 13**, que da más juego al ajuste vuelta a vuelta; después mirar el volante.
+**Dónde se quedó:** receta de la noche con los tres mapas congelados (1:51.2-1:51.3, récord 1:51.164, V90). Todo commiteado. Siguiente por decisión del usuario: **frenos (hecho: V91), luego el volante, después la banda de velocidad y la trayectoria.**
 
 **Tareas, por orden:**
 
-0. `git status` limpio antes de lanzar (el `1.tzip` suelto de la raíz no cuenta; se puede borrar).
-1. **Prueba B, tope 13, con el ajuste encendido** (con `--lat-adapt-fixed` los multiplicadores ya están en el máximo de 12 y el tope no cambiaría nada). Carga el mapa de 21 °C, guarda en otro archivo y usa exit 16; 10 vueltas. Se compara contra los 112,0 s de las 8 vueltas de `203752Z`. Mirar: si el tiempo baja de 112,0 s y en qué vuelta converge, los multiplicadores que llegan al tope (hoy ×1,263 en ocho curvas), las delanteras (56 / 53 °C), el |CTE| (hoy 1,9 m) y los patinazos que el ajuste tiene que corregir.
+0. `git status` limpio antes de lanzar (el `1.tzip` suelto de la raíz no cuenta; se puede borrar). Si hoy la pista o el ambiente no son 21 / 14 °C, apuntar cuánto y el «desajuste de condiciones» que escribe cada ajuste al empezar.
+1. **Volante, primero sin juego.** Con los logs de la noche (`223943Z` y `231522Z`) y Second Monitor, mirar por qué el coche sale ancho de C7 (1160-1193 m), C2 (425-431 m), C3 (520-532 m) y C1 (296-306 m): |CTE| con signo, volante, guiñada, deriva y velocidad. ¿Volante saturado (subviraje), retraso de la anticipación (`--steer-preview-s`, `--steer-ff-gain` y su tope) o ganancia de CTE (`--lat-gain-v0-kmh`)? Decidir **una** variable y su sesión; un ajuste del volante por curva (el último del orden) solo si una ganancia global no basta.
+2. **Sesión de referencia de hoy** (la receta de la noche con los tres mapas congelados, 8 vueltas; debe dar ≈ 1:51.2-1:51.3): sirve de control del volante y confirma las condiciones. Comando en «Comandos vigentes».
+3. **Prueba de la banda 145-150 km/h** (con el usuario atento, mapas congelados): el techo de la 3.ª es 149,9 km/h, el solver (μ 9) prevé ≈ 1,9 s entre 140 y 150 km/h y es lo de mayor ganancia potencial, pero no hay vuelta completa por encima de 140. Primero 145 (solo cambia `--speed-band`); la frenada a C9 pasa de 126 a 68 km/h y la recta tras C8 tocaba hierba a 124 km/h. Comando de 150 en «Comandos vigentes».
+4. **Prueba de estrés de la frenada** (sustituto de la lluvia): con el mapa de estrés `mapas_freno_adapt/estres_x115_t21.json` (todas las frenadas a ×1,15 = 12,65 m/s²; `--brake-decel-straight` no admite más de 11, así que el estrés va por el mapa) cargado y `--brake-adapt` aprendiendo; las zonas deben bajar en pocas vueltas. Las primeras vueltas llegan pasadas a las curvas: Ctrl+C a mano. Comando en «Comandos vigentes».
+5. **Si llueve:** repetir la pareja ajuste / control en mojado (`--lat-adapt`, y probar `--exit-adapt` y `--brake-adapt`, que no se han visto en mojado); un mapa de seco no se aplica en mojado (V88).
+6. **Segunda versión de los ajustes** (sin juego, con tests): `--brake-adapt` en las frenadas saturadas (C4, C7, C9 se sueltan a −0,4 / −0,6 m/s del perfil: hay margen); `--exit-adapt`, sin ganancia medible con exit 18, revisar si merece otro radio base o solo el mojado.
+7. **Pequeños, sin juego:** (a) leer nosotros las temperaturas izquierda / centro / derecha (están en `sTyreTempLeft` / `Center` / `Right`, `ushort` en °C, offsets 256 / 264 / 272; las lee Second Monitor y nuestro UDP las da a 0: ¿otro paquete u otro offset?); (b) cruzar el log con Second Monitor por vuelta y distancia y mirar por qué el lado interior de las delanteras va 2-4 °C más caliente (¿caída?); (c) C3 y C11 no pueden recuperarse porque la regla de subida del agarre exige |CTE| ≤ 1,2 m: valorar subir solo con deriva y ruedas fuera; (d) el desgaste del juego frente al log; (e) decidir si la vuelta 1 lleva un recorte fijo aunque las condiciones coincidan; (f) criterio para elegir qué mapa cargar según las condiciones; (g) regenerar el informe `informe_lineas_teacher.py`.
+8. **Más adelante, no ahora:** recalcular la línea óptima con el agarre por curva aprendido (hoy supone μ 9; el real es 13 m/s², ×1,37 en C1, C8, C9 y C12-C14 y ×0,88 en C3), después del volante y de la banda; ajustar la suspensión para mantener las gomas en temperatura (cambia los mapas: etiquetarlos con el reglaje); D1b sigue en pausa.
 
-   ```text
-   C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --teacher-only --speed-band 140 --max-gear 3 --lat-accel-limit 9.5 --steer-ff-gain 0.003 --steer-ff-v0-kmh 0 --steer-ff-cap-kmh 100 --steer-preview-s 0.3 --steer-slip-gain 5 --lat-gain-v0-kmh 70 --throttle-max 1.0 --brake-decel-straight 10 --brake-overspeed-straight-ms 2.5 --brake-slip-limit 0.25 --brake-slip-hold 0.85 --pedal-technique --brake-profile --brake-circle 10 --exit-circle 16 --profile-peak-min-m 60 --profile-peak-min-kmh 8 --lat-adapt --lat-adapt-cap 13 --lat-adapt-max-scale 1.4 --lat-adapt-load C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\mapas_lat_adapt\seco_b140_lim95_cap12_t21.json --lat-adapt-save C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\mapas_lat_adapt\seco_b140_lim95_cap13_t21.json --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_optima_a1mu9c12.json --experiment a2_optA1mu9c12_140_g3_lat95_slip5_v70_ff0_cap100_pv03_gas1_fr10_perfil_c10_slip_exit16_adapt_cap13_t21_l10 --laps 10
-   ```
+## Cómo analizar una sesión (el usuario dice «analiza la última sesión»; no pasa nada más)
 
-2. **Volante:** el |CTE| de las salidas de C2 (425-430 m) y C3 (520-532 m) es lo que más ha subido con exit 16 (1,8-1,9 m). Ver si la dirección tiene margen (ganancia de CTE, anticipación) o si hace falta el ajuste del volante, que va el último del orden de ajustes; una variable por sesión y con el mapa fijo.
-3. **`--exit-circle 18`:** baja prioridad (el usuario espera poca mejora más que con 16); solo si el tope 13 y el volante no dan más.
-4. **Ajuste de los pedales** (freno por zona; tope del gas de salida por curva), uno por vez, con el mapa fijo y su pareja de control. La hipótesis de calentar las traseras con el gas no se confirmó (V89).
-5. **Pequeños, sin juego:** (a) C3 y C11 no pueden recuperarse porque la regla de subida exige |CTE| ≤ 1,2 m: valorar subir solo con deriva y ruedas fuera (cambio aparte, con su pareja); (b) el desgaste del juego frente al log tras una sesión larga; (c) cruzar el log con Second Monitor por vuelta y distancia (temperaturas izq. / centro / dcha. junto a las decisiones del teacher) y mirar por qué el lado interior de las delanteras va 2-3 °C más caliente (¿caída de las ruedas?); (d) decidir si la vuelta 1 lleva un recorte fijo aunque las condiciones coincidan; (e) criterio para elegir qué mapa cargar según las condiciones; (f) regenerar el informe `informe_lineas_teacher.py`; (g) probar el guardado con la cola limpia en el juego.
-6. **Más adelante, no ahora:** recalcular la línea óptima con el agarre por curva aprendido (cuando los límites estén estables, tras los pedales y D1b) y ajustar la suspensión para mantener las gomas en temperatura (cambia el mapa: etiquetarlo con el reglaje).
-7. **Si llueve:** repetir la pareja ajuste / control en mojado (sección «Seco y mojado»); un mapa de seco no se aplica en mojado (V88 lo ignora).
+Todo con `PYTHONIOENCODING=utf-8` y el Python del proyecto; el log más reciente está en `PCARS2-AI\logs\learning\`. Tiempos en minutos y segundos.
 
-## Banda 135 y 140 hechas (V87): receta y criterio de la prueba de 135 (histórico)
+1. `experimental\common\estadisticas_vueltas.py <log>`: por vuelta, tiempo, ruedas fuera, velocidad, |CTE|, deriva, laterales, pedales, temperaturas de gomas y frenos y la pista.
+2. `experimental\common\resumen_sesion.py <log>`: vueltas, tramos con |CTE| > 1,8 m o deriva > 4° (dato, no veredicto), frenos, cambios de marcha, ruedas fuera. **No decir «no cumple V19» como conclusión** con los ajustes.
+3. `experimental\common\second_monitor.py --log <log> [--desde m --hasta m]`: tiempos de la app y temperaturas izquierda / centro / derecha de cada goma por vuelta; empareja la sesión por los tiempos de vuelta (la app arranca antes que el log).
+4. `experimental\common\pedales_sesion.py <log> --vueltas 3,5,7`: frenadas, deceleración, inversiones del gas, rebotes.
+5. Eventos del log de los ajustes: `lat_adapt`, `exit_adapt` y `brake_adapt` (multiplicadores y decisiones por vuelta, con las métricas de cada curva) y `*_start` (mapa aplicado o ignorado y el desajuste de condiciones).
+6. Ruedas fuera: separar el terreno 48 (piano de C4) y 10 (franjas) de la hierba (7) antes de dar una cifra.
+7. Si el usuario cierra antes de que se genere el informe: `experimental\common\informe_c0.py <log>`.
 
-**Hechas el 2026-11-05 (V87): la banda 135 cumple V19 a 115,9 s y la 140 da 114,9 s con la deriva de C3 como único fallo.** Lo que sigue es el comando y el criterio de la prueba de 135, que valen como referencia.
+## Histórico reciente (V87-V88)
 
-**Receta vigente confirmada (V85-V86): línea óptima `a1mu9c12` a 125 km/h con la técnica de pedales, `--lat-accel-limit 9.5`, `--lat-gain-v0-kmh 70`, `--profile-peak-min-m 60` y `--profile-peak-min-kmh 8`.** Seis vueltas (`230452Z`): 118,6-118,7 s estables, parejas 3-4, 4-5 y 5-6 cumplen V19, C3 / C8 / C9 se estabilizan (1,36 / 0,74 / 0,54 m), 17 ticks con rueda fuera (piano de C4) y ninguno en la hierba, neumáticos de 74 a 51 (delanteros) y 38 (traseros) sin romper nada. Comando en «Comandos vigentes».
-
-**Una variable respecto a la receta vigente: `--speed-band 135`** (es la prueba de banda del punto 3 de «Siguiente»; ya con el volante limpio, ahora toca la velocidad). El solver (μ 9, tablas de A1) prevé para esta línea **115,3 s a 135 km/h** (118,4 a 125, medido 118,6; 114,1 a 140; 112,2 a 150). El perfil de consigna no depende de la banda, así que el recorte y el umbral 8 valen tal cual. El 70 ya está puesto, que es lo que pide por encima de 135 (V42). Ctrl+C a mano, en seco y delante del juego, y atento en la primera vuelta: la recta tras C8 (1445-1490 m) tocaba hierba a 124 km/h con la línea suavizada, la frenada a C9 pasa de 126 a 68 km/h y la última recta (3113-3567 m) es donde más se gana.
-
-```text
-C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --teacher-only --speed-band 135 --max-gear 3 --lat-accel-limit 9.5 --steer-ff-gain 0.003 --steer-ff-v0-kmh 0 --steer-ff-cap-kmh 100 --steer-preview-s 0.3 --steer-slip-gain 5 --lat-gain-v0-kmh 70 --throttle-max 1.0 --brake-decel-straight 10 --brake-overspeed-straight-ms 2.5 --brake-slip-limit 0.25 --brake-slip-hold 0.85 --pedal-technique --brake-profile --brake-circle 10 --exit-circle 14.6 --profile-peak-min-m 60 --profile-peak-min-kmh 8 --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_optima_a1mu9c12.json --experiment a2_optA1mu9c12_135_g3_lat95_slip5_v70_ff0_cap100_pv03_gas1_fr10_perfil_c10_slip_exit146_pico60_prom8_l4 --laps 4
-```
-
-**Comprobado sin lanzar (2026-11-03):** `a2_error` devuelve `None` para esta combinación (el techo de la 3.ª es 150 km/h) y `build_argv` pasa `--speed-band 135` a `learn_driver.py`. **Antes de lanzar:** `git status` limpio (el log llevará el hash de `HEAD`; el `.svg` suelto de la raíz no cuenta), el usuario delante del juego, en seco y con Ctrl+C a mano.
-
-**Éxito (exploratorio, se juzga contra V19):** tiempo ≈ 115,3-116,5 s; una pareja de vueltas que cumpla V19; 0 ticks en la hierba (mirar 1444-1470 m); sin ruedas paradas ni bloqueo al frenar (razón traseras/delanteras ≥ 0,9; la frenada fuerte está validada hasta 150 km/h con el limitador); cambios de marcha limpios (3.ª desde ≈ 115 km/h). Mirar la tabla por curva (C9, C10, C11 y C12-C14 primero: las más rápidas) y el perfil de las rectas (CTE y volante). **Si rompe** (oscila, se sale o pasa de 1,8 m en zonas rápidas): Ctrl+C, apuntar dónde y volver a 125; **si funciona,** repetir 140 y, con el usuario atento, 150 (techo de la 3.ª).
-
-**Qué mirar en el informe de 135 (además de los cinco pasos de «Cómo analizar el informe»):**
-
-1. **Tiempo:** contra la previsión del solver, 115,3 s (a 125 km/h el solver acertó con +0,2 s; una diferencia de hasta ≈ 1 % es normal). Vueltas 2-4; la 1.ª lleva la salida parada.
-2. **Velocidad en curva:** como el perfil no depende de la banda, la v mín. de cada curva debería salir igual que en la base (± 1 km/h). Si baja o sube más, algo cambió en la llegada a la curva (frenada tardía o corta): mirar el pedal y la distancia de frenada de esa curva.
-3. **Rectas:** velocidad máxima de cada recta (¿llega a 135 km/h?), \|CTE\| y volante en 2555-2655 m y 3113-3567 m, y si el gas llega a fondo; el cambio a 3.ª (≈ 115 km/h) debe quedar antes de las rectas rápidas.
-4. **Frenadas desde 135:** deceleración (`pedales_sesion.py`), pedal máximo (≈ 0,95 con el limitador) y bloqueo medido en las delanteras y en las traseras por separado (regla de «Reglas de la sesión»), no solo con la razón traseras/delanteras. Referencia: 11,0-11,4 m/s² desde 140 km/h con el limitador (V55).
-5. **Hierba y piano:** separar el terreno 48 de la hierba (7); mirar sobre todo 1444-1470 m (tras C8) y la salida de C9.
-6. **Neumáticos:** a más velocidad se enfrían igual o más; mirar `tyre_temp` por vuelta si alguna curva sube por vuelta, como en V86.
-
-**Si funciona y cumple V19:** misma sesión con `--speed-band 140` (solo cambia la banda y el nombre del experimento, `…_140_…`); el solver prevé 114,1 s y el techo de la 3.ª está limpio hasta 140 km/h (V43). Después, 150 km/h (prevé 112,2 s) **solo con el usuario atento**: está fuera de las tablas del solver (llegan a 140) y la aceleración por encima de 140 con el volante tranquilo no está validada. **Si no cumple V19 pero no es peligroso:** apuntar qué curva o recta falla y por cuánto, y decidir una variable aparte (ganancia, tope del gas, frenada) antes de repetir; no subir de banda con el volante sucio.
-
-**Pendiente aparte (no mezclar):** inversiones del gas en C12-C14 (6-9 por vuelta), freno en C12-C13, deriva de C6 (3,1-3,6°) y C11 de la vuelta 2 (1,60-1,85 m según la sesión).
-
-**Cómo analizar el informe** (el usuario pasa el HTML; el log está en `PCARS2-AI\logs\learning\`; anteponer `PYTHONIOENCODING=utf-8`):
-
-1. `experimental\common\resumen_sesion.py <log>` (sin `--previsto`: comparar con la base de abajo, no con una previsión puesta a mano). V19 por parejas.
-2. Tabla por curva del JSON del informe (`experimental/logs/informe_<ts>_sugo_gp_l1_linea.json`, clave `curvas`: `v_min`, `cte_max`, `lat_max`, `freno_max` por vuelta), sobre todo C5, C6, C9, C10, C11 y C12-C14.
-3. `experimental\common\pedales_sesion.py <log> --vueltas 2,3,4`: inversiones del gas en curva y rebotes del gas.
-4. Perfil de la vuelta 3 en 860-950 m (C5-C6) y 2650-3120 m (C12-C14): gas, freno y velocidad cada 10-25 m.
-5. Ruedas fuera: separar el terreno 48 (pintura sobre hormigón, el piano de C4, probablemente legal) de la hierba (terreno 7, recta tras C8).
-
-**Base para comparar** (receta vigente de la línea óptima, 6 vueltas: `230452Z`, V86; 4 vueltas: `225202Z`, V85): vueltas 2-6 de 118,6 / 118,6 / 118,7 / 118,7 / 118,7 s; \|CTE\| máx. 1,85 / 1,56 / 1,65 / 1,61 / 1,57 m; deriva máx. 3,1 / 3,3 / 3,4 / 3,6 / 3,2° (C6 la más alta); lateral máx. 13,4-14,1 m/s²; parejas 3-4, 4-5 y 5-6 cumplen V19 (la 1-2 y la 2-3 solo fallan por C11 en las vueltas 1-2, 1,84 y 1,85 m); 12-13 frenadas por vuelta, 26-27 inversiones del gas en curva y rebotes del gas en 747 y 1286-1287 m; 17 ticks con rueda fuera (terreno 48, piano de C4, vuelta 4), 0 en la hierba; por curva (vueltas 2-6): C2 1,10-1,12 m, C3 1,04 → 1,36 m, C8 0,60 → 0,74 m, C9 0,45-0,65 m, C11 1,85 / 1,56 / 1,65 / 1,55 / 1,48 m, C12-C13 0,83-0,91 m; C5-C6 sin freno; neumáticos de 74 / 71 °C en la vuelta 1 a 51 / 38 en la 6. Con `--lat-gain-v0-kmh 60`: `223851Z`, V84. Línea suavizada: `221745Z`, V83; anteriores en V76 y V80-V81. Solver (V86) para esta línea: 118,4 s a 125 km/h, 115,3 a 135, 114,1 a 140, 112,2 a 150.
+- **2026-11-05 (seco, pista 16 °C):** banda 135 → 1:55.9 y banda 140 → 1:54.9 con la receta de entonces; con `--lat-adapt` y tope 12 en 10 vueltas converge a 1:52.1 (−2,9 s frente al control, V87). El mapa guardado de 16 °C (V88) se reconstruyó de ese log. En mojado (2026-11-04) el ajuste funcionó con una réplica por lado. Cifras completas en V87.
+- **Recetas de 125 km/h (V85-V86):** línea óptima `a1mu9c12` a 125 km/h, 1:58.6 estable con la técnica de pedales, `--lat-gain-v0-kmh 70` y el recorte de picos (60 m / 8 km/h); superada por la de 140 km/h. Sus comandos están en el historial de git de este archivo (antes del commit de V90).
 
 ## Seco y mojado: no se mezclan
 
@@ -136,42 +90,52 @@ Todo lo de este documento (receta, base de comparación, V19, solver μ 9, previ
 - **Cómo juzgar las sesiones con `--lat-adapt`:** el |CTE| ya no es la métrica principal, porque el ajuste toma las curvas de otra manera para ir más rápido. Se mira, por este orden: tiempo de vuelta, ticks con rueda fuera, deriva máxima, si los multiplicadores se estabilizan (cambios por vuelta), y el |CTE| solo como límite de seguridad (V19, que el propio ajuste respeta: una curva con |CTE| > 1,8 m baja). Dejarlo horas no mejoraría sin techo: converge al borde del criterio y lo frenan los topes (×1,15 y 10 m/s²), la banda y el agarre físico.
 - **Qué limita ahora el ajuste (2026-11-05):** en la sesión mojada con ajuste (vueltas 5-6) la regla `maintain_speed` ocupa el **36 %** de los ticks a 100 km/h de media (en la receta seca, 22,5 % a 125 km/h): la **banda de velocidad es hoy el límite que manda**, más que el límite lateral. Subir los límites de las curvas no gana tiempo mientras la banda no se mueva. Otros candidatos, sin borrar nada (son redes de seguridad): el terreno 48 (pintura sobre hormigón, el piano de C4) cuenta como rueda fuera y puede estar bajando C4 para siempre (V78 sigue sin decidir); `edge_grass` y `safety_off_surface` esconden la causa de un bamboleo al cortar el gas (conviene registrar cuándo actúan).
 - **Orden previsto para añadir ajustes (uno por vez, cada uno con su pareja ajuste / control):** (1) confirmar el límite lateral con una segunda pareja; (2) banda de velocidad (110 en mojado) con el ajuste lateral encendido; (3) freno: deceleración por zona; (4) gas: tope de salida por curva (`--exit-circle` por zona) y control de tracción solo si el log muestra patinaje trasero; (5) volante: ganancia según agarre, el último y el más delicado. Todo junto solo cuando cada pieza haya ganado sola; esa sesión se compara con la mejor combinación anterior, no con la receta base.
-- **Siguiente con `--lat-adapt` (actualizado 2026-11-06):** (1) la pareja ajuste / control en seco está hecha y converge con 10 vueltas (V87); (2) guardar los multiplicadores entre sesiones está implementado (V88) y falta validarlo en el juego; (3) en mojado queda repetir la pareja y la banda 110 en otra sesión; el resto del orden (pedales, volante) está en «Al retomar».
-- **Próxima en seco:** la validación de V88 y las pruebas A / B de «Al retomar»; la prueba de banda 135 ya está hecha.
+- **Estado de los ajustes (2026-11-07):** el del agarre está validado en mojado (una réplica por lado) y en seco (V87, V90); `--exit-adapt` y `--brake-adapt` (V91) solo en seco, donde son seguros y casi neutros: en mojado queda por ver. El orden previsto para añadir ajustes (agarre → gas de salida → frenos → volante) va por el último.
+- **Próxima en seco:** el volante y la banda de velocidad (ver «Al retomar»).
 
 ## Estado por tema
 
 | Tema | Estado | Qué falta |
 | --- | --- | --- |
-| A2.0 a 125 km/h con la línea suavizada | Superada por la línea óptima (V85). Mejor resultado con ella: `221745Z` (V83), 119,5 / 119,4 / 119,5 s, pareja 3-4 cumple V19 (la 1-2 y la 2-3 fallan por C11 en la vuelta 2, 1,85 m). Sin el umbral de prominencia (V80-V81) 119,5-119,7 s sin pareja por la deriva de C4. Historia: V76 (`220205Z`, sin recorte) 119,8 s con la pareja 2-3; límite 9 (V73) 120,8 s; límite 10 (V74-V75) 118,8 s sin pareja; sin la técnica 120,5 s (`124357Z`) | Solo como referencia |
-| A2.0 con la línea óptima | **Receta vigente confirmada con 6 vueltas (V85-V86, `225202Z` y `230452Z`, con `--lat-gain-v0-kmh 70`): 118,6-118,7 s estables, parejas 3-4, 4-5 y 5-6 (y las tres de la sesión de 4 vueltas) cumplen V19, 17-30 ticks con rueda fuera y ninguno en la hierba en 6 vueltas.** Con 60 (V84, `223851Z`): 118,5-118,6 s, sin pareja solo por C11 (1,67-1,97 m). Con la receta antigua (V58-V64) la S de C2-C3 fallaba (2,4-2,5 m); con la nueva queda en 1,1-1,3 m. | Prueba de banda 135 (próxima sesión, V86), D1b (el ancho real mejoraría la línea) |
-| Techo en 3.ª (G2) | **Limpio hasta 140 km/h** (volante ±0,01, CTE ≤ 0,16 m por encima de 128 km/h). El motor llega a 149,9 km/h (112 N·m a 6756 rpm) | Repetir 150 km/h con la ganancia por velocidad |
-| Frenadas fuertes | Con pedal ≤ 0,84 (teacher de A2) no hay bloqueo; con pedal 1,0 (A1) se bloquean las delanteras. **Limitador por deslizamiento cerrado** con objetivo 0,25 y memoria 0,85 (V44-V55): 11,4-11,8 m/s² desde 150 km/h y 11,0-11,4 desde 140, 0 ruedas paradas, CTE ≤ 0,56 m | Decidir qué tabla de frenada usa el solver (V55, punto 4); revisar los cambios de marcha durante la frenada; luego 140 km/h y el techo a 150 km/h |
-| Técnica de pedales y frenada (`--pedal-technique`, `--brake-profile`, `--exit-circle`, `--profile-peak-min-m`; V65-V86) | **Terminada y en la receta vigente**, salvo el recorte de picos (V79-V80), **en la receta vigente con el umbral de prominencia (V83-V85)**: quita la frenada de C5-C6 y deja intacto el pico de 735-746 m junto a C4. Frenada: deceleración mediana 6,6-7,1 m/s², 27-28 % del tiempo ≥ 10 m/s², pedal 0,93, tiempo muerto 0,02 s, 46 % del freno girando, consigna sin saltos. Gas de salida con tope por el círculo (C11 de 2,2 a 1,4-1,7 m). Queda el gas, freno y gas en C5-C6, C9, C10 y C12-C14 (32-33 inversiones del gas por vuelta) | Gas de mantenimiento en C5-C6 y filas F10-F13 de `TECNICA_CONDUCCION.md` |
-| Curvas numeradas (V70) | `circuito_virtual/pistas/sugo_gp/curvas.json` (C1-C14, tabla en `TECNICA_CONDUCCION.md` §9); el informe HTML, `resumen_sesion.py` y `pedales_sesion.py` las usan. C12-C14 son un solo viraje largo a la derecha (2656-3113 m), no una chicane (V78) | Regenerar con `python circuito_virtual/src/curvas.py` si cambia el mapa |
-| Registro de sesión | `log_schema` 3 desde V67: `lat_accel` lateral real y `long_accel`; los logs anteriores tienen `lat_accel` = longitudinal | Leer cualquier log con `session_log.tick_accels` |
-| Modelo del volante | `experimental/common/modelo_volante.py` acierta a más de 108 km/h y no ve las entradas en curva cerrada | Reajustarlo con cada log nuevo |
-| Bordes de la pista | Pasillo comprobado por las ruedas (mediana 5,4 m); el usuario declara 10-12,5 m reales (V78, sin verificar; otra fuente da 10 m). Ni el UDP ni la shared memory traen el ancho. Terreno 48 = pintura sobre hormigón (probablemente legal) y fuera de la lista de carrera | D1b en pausa (V78); comprobar qué ids hay al cruzar la línea blanca y decidir el 48 |
-| Grabador manual de D1b (V77) | `circuito_virtual/src/sesion_manual.py`: escucha el UDP, no envía mandos y graba una conducción del usuario en `PCARS2-AI/logs/manual/`; 7 tests, sin ejecutar contra el juego | Sesiones del usuario (en pausa) y un extractor de bordes con ventana |
-| Ajuste del límite lateral por curva (`--lat-adapt`, V87) | **Validado en mojado (una réplica por lado) y en seco:** a 140 km/h con tope 12 y 10 vueltas converge en la vuelta 8 a 112,1 s (control 115,0 s); referencia `224841Z`. Se juzga por tiempo, ruedas fuera, deriva y estabilización de los multiplicadores | Prueba con tope 13, regla de subida de C3 y C11, pareja en mojado |
-| Mapa guardado del ajuste (V88) | `--lat-adapt-save` / `--lat-adapt-load` / `--lat-adapt-fixed` con la temperatura de pista y de gomas; **validado con el juego (V89):** con la pista a 21 °C se aplica con «desajuste 0,09» y recorte del 9 %, y con 21 °C y el mapa fijo con desajuste 0,0; mapas en `pistas/sugo_gp/mapas_lat_adapt/` (16 y 21 °C) | El guardado con la cola limpia no se ha probado en el juego; afinar los umbrales con otro día |
-| Gas de salida (`--exit-circle 16`, V89) | **Candidato a receta:** −0,2 s por vuelta, estable en 8 vueltas, sin pico de C3 y traseras igual (39-42 °C); \|CTE\| de 1,9 m en las salidas de C2, C3 y C7 | Prueba B (tope 13) y el volante; `--exit-circle 18` de baja prioridad |
-| Second Monitor (V89) | `experimental/common/second_monitor.py` lee sus `.zLap` y empareja la sesión por los tiempos de vuelta; trae las temperaturas izq. / centro / dcha. de las gomas que el UDP no da | Cruzarlo con el log por vuelta y distancia; el delantero interior va 2-3 °C más caliente |
+| A2.0 con la línea óptima `a1mu9c12` | **Receta de la noche del 2026-11-06 (V90): 1:51.2-1:51.3 de media, récord 1:51.164** (banda 140, límite lateral 9,5 con mapa de tope 13, exit 18, frenada 11). Superó la de 125 km/h (1:58.6, V85-V86) | Volante, banda de velocidad, recalcular la línea con el agarre aprendido |
+| Techo en 3.ª (G2) | **Limpio hasta 140 km/h** (volante ±0,01, \|CTE\| ≤ 0,16 m por encima de 128 km/h). El motor llega a 149,9 km/h | Banda 145-150 (solver con μ 9: ≈ 1,9 s menos) |
+| Frenadas fuertes | Limitador por deslizamiento cerrado (objetivo 0,25, memoria 0,85, V44-V55); **11 m/s² en la receta (V90)**, sin bloqueo (ABS 0, razón ≥ 0,94) | Prueba de estrés (frenadas a ×1,15), mojado, tabla de frenada del solver (V55) |
+| Técnica de pedales (`--pedal-technique`, `--brake-profile`, `--exit-circle`, `--profile-peak-min-m`; V65-V90) | Terminada y en la receta: frenada con perfil, gas de salida con tope por el círculo (**exit 18**), recorte de picos 60 m / 8 km/h | Inversiones del gas en curva (23-28 por vuelta), rebotes del gas en 1285, 2393 y 2655 m, F10-F13 de `TECNICA_CONDUCCION.md` |
+| Curvas numeradas (V70) | `pistas/sugo_gp/curvas.json` (C1-C14, tabla en `TECNICA_CONDUCCION.md` §9); el informe HTML, `resumen_sesion.py`, `pedales_sesion.py` y los tres ajustes las usan. C12-C14 son un solo viraje largo (V78) | Regenerar con `python circuito_virtual/src/curvas.py` si cambia el mapa |
+| Registro de sesión | `log_schema` 4 (V87): `lat_accel` lateral real, `long_accel`, capa / carcasa / aire de la goma, compuesto; `tyre_left_c` / `center` / `right` salen siempre 0 | Leer esas tres con Second Monitor o arreglar nuestra lectura (ver «Al retomar» 7a) |
+| Modelo del volante | `experimental/common/modelo_volante.py` acierta a más de 108 km/h y no ve las entradas en curva cerrada | Reajustarlo con cada log nuevo; base del estudio del volante |
+| Bordes de la pista | Pasillo comprobado por las ruedas (mediana 5,4 m); el usuario declara 10-12,5 m reales (V78, sin verificar). Terreno 48 = pintura sobre hormigón (probablemente legal) | D1b en pausa (V78) |
+| Grabador manual de D1b (V77) | `circuito_virtual/src/sesion_manual.py`; 7 tests, sin ejecutar contra el juego | Sesiones del usuario (en pausa) y un extractor de bordes con ventana |
+| Ajuste del límite lateral (`--lat-adapt`, V87-V88, V90) | **Validado en seco y en mojado.** Tope 12 (V87) y **tope 13 (V90): converge en la vuelta 3 con el mapa cargado, 1:51.5, lateral hasta 16,5 m/s²**; guardar y cargar el mapa con las condiciones (V88) funciona | Regla de subida de C3 y C11 (exige \|CTE\| ≤ 1,2 m), tope por encima de 13 (el usuario lo deja por ahora), pareja en mojado |
+| Gas de salida (`--exit-circle 18`, `--exit-adapt`, V89-V91) | Exit 18 en la receta (−0,15 s sobre 16, −0,35 s sobre 14,6). `--exit-adapt` validado en seco: funciona y guarda el mapa, **sin ganancia medible** | Segunda versión o solo mojado |
+| Frenos (`--brake-decel-straight 11`, `--brake-adapt`, V90-V91) | 11 m/s² en la receta (−0,19 s). `--brake-adapt` validado en seco: sube C5, C8 y C10, no baja ninguna, 1:51.262 | Prueba de estrés (frenadas a ×1,15, sustituto de la lluvia), zonas saturadas, mojado |
+| Second Monitor (V89) | `experimental/common/second_monitor.py` lee sus `.zLap` y empareja la sesión con nuestro log; trae las temperaturas izquierda / centro / derecha de las gomas | Cruzarlo por vuelta y distancia; delantero interior 2-4 °C más caliente |
+| **Volante** | Sin ajuste; \|CTE\| máx. 1,86-2,02 m en las salidas de C7, C2, C3 y C1 (el coche sale ancho) | Es lo siguiente: estudio sin juego y una variable |
 
 ## Comandos vigentes
 
 Los lanza el usuario (en seco, delante del juego, Ctrl+C si el coche oscila o se sale). Siempre con
 la ruta absoluta del Python del proyecto.
 
-**A2.0, RECETA VIGENTE (confirmada con 6 vueltas, V85-V86): línea óptima `a1mu9c12` a 125 km/h con todo lo de la técnica, `--lat-accel-limit 9.5`, `--lat-gain-v0-kmh 70`, `--profile-peak-min-m 60` y `--profile-peak-min-kmh 8`; las parejas de vueltas cumplen V19, ≈ 118,6 s.** Cada opción está explicada en la tabla de «Receta del teacher». Las sesiones se hacen cambiando **una** opción de este comando y un nombre de experimento nuevo (acabado en `_l4`, `_l4b`…; la sesión de referencia usó `…_v70_…_l4b`). El 8 y el recorte dependen de la línea y del límite 9,5:
+**RECETA DE LA NOCHE, SESIÓN DE REFERENCIA (V90-V91): línea óptima `a1mu9c12`, banda 140, límite lateral 9,5 con el mapa de tope 13 (congelado), exit 18 con su mapa (congelado), frenada 11 con su mapa (congelado), técnica de pedales, `--lat-gain-v0-kmh 70` y recorte de picos 60 m / 8 km/h; 8 vueltas, ≈ 1:51.2-1:51.3.** Cada opción está explicada en la tabla de «Receta del teacher». Las sesiones se hacen cambiando **una** opción de este comando y un nombre de experimento nuevo (prefijo `a2_`, acabado en `_l8`…). Si las condiciones cambian, los mapas se recortan solos (V88); para aprender un mapa nuevo se quita el `-fixed` correspondiente y se añade `--…-save <ruta nueva>`:
 
 ```text
-C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --teacher-only --speed-band 125 --max-gear 3 --lat-accel-limit 9.5 --steer-ff-gain 0.003 --steer-ff-v0-kmh 0 --steer-ff-cap-kmh 100 --steer-preview-s 0.3 --steer-slip-gain 5 --lat-gain-v0-kmh 70 --throttle-max 1.0 --brake-decel-straight 10 --brake-overspeed-straight-ms 2.5 --brake-slip-limit 0.25 --brake-slip-hold 0.85 --pedal-technique --brake-profile --brake-circle 10 --exit-circle 14.6 --profile-peak-min-m 60 --profile-peak-min-kmh 8 --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_optima_a1mu9c12.json --experiment a2_optA1mu9c12_125_g3_lat95_slip5_v70_ff0_cap100_pv03_gas1_fr10_perfil_c10_slip_exit146_pico60_prom8_l4c --laps 4
+C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --teacher-only --speed-band 140 --max-gear 3 --lat-accel-limit 9.5 --steer-ff-gain 0.003 --steer-ff-v0-kmh 0 --steer-ff-cap-kmh 100 --steer-preview-s 0.3 --steer-slip-gain 5 --lat-gain-v0-kmh 70 --throttle-max 1.0 --brake-decel-straight 11 --brake-overspeed-straight-ms 2.5 --brake-slip-limit 0.25 --brake-slip-hold 0.85 --pedal-technique --brake-profile --brake-circle 10 --exit-circle 18 --profile-peak-min-m 60 --profile-peak-min-kmh 8 --exit-adapt --exit-adapt-fixed --exit-adapt-load C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\mapas_exit_adapt\seco_b140_exit18_t21.json --brake-adapt --brake-adapt-fixed --brake-adapt-load C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\mapas_freno_adapt\seco_b140_dec11_t21.json --lat-adapt --lat-adapt-fixed --lat-adapt-cap 13 --lat-adapt-max-scale 1.4 --lat-adapt-load C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\mapas_lat_adapt\seco_b140_lim95_cap13_t21.json --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_optima_a1mu9c12.json --experiment a2_optA1mu9c12_140_g3_lat95_slip5_v70_ff0_cap100_pv03_gas1_fr11_perfil_c10_slip_exit18_cap13_fijo_t21_ref_l8 --laps 8
 ```
 
-**Línea suavizada, receta de V83 (superada en V85, sirve de comparación):** la misma con `--lat-gain-v0-kmh 60` y `--reference …\sugo_smooth.json`; comando completo en el historial de git de este archivo (commit `f1c276a`).
+**Banda 150 km/h** (solo cambia `--speed-band`; con el usuario atento y Ctrl+C a mano; primero 145 con el mismo comando):
 
-Las recetas históricas de A2.0 (base sin técnica `124357Z`, técnica de pedales `140704Z`, línea óptima `a1mu9b` con tope 100) están descritas en `DECISIONES.md` (V31-V32, V58, V65); sus comandos completos siguen en el historial de git de este archivo, antes de V79.
+```text
+C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --teacher-only --speed-band 150 --max-gear 3 --lat-accel-limit 9.5 --steer-ff-gain 0.003 --steer-ff-v0-kmh 0 --steer-ff-cap-kmh 100 --steer-preview-s 0.3 --steer-slip-gain 5 --lat-gain-v0-kmh 70 --throttle-max 1.0 --brake-decel-straight 11 --brake-overspeed-straight-ms 2.5 --brake-slip-limit 0.25 --brake-slip-hold 0.85 --pedal-technique --brake-profile --brake-circle 10 --exit-circle 18 --profile-peak-min-m 60 --profile-peak-min-kmh 8 --exit-adapt --exit-adapt-fixed --exit-adapt-load C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\mapas_exit_adapt\seco_b140_exit18_t21.json --brake-adapt --brake-adapt-fixed --brake-adapt-load C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\mapas_freno_adapt\seco_b140_dec11_t21.json --lat-adapt --lat-adapt-fixed --lat-adapt-cap 13 --lat-adapt-max-scale 1.4 --lat-adapt-load C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\mapas_lat_adapt\seco_b140_lim95_cap13_t21.json --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_optima_a1mu9c12.json --experiment a2_optA1mu9c12_150_g3_lat95_slip5_v70_ff0_cap100_pv03_gas1_fr11_perfil_c10_slip_exit18_cap13_fijo_t21_banda150_l6 --laps 6
+```
+
+**Prueba de estrés de la frenada** (mapa de estrés ×1,15 cargado con `--brake-adapt` aprendiendo; sustituto de la lluvia; Ctrl+C a mano):
+
+```text
+C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\experimental\common\aislado.py --teacher-only --speed-band 140 --max-gear 3 --lat-accel-limit 9.5 --steer-ff-gain 0.003 --steer-ff-v0-kmh 0 --steer-ff-cap-kmh 100 --steer-preview-s 0.3 --steer-slip-gain 5 --lat-gain-v0-kmh 70 --throttle-max 1.0 --brake-decel-straight 11 --brake-overspeed-straight-ms 2.5 --brake-slip-limit 0.25 --brake-slip-hold 0.85 --pedal-technique --brake-profile --brake-circle 10 --exit-circle 18 --profile-peak-min-m 60 --profile-peak-min-kmh 8 --exit-adapt --exit-adapt-fixed --exit-adapt-load C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\mapas_exit_adapt\seco_b140_exit18_t21.json --brake-adapt --brake-adapt-load C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\mapas_freno_adapt\estres_x115_t21.json --brake-adapt-save C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\mapas_freno_adapt\estres_aprendido_t21.json --lat-adapt --lat-adapt-fixed --lat-adapt-cap 13 --lat-adapt-max-scale 1.4 --lat-adapt-load C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\mapas_lat_adapt\seco_b140_lim95_cap13_t21.json --reference C:\Users\doski\projectIA\circuito_virtual\pistas\sugo_gp\sugo_optima_a1mu9c12.json --experiment a2_optA1mu9c12_140_g3_lat95_slip5_v70_ff0_cap100_pv03_gas1_fr11_perfil_c10_slip_exit18_cap13_fijo_t21_estres_brakeadapt_l8 --laps 8
+```
+
+**Recetas anteriores:** la de 125 km/h con la línea suavizada y la óptima (V83-V86) y las históricas de A2.0 (V31-V32, V58, V65) están en el historial de git de este archivo (antes del commit de V90) y descritas en `DECISIONES.md`.
 
 **A1, aceleración hasta el techo.** Por encima de 135 km/h hace falta `--lat-gain-v0-kmh 70`; sin
 él el volante oscila (V42). Con el pedal 1,0 de la frenada final se bloquean las delanteras, por eso el
@@ -209,16 +173,11 @@ C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\circu
 `a1mu9` y `a1mu9b` se hicieron con tope 125 km/h y la tabla de aceleración anterior a V56: regenerarlas hoy da líneas algo
 distintas (las ya hechas no cambian). `a1mu9c12` es la línea con la cota local de curvatura (V62).
 
-**Analizar una sesión** (el usuario pasa el informe HTML; el log está en `PCARS2-AI\logs\learning\`).
-Con salida por tubería, anteponer `PYTHONIOENCODING=utf-8`; el procedimiento paso a paso para la próxima sesión está arriba:
+**Analizar una sesión:** el procedimiento paso a paso está arriba en «Cómo analizar una sesión». Otras herramientas:
 
-- A2.0: `experimental\common\resumen_sesion.py <log> --previsto <s>` (criterio de volante, tramos fuera
-  de criterio, frenos, cambios de marcha, ruedas fuera). Sin previsión del solver, no inventar una: comparar con la sesión de referencia.
 - **Curvas numeradas (V70):** el informe HTML, `resumen_sesion.py` y `pedales_sesion.py` usan `circuito_virtual/pistas/<pista>/curvas.json` (C1-C14 en Sugo, tabla en `TECNICA_CONDUCCION.md` §9). Para que el usuario diga «la curva N», darle el número de ese catálogo; regenerar el informe de un log antiguo: `python experimental/common/informe_c0.py <log>`.
-- Pedales y frenada (V65-V67): `experimental\common\pedales_sesion.py <log> --vueltas 2,3,4 [--eventos] [--consigna <linea.json>]` (inversiones y rebotes del gas, tiempo muerto antes de
-  frenar, deceleración, % de la frenada con > 4 m/s² laterales, uso del círculo; con `--consigna`, el mayor salto de la consigna del teacher sin juego). Cifras de partida en `TECNICA_CONDUCCION.md` §7.1.
-- **Aceleraciones de un log**: usar `session_log.tick_accels(tick["vehicle"])` (lateral, longitudinal positiva al acelerar) o `local_accel[0]` / `local_accel[2]`; **nunca `vehicle.lat_accel`
-  en logs anteriores a V67** (era la longitudinal).
+- Pedales y frenada (V65-V67): `experimental\common\pedales_sesion.py <log> --vueltas 2,3,4 [--eventos] [--consigna <linea.json>]` (inversiones y rebotes del gas, tiempo muerto antes de frenar, deceleración, % de la frenada con > 4 m/s² laterales, uso del círculo). Cifras de partida en `TECNICA_CONDUCCION.md` §7.1.
+- **Aceleraciones de un log:** usar `session_log.tick_accels(tick["vehicle"])` (lateral, longitudinal positiva al acelerar) o `local_accel[0]` / `local_accel[2]`; **nunca `vehicle.lat_accel` en logs anteriores a V67** (era la longitudinal).
 - A1: `experimental\common\analisis_a1.py <log>`.
 - Modelo del volante: `experimental\common\modelo_volante.py --ajuste "LOG|REF" --prueba "LOG|REF"`.
 
@@ -227,14 +186,14 @@ Con salida por tubería, anteponer `PYTHONIOENCODING=utf-8`; el procedimiento pa
 | Opción | Valor | Qué hace | Decisión |
 | --- | --- | --- | --- |
 | `--teacher-only --max-gear 3` | 3 (2 hasta 115 km/h) | El teacher conduce y el cambio sube hasta 3.ª (techo permitido 150 km/h) | X24, V28-V30 |
-| `--lat-accel-limit` | **9,5 en la receta vigente** (9 en V73; 10 gana 1,9 s pero no cumple V19, V74-V75) | Límite lateral que el teacher supone en curva (máx. 14,6 por D21); el coche pide ≈ 1,45 veces ese valor | V27, V74-V76 |
+| `--lat-accel-limit` | **9,5** (base de `--lat-adapt`, que lo sube por curva hasta `--lat-adapt-cap` 13: ×1,37) | Límite lateral base que el teacher supone en curva (máx. 14,6 por D21 con el ajuste apagado); el coche pide ≈ 1,45 veces ese valor; con `--lat-adapt` cada curva lleva su multiplicador | V27, V74-V76, V87, V90 |
 | `--steer-ff-gain` + `--steer-ff-v0-kmh` | 0.003 y 0 | Anticipación de volante 1 + 0,003 · v². A más de 100 km/h se pasa de lo que pide el coche; bajar a 0.002 arregla las curvas rápidas y estropea las lentas | V21, V38-V41 |
 | `--steer-ff-cap-kmh` | 0 (sin tope); **100 en la receta vigente** (V72: C14 de 2,0 a 0,95 m y C13 de 1,65 a 1,2 m) | Con `--steer-ff-gain`: por encima de esta velocidad el factor 1 + G · v² deja de crecer; sin cambio por debajo | V41, V57 |
 | `--steer-preview-s` | 0.3 | La curvatura del volante se lee a v · 0,3 s y no a 30 m fijos | V22 |
 | `--steer-slip-gain` | 5 | Contravolante por deriva (zona muerta 3°, la ganancia de CTE baja a 0 a 8°) | V17 |
 | `--lat-gain-v0-kmh` | 60 con la línea suavizada; 70 con la óptima y en A1 | Ganancia de CTE × (v0/v)² por encima de v0: estabilidad del lazo a alta velocidad; sin ella oscila a más de 135 km/h. No subir a 80 | V18, V35, V42 |
 | `--throttle-max` | 1.0 | Gas a fondo (producción 0,85: acelera un 15-20 % menos) | V24, V25 |
-| `--brake-decel-straight` + `--brake-overspeed-straight-ms` | 8 y 2.5 (**10 y 2.5 con el limitador en la receta vigente**) | En recta (\|κ\| < 0,004 y \|CTE\| < 1 m) frena a ≈ 8-11 m/s²; con `--brake-profile` es la `a_b` del perfil | V31, V32, V71 |
+| `--brake-decel-straight` + `--brake-overspeed-straight-ms` | 8 y 2.5 (**11 y 2.5 con el limitador en la receta, V90; 10 hasta la noche del 2026-11-06**) | En recta (\|κ\| < 0,004 y \|CTE\| < 1 m) frena a ≈ 8-11 m/s²; con `--brake-profile` es la `a_b` del perfil (con `--brake-adapt`, ×1 por frenada) | V31, V32, V71, V90 |
 | `--reference` | `sugo_smooth.json` o `sugo_optima_a1mu9c12.json` | Línea que sigue el teacher | V14, V32, V36 |
 | `--brake-slip-limit` | 0 (apagado); 0.25 en la receta vigente | Si 1 − rps delanteras / rps traseras pasa de este valor, el pedal baja y vuelve a subir al recuperar agarre; actúa sobre el pedal de cualquier origen, también `--ident frenar` | V43, V44 |
 | `--brake-slip-hold` | 0 (sin memoria); 0.85 | Con `--brake-slip-limit`: tras pasar del objetivo el pedal sube deprisa solo hasta esta fracción del pedal que lo provocó y despacio desde ahí, en lugar de volver a 1,0 y oscilar | V49, V50 |
@@ -243,8 +202,11 @@ Con salida por tubería, anteponer `PYTHONIOENCODING=utf-8`; el procedimiento pa
 | `--brake-profile` | apagado; en la receta vigente | Con `--pedal-technique` (V68): consigna de velocidad continua por barrido hacia atrás con el círculo de adherencia (sin el salto 8 → 4 m/s² al entrar en la curva) y freno por avance sin margen ni tiempo muerto | V68-V71 |
 | `--profile-peak-min-kmh` | 0 (sin umbral); **8 en la receta vigente (V83)** | Con `--profile-peak-min-m`: un pico solo se aplana si el recorte lo baja al menos estos km/h (sobre el perfil lateral, antes del barrido hacia atrás). 8 deja intactos el pico de 1,4 km/h junto a C4 y el de su salida y mantiene los de C5-C6; depende de la línea y del límite lateral (medido con `sugo_smooth.json` y 9,5) | V82 |
 | `--brake-circle` | 14.6; **10 en la receta vigente** | Con `--brake-profile`: radio del círculo en unidades de la línea. 14,6 = trail braking completo; ≈ 10 = casi terminar de frenar antes de girar (el coche hace ≈ 1,45 veces el lateral que cree la línea) | V69-V70 |
-| `--exit-circle` | 0 (apagado); **14.6 en la receta vigente** | Con `--pedal-technique` (V72, F3): en la salida el gas no pasa de `gas_max · √(1 − (lateral medido / R)²)` (0,60 a 11,7 m/s²); cuesta ≈ 0,23 s por vuelta y baja el \|CTE\| en casi todas las curvas | V72-V73 |
+| `--exit-circle` | 0 (apagado); **18 en la receta (V89-V90)**; 16 y 14.6 antes | Con `--pedal-technique` (V72, F3): en la salida el gas no pasa de `gas_max · √(1 − (lateral medido / R)²)` (0,76 a 11,7 m/s² con R = 18); 14,6 → 16 → 18 dio −0,2 y −0,15 s: rendimientos decrecientes; con `--exit-adapt`, ×1 por curva | V72-V73, V89, V90 |
 | `--profile-peak-min-m` | 0 (apagado); **60 con `--profile-peak-min-kmh 8` en la receta vigente (V83-V85)** | Con `--brake-profile`: aplana al valle más alto de alrededor los picos de la consigna más estrechos que estos metros; el coche no acelera en un tramo corto entre dos curvas para frenar enseguida (C5-C6, C9). Con el coche de juguete: 30 m −0,03 s, 60 m +0,08 s, 100 m +0,5-0,8 s, 150 m +3-3,8 s; en el juego (V80-V81) quita la frenada de C5-C6 y baja ≈ 0,15 s, pero cambia 32 tramos del perfil, entre ellos un pico de 1,4 km/h junto a C4 que sube su deriva | V79-V81 |
+| `--lat-adapt` y sus opciones | apagado; en la receta con `--lat-adapt-cap 13 --lat-adapt-max-scale 1.4 --lat-adapt-load <mapa> --lat-adapt-fixed` | Límite lateral por curva (multiplicador 0,7-`max-scale`, sube un 4 % si la curva es limpia, baja un 8 % y se congela 2 vueltas si sale fuera de criterio); `-save` / `-load` / `-fixed` guardan, cargan y congelan el mapa con las condiciones | V87, V88, V90 |
+| `--exit-adapt` y sus opciones | apagado; en la receta solo con `--exit-adapt-fixed --exit-adapt-load <mapa>` | Radio de `--exit-circle` por curva (0,7-1,3, `--exit-adapt-max-scale`): sube un 4 % si la salida es limpia y el tope recortaba el gas, baja un 8 % si las traseras patinan, hay deriva > 5° o \|CTE\| > 2 m. Necesita `--exit-circle` y `--pedal-technique` | V91 |
+| `--brake-adapt` y sus opciones | apagado; en la receta solo con `--brake-adapt-fixed --brake-adapt-load <mapa>` | Deceleración de frenada por curva (0,6-1,15, `--brake-adapt-max-scale`): baja un 8 % si el freno se suelta a más de 1 m/s sobre el perfil, sube un 4 % si se suelta por debajo de −0,3 m/s sin forzar. Necesita `--brake-decel-straight`, `--brake-profile` y `--pedal-technique` | V91 |
 
 `aislado.py` pasa siempre `--hold-stage` a `learn_driver.py` con `--teacher-only` (V64): sin él dos vueltas limpias cerraban la sesión aunque `--laps` fuese mayor.
 
@@ -274,17 +236,9 @@ superficie de carrera (hoy el terreno 48, pintura sobre hormigón, cuenta como f
 
 ### Qué está probado y qué no
 
-- **Probado:** teacher en 2.ª hasta 110 km/h y con 3.ª hasta 125 km/h, parejas de vueltas limpias por banda (el solver
-  tiene las tablas de aceleración hasta 140 km/h desde V56, pero no hay vuelta completa a más de 125);
-  aceleración en 3.ª hasta 140 km/h con el volante tranquilo (y el motor hasta 149,9 km/h); frenada
-  fuerte en recta hasta 123 km/h con pedal ≤ 0,84 y sin bloqueo (11,6 m/s²); el solver acierta el
-  tiempo de vuelta con el coche de A1 en cada banda (−0,2 % a +1,0 %); la técnica de pedales completa con el límite 9 y 9,5 (V73, V76).
-- **Con aviso:** las frenadas a fondo de A1 desde 100, 110, 135, 140 y 150 km/h (pedal 1,0, 11,5-11,9
-  m/s²) bloquean las delanteras a los ≈ 0,3 s y hasta casi parar; el «sin bloqueo» anterior solo
-  miraba las traseras (V42-V43).
-- **Sin validar:** el recorte con umbral de prominencia sobre la línea óptima (V83, solo comprobado sin juego) o con otro límite lateral; el grabador manual contra el juego (V77); frenadas sin bloqueo desde más de 123 km/h; aceleración por encima de 140 km/h con
-  el volante tranquilo; 4.ª marcha; límite lateral por encima de 14,6 m/s² sostenidos (A1.3b);
-  cualquier otra pista o coche; los bordes reales (D1b: semivía de 0,85 m y margen supuestos).
+- **Probado:** teacher en 2.ª hasta 110 km/h y en 3.ª hasta 140 km/h con vuelta completa y los tres ajustes por curva (1:51.164); aceleración en 3.ª hasta 140 km/h con el volante tranquilo (y el motor hasta 149,9 km/h); frenada fuerte con el limitador de deslizamiento sin bloqueo a 11 m/s²; la técnica de pedales completa; el ajuste del agarre en seco y en mojado; `--exit-adapt` y `--brake-adapt` en seco; guardar y cargar los mapas; lateral sostenido de 16,5 m/s² con tope 13.
+- **Con aviso:** las frenadas a fondo de A1 desde 100, 110, 135, 140 y 150 km/h (pedal 1,0, 11,5-11,9 m/s²) bloquean las delanteras a los ≈ 0,3 s y hasta casi parar; el «sin bloqueo» anterior solo miraba las traseras (V42-V43). Con el limitador es otra historia (V44-V55).
+- **Sin validar:** la vuelta completa a más de 140 km/h y la aceleración por encima de 140 con el volante tranquilo; `--exit-adapt` y `--brake-adapt` en mojado, con gomas nuevas o con otro reglaje; la prueba de estrés de la frenada; un tope del agarre por encima de 13; el grabador manual contra el juego (V77); 4.ª marcha; cualquier otra pista o coche; los bordes reales (D1b: semivía de 0,85 m y margen supuestos).
 
 ## Reglas de la sesión (no olvidar)
 
@@ -293,10 +247,8 @@ superficie de carrera (hoy el terreno 48, pintura sobre hormigón, cuenta como f
   experimento (incidente c0_log, memoria `feedback-no-ejecutar-aislado-para-probar`). Para
   comprobar una línea de comandos: `build_argv` y `a2_error` de `aislado.py` desde Python. Lo mismo con `sesion_manual.py` (abre el puerto UDP y escribe un log): solo `--help` y tests.
 - **Seco y mojado van separados** (sección «Seco y mojado»): las sesiones con lluvia llevan `a2_mojado_` en el experimento y no se comparan con la base ni con V19.
-- **Una sola variable por sesión** y primero el volante, después la velocidad (V19).
-- **Las sesiones anteriores son referencia, no vara de medir** (memoria
-  `feedback-versiones-anteriores-solo-referencia`): cada sesión se juzga contra el criterio y su
-  propio log; los modelos se reajustan con cada log nuevo.
+- **Una sola variable por sesión.** El criterio es el tiempo y las temperaturas (V89), no V19; el orden de los ajustes es agarre → gas de salida → frenos → volante, y cada uno gana por separado antes de juntarlos.
+- **Las sesiones anteriores son referencia, no vara de medir** (memoria `feedback-versiones-anteriores-solo-referencia`): cada sesión se juzga contra el criterio y su propio log; los modelos se reajustan con cada log nuevo. Con los ajustes por curva, la referencia es la sesión de referencia del día con los mapas congelados.
 - Antes de cada sesión arriesgada (techo alto, frenadas desde más de 115 km/h, arcos, mapeo de
   bordes) confirmar que el usuario está delante del juego y en seco, y que corta con Ctrl+C si el
   coche oscila.
@@ -315,14 +267,16 @@ superficie de carrera (hoy el terreno 48, pintura sobre hormigón, cuenta como f
 - **Primera sesión tras un cambio de pedales:** el usuario atento y con Ctrl+C a mano; la primera vuelta es la que revela si el coche llega a una curva sin levantar.
 - **Ruedas fuera:** separar siempre el terreno 48 (pintura sobre hormigón, probablemente legal) de la hierba (7) antes de dar una cifra (V78).
 - **Datos de fuera del proyecto** (ancho de pista, mapas de la web): comprobación de cordura, no entrada; la página consultada es de otra variante (con chicane), no la `SUGO_GP` del juego.
+- **Documentar solo cuando el usuario lo diga** («apunta»); al apuntar, V nueva en `DECISIONES.md`, entrada en `DIARIO.md` y este archivo al día, y commit. Tiempos de vuelta en minutos y segundos (1:51.164).
+- **Una sesión con `--…-adapt` guarda su mapa solo si las dos últimas vueltas quedan limpias**; si no se guarda, se reconstruye del log (como el de tope 13) y se etiqueta.
 - Camino sólido a largo plazo, sin prisa. Si hay que elegir, recomendar y no listar todo.
 
 ## Siguiente (en este orden)
 
-La historia de cada sesión de hoy está en `DECISIONES.md` V69-V88; aquí solo lo que toca.
+La historia de cada sesión de la noche está en `DECISIONES.md` V69-V91; aquí solo lo que toca.
 
-0. **Al empezar:** `git status` (debería estar limpio; puede quedar suelto el `Sportsland Sugo International track map.svg` de la raíz, que no es del proyecto); leer «Al retomar» (arriba) y `docs/TECNICA_CONDUCCION.md` §8-§9. Cuando el usuario diga «la curva N», es el catálogo C1-C14.
-1. ~~Prueba de banda 135 km/h~~ **hecha (V87), y la 140 también.** Lo que toca ahora está en «Al retomar».
+0. **Al empezar:** `git status` (debería estar limpio; pueden quedar sueltos el `1.tzip` y el `Sportsland Sugo International track map.svg` de la raíz, que no son del proyecto); leer «Al retomar» (arriba) y `docs/TECNICA_CONDUCCION.md` §8-§9. Cuando el usuario diga «la curva N», es el catálogo C1-C14.
+1. ~~Pruebas de banda 135 y 140, tope 13 del agarre, gas de salida 18 y frenada 11~~ **hechas (V87, V90).** Lo que toca ahora está en «Al retomar».
 2. **D1b por conducción manual — EN PAUSA a petición del usuario (V78: «deja las pruebas pendientes»).** El ancho real declarado (10-12,5 m) duplica los 5,4 m comprobados, así que la línea óptima está limitada por lo recorrido y no por la pista. El usuario conduce (teclado) con las dos ruedas de un lado sobre la hierba y el limitador a 60 km/h, una sesión por lado y 3 vueltas; nada del teacher en marcha a la vez (comparten el puerto UDP). Después: `bordes_logs.py actualizar`, mirar la cobertura y, si hay metros con una sola cota, hacer el extractor con ventana (V77, punto 2); calibrar la semivía con los dos lados; mirar qué ids de terreno hay al cruzar la línea blanca (46, 47, 49) y decidir el 48. Éxito (`PLAN.md`): los dos bordes medidos en ≥ 90 % de la vuelta con incertidumbre ≤ 0,3 m. Diseño original con el teacher (6-10 rondas por lado) en `PLAN.md`, solo si esto no alcanza.
 
 ```text
@@ -331,10 +285,10 @@ C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\circu
 C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\circuito_virtual\src\bordes_logs.py actualizar
 ```
 
-3. **Prueba de banda** (el punto 1 es su primer paso, 135 km/h; esto es la escalera completa; a petición del usuario, solo exploratoria, no es una sesión de receta ni se juzga con V19): subir `--speed-band` para ver hasta dónde llega. El techo con 3.ª es 150 km/h (`ident_max_cap_kmh(3)`); el solver tiene tablas de aceleración hasta 140 y el techo de 3.ª está limpio hasta 140; por encima de 135 hace falta `--lat-gain-v0-kmh 70` (V42). Propuesta: 135 con la receta tal cual y luego 140 con `--lat-gain-v0-kmh 70`; el salto a 150 solo con el usuario atento (la recta tras C8 toca hierba ya a 124 km/h y la frenada a C9 pasa de 126 a 68 km/h). Antes de cada sesión, calcular lo que prevé el solver para esa banda. La recta final (3113-3567 m) y la de 2555-2655 m van hoy a 126 km/h con el gas a medias: ahí está el tiempo.
+3. **Prueba de banda 145-150 km/h** (va en «Al retomar», punto 3): el techo con 3.ª es 150 km/h (`ident_max_cap_kmh(3)`); el solver (μ 9) tiene tablas de aceleración hasta 140 y el techo de 3.ª está limpio hasta 140; por encima de 135 hace falta `--lat-gain-v0-kmh 70` (V42, ya en la receta). Antes de cada sesión, calcular lo que prevé el solver para esa banda. La recta final (3113-3567 m) y la de 2555-2655 m van hoy a 126-131 km/h con el gas a medias: ahí está el tiempo.
 4. ~~C11~~ **Resuelto con la línea óptima y `--lat-gain-v0-kmh 70` (V85):** 1,57-1,63 m.
 
-5. **Pendientes menores del circuito** (observaciones del usuario curva a curva, V76): C3 se podía trazar mejor (\|CTE\| 1,24 → 1,33 m, sube por vuelta); C4 toca el piano (terreno 48) y el \|CTE\| máx. sube por vuelta (0,4 → 0,95 m); deriva de C5 ≈ 3,9-4,15° en todas las sesiones; hierba en 1444-1465 m tras C8 (el \|CTE\| pasa de +0,87 a −0,86 m en 70 m, la regla `edge_grass` recorta el gas, la velocidad no baja); ajuste de pedales en C9-C11.
+5. **Pendientes menores del circuito** (observaciones del usuario curva a curva, V76, y de la noche, V90): el coche sale ancho de C7 (recta de 1160-1193 m), C2, C3 y C1 (volante); C4 toca el piano (terreno 48) y su deriva de salida llega a 5°; deriva de C5 ≈ 4,3-5,7° con |CTE| ≈ 0; deriva de C9 ≈ 4,4°; hierba en 1400-1450 m tras C8 (desapareció con la frenada a 11); ajuste de pedales en C9-C11.
 6. **Más técnica** (`TECNICA_CONDUCCION.md` §5): F10 gas con espera en la salida de curvas cerradas, F11 clasificar las curvas (C12-C14 son un solo viraje largo), F12 eses, F13 horizonte de mirada (el recorte de picos de V79 es un primer paso), F5 puntos de frenada adaptativos, F6 cambios de marcha respecto a la frenada, F7 neumáticos (se enfrían de 80 a 46 °C en 4 vueltas).
 7. **Decidir la tabla de frenada del solver** (V55, punto 4; enlaza con F4, perfil del solver como archivo): la de `parametros_a1.json` (45-105 km/h, 11,87-13,05 m/s²) y las medias por ventanas de V55 (10,3-12,0 m/s²) no coinciden. Las tablas de A1 ya descuentan la pendiente. Datos de partida (radio efectivo 0,274 m): sin bloqueo el deslizamiento delantero va al 10-15 % con pedal 0,6-0,95; con bloqueo (80-110 %) la deceleración baja a 11,9 m/s² frente a 12,5-12,7 con el 20-50 %.
 
@@ -353,7 +307,7 @@ C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\circu
 3. **Completar el reglaje del diferencial:** del trasero solo se ve «DDL por embragues: Sí» y rampa
    en deceleración de 30°; faltan precarga, embragues, potencia de rampa y todo el delantero
    (pedir captura). El freno de motor está en 8. No tocar el reglaje: A1 y A2 están medidos así.
-4. **Datos de agarre sin leer — ahora con el mapa del paquete (2026-11-05):** `SMS_UDP_Definitions.hpp` (copia en `saildeep/pcars2-udp` de GitHub) da el paquete de física de 556 bytes con estos offsets, que `telemetry_udp.py` aún no lee: `sTyreLayerTemp` 224, `sTyreCarcassTemp` 232, `sTyreRimTemp` 240, `sTyreInternalAirTemp` 248, **`sTyreTempLeft` 256, `sTyreTempCenter` 264, `sTyreTempRight` 272** (temperatura de la goma por un lado, el centro y el otro; `uint16`, ya leemos `sTyreTreadTemp` en 216 y llega en kelvin: 349 = 76 °C), `sWheelLocalPositionY` 280, `sSuspensionRideHeight` 344, `sWings` 368, `sHandBrake` 370, **`sTyreCompound` 378 (4 × 40 caracteres: el nombre del compuesto de cada rueda, que dice si lleva lisos o lluvia)** y `sTurboBoostPressure` 538. El mapa de los 72 bytes saltados (224-295) cuadra: 7 arrays de 8 bytes + `sWheelLocalPositionY` de 16. Un foro dice que izquierda / centro / derecha **no** están en la shared memory, solo en el UDP, así que se queda el UDP. El juego no da el «nivel de agarre» directamente: se estima. Pendiente: leerlos con comprobación de plausibilidad (rango de kelvin), guardarlos compactos en el log (enteros en °C; el compuesto una vez por sesión, no por tick: una sesión mojada de 6 vueltas ya pesa 92 MB) con `log_schema` 4, y mirar con datos reales qué lado es el interior en cada rueda (un foro cuenta que «izquierda / derecha» sale invertida según la rueda). No cambia la conducción, así que no cuenta como variable de una sesión.
+4. **Datos de agarre: temperaturas izquierda / centro / derecha.** `log_schema` 4 ya lee la capa, la carcasa, el aire interior y el compuesto (offsets 224-248 y 378 del paquete de física de 556 bytes, `SMS_UDP_Definitions.hpp`), pero `sTyreTempLeft` 256, `sTyreTempCenter` 264 y `sTyreTempRight` 272 (`ushort` en °C) salen siempre 0 en nuestro UDP. **Second Monitor (V89) las lee bien** (de los mismos campos de la shared memory / UDP de PC2, en °C con resolución de 1 °C), así que el foro que decía que solo estaban en el UDP estaba equivocado o nuestra lectura falla. Pendiente: comparar nuestro paquete con el suyo (otro tipo de paquete u otro offset) y, si no, leerlas de la shared memory `$pcars2$`; guardarlas compactas en el log (enteros en °C). Mientras tanto basta `second_monitor.py`. No cambia la conducción, así que no cuenta como variable de una sesión.
 5. **Peralte de la pista:** el mapa tiene altura (−46 a +25 m) y pendiente, pero no inclinación lateral; se puede sacar de los logs (alabeo menos la parte de la aceleración lateral; a 30-60 km/h en recta el alabeo es casi el de la pista).
 6. **Visión por pantalla para las líneas blancas** (idea del usuario, V78): sería el mejor objetivo de una visión (HUD oculto, cámara de capó, campo de visión fijo, captura sincronizada con la posición y la orientación del UDP); solo si los ids de terreno no ven la línea blanca y D1b no basta; D1b serviría de verdad de referencia.
 7. **A3, segunda pista:** repetir A2 con otra pista y otra IA para saber si el factor de ritmo y
@@ -373,7 +327,7 @@ C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\circu
   que usa todo el ancho pide menos volante (apoya la línea óptima).
 - **Ancho y geometría de la pista (V78):** ni el UDP ni la shared memory de PC2 traen el ancho ni los bordes (solo `mTrackLength`); yourdatadriven.com da 10 m, ≈ 75 m de desnivel (nuestro mapa 70,9 m) y 3704 m, pero es otra variante (con chicane; el juego mide 3567 m) y su mapa viene de OpenStreetMap. Shared memory = los mismos datos en `float`, con número de secuencia; seguir con UDP.
 - **Terrenos (V78):** 46 `RunoffRoad`, 47 `IllegalStrip`, 48 `PaintConcrete`, 49 `PaintConcreteIllegal`; solo el 10 (franjas) está en la lista de carrera.
-- **SecondMonitor** (Winzarten, GitLab): según foros soporta PC2 por shared memory (tiempos, deltas, mapa tras una vuelta, temperaturas, visor de telemetría); sin ancho ni bordes; aporta poco que no registremos ya.
+- **Second Monitor** (Matus Celko, `gitlab.com/winzarten/SecondMonitor`, MIT; el espejo de GitHub está desfasado): graba cada vuelta cerrada en `Documents\SecondMonitor\Telemetry\Recent\<sesión>\` (un `.zLap` por vuelta: gzip + protobuf-net con las clases `ProtoContract` de `Foundation/DataModel`). Aporta lo que nuestro UDP no da: las temperaturas izquierda / centro / derecha de las gomas; slip y carga por rueda salen a 0 (PC2 no los da). Sin ancho ni bordes de la pista. Lector propio en `experimental/common/second_monitor.py`.
 - **Telemetry Tool for PC2 (Iko Rein) v15.09**, revisado en solo lectura: lee el mismo UDP; no trae
   canales de agarre para PC2 (carga por rueda y nivel de agarre son de F1 y rF2); sus indicadores
   útiles (deriva frente a guiñada, razón traseras/delanteras, índice de subviraje) se calculan con
@@ -417,3 +371,8 @@ C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\circu
 - ~~Grabador pasivo para D1b manual~~ **Hecho (V77):** `circuito_virtual/src/sesion_manual.py`.
 - ~~Recorte de picos de la consigna~~ **Implementado (V79) y probado dos veces en el juego (V80-V81):** sin freno en C5-C6, 119,5-119,7 s, pero sin pareja V19 por la deriva de C4; el umbral de prominencia lo arregló (V82-V83) y es parte de la receta vigente.
 - ~~La línea óptima con la receta vigente~~ **Hecho (V84-V85):** `a1mu9c12` con `--lat-gain-v0-kmh 70` da 118,6 s con las tres parejas de vueltas cumpliendo V19; confirmado con 6 vueltas (V86).
+- ~~Ajuste del límite lateral por curva (`--lat-adapt`)~~ **Hecho (V87-V88, V90):** validado en mojado y en seco; tope 12 → 1:52.1 en 10 vueltas, tope 13 → 1:51.5 convergiendo en la vuelta 3 con el mapa cargado; guardar y cargar el mapa con las condiciones de pista y gomas.
+- ~~Gas de salida 16 y 18, y frenada 11~~ **Hecho (V89-V90):** −0,2, −0,15 y −0,19 s; sin hierba tras C8.
+- ~~`--exit-adapt` y `--brake-adapt`~~ **Hechos y validados en seco (V91):** seguros y casi neutros; mapas guardados con cola limpia.
+- ~~Lector de Second Monitor y emparejamiento con el log~~ **Hecho (V89):** `experimental/common/second_monitor.py`.
+- ~~Criterio V19 con los ajustes~~ **Sustituido (V89):** tiempo y temperaturas de la pista y de las gomas.
