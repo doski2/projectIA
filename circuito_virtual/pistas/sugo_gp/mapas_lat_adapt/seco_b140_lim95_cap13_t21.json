@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "base_limit": 9.5,
+  "cap_limit": 13.0,
+  "max_scale": 1.4,
+  "scales": {
+    "1": 1.3684,
+    "2": 0.9883,
+    "3": 0.8772,
+    "4": 1.2806,
+    "5": 0.9666,
+    "6": 0.9816,
+    "7": 1.1621,
+    "8": 1.3684,
+    "9": 1.3663,
+    "10": 1.1545,
+    "11": 1.0,
+    "12": 1.3659,
+    "13": 1.3684,
+    "14": 1.3684
+  },
+  "conditions": {
+    "rain": 0,
+    "track_c": 21,
+    "ambient_c": 14,
+    "tyre_start_c": 85.2,
+    "compound": "Lisos/Lisos/Lisos/Lisos",
+    "tyre_ref_c": 50.2
+  },
+  "tyre_by_lap": {
+    "2": 58.5,
+    "3": 53.2,
+    "4": 50.8,
+    "5": 49.4,
+    "6": 48.6,
+    "7": 48.2,
+    "8": 47.9,
+    "9": 47.7,
+    "10": 47.7
+  },
+  "laps_closed": 9,
+  "clean_tail": false,
+  "meta": {
+    "experiment": "tope 13 y exit 16: multiplicadores tras 10 vueltas con 21 C (el guardado no se ejecuto: la cola no quedo limpia), reconstruido del log",
+    "log": "20261106T210840Z"
+  }
+}
