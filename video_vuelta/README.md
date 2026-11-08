@@ -36,6 +36,10 @@ cámara, detección de bordes y fase B a 30-40 km/h) está en `docs/DEBATE.md` �
 | `src/camara.py` | Cámara de capó: píxel ↔ suelo y calibración (altura, cabeceo) con la línea de meta |
 | `src/lineas.py` | Detecta la línea blanca de cada lado en un fotograma (por su ancho en metros) |
 | `src/bordes_video.py` | Vídeo + log + mapa → `n` de la línea blanca por metro (`linea_blanca.json`) y validación con los logs antiguos |
+| `src/etiquetas.py` | Proyecta el pasillo medido sobre cada fotograma (con cuestas): máscara automática |
+| `src/crear_dataset.py` | Vídeo + log + mapa de bordes → fotogramas y máscaras para entrenar (`data/`, no se versiona) |
+| `src/segmentador.py` | U-Net pequeña de PyTorch puro, entrenable en CPU; valida por tramos de pista |
+| `modelos/` | Modelos entrenados (pequeños, se versionan) |
 | `tests/` | Tests (`cd video_vuelta; python -m pytest`) |
 | `capturas/<pista>/<coche>/<fecha>/` | Vídeos y su manifiesto (no se versionan los vídeos) |
 | `data/` | Fotogramas extraídos y salidas intermedias (no se versionan) |

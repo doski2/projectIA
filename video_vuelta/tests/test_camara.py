@@ -49,3 +49,12 @@ def test_ajuste_recupera_altura_cabeceo_y_atras():
     assert abs(cam.cabeceo_rad - 0.11) < 0.008
     assert abs(cam.atras_m - 2.8) < 0.2
     assert info["rms_px"] < 1.0 and info["n"] == 60
+
+
+def test_pixel_con_punto_mas_alto_sube_en_la_imagen():
+    cam = Camara(altura_m=1.0, cabeceo_rad=0.1)
+    _, v_llano = cam.pixel(10.0, 0.0)
+    _, v_cuesta = cam.pixel(10.0, 0.0, abajo_m=0.6)  # el punto está 40 cm más alto que el plano de la calzada
+    assert v_cuesta < v_llano
+    _, v_igual = cam.pixel(10.0, 0.0, abajo_m=1.0)
+    assert abs(v_igual - v_llano) < 1e-9

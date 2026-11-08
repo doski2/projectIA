@@ -57,10 +57,14 @@ class Camara:
         t = self.profundidad(v)
         return t * (np.cos(self.cabeceo_rad) - ay * np.sin(self.cabeceo_rad)), t * ax
 
-    def pixel(self, Z, X):
-        """Suelo -> píxel: (u, v) de un punto a Z metros delante y X metros a la derecha de la cámara."""
+    def pixel(self, Z, X, abajo_m=None):
+        """Suelo -> píxel: (u, v) de un punto a Z metros delante y X metros a la derecha de la cámara.
+
+        ``abajo_m``: cuánto por debajo de la cámara está el punto (por defecto la altura de la cámara: calzada plana). Con cuestas es
+        la altura de la cámara menos lo que el punto sube sobre el plano de la calzada bajo el coche."""
         Z, X = np.asarray(Z, dtype=float), np.asarray(X, dtype=float)
-        th, h = self.cabeceo_rad, self.altura_m
+        th = self.cabeceo_rad
+        h = self.altura_m if abajo_m is None else np.asarray(abajo_m, dtype=float)
         yc = h * np.cos(th) - Z * np.sin(th)
         zc = Z * np.cos(th) + h * np.sin(th)
         with np.errstate(divide="ignore", invalid="ignore"):

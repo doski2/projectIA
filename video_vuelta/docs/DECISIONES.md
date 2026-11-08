@@ -151,3 +151,34 @@ la ruta absoluta en `video`.
   mediana móvil puede tapar un tramo corto; (4) una sola sesión, 2 vueltas, seco y nublado.
 - **Siguiente:** estudio sin juego del tiempo previsto con este pasillo (como V100, `linea_optima.py`); si compensa, ensanchado
   progresivo con el teacher (V100) usando este mapa como techo y no el ensayo y error.
+
+## D7 (2026-11-08): etiquetas automáticas y primer segmentador del pasillo (pensado para otras pistas)
+
+- **Por qué:** el detector de color de D5-D6 usa que la pista tiene línea blanca y buen contraste. Falla donde no hay línea (circuitos
+  urbanos), con lluvia, atardecer o sombras. Un segmentador entrenado con etiquetas **automáticas** no necesita dibujar nada a mano y se
+  puede reentrenar con cada pista nueva que tenga mapa y límites.
+- **Etiquetas (`src/etiquetas.py`):** el pasillo entre `borde_izq` y `borde_dcha` del mapa se proyecta sobre cada fotograma con la cámara
+  de D5, el rumbo y la posición del log y la **altura del mapa** (cuestas: un punto de la calzada está por debajo de la cámara
+  `altura − (y_punto − y_coche − pendiente · Z)`). Comprobado sobre 12 fotogramas repartidos por la vuelta (curvas, cuestas y piano):
+  la línea blanca implícita cae sobre la línea real, y en 1425 m el límite de carrera cae dentro del piano, donde el juego marcó
+  «fuera». Valida toda la cadena (cámara, rumbo, mapa, constantes). La carrocería del coche (morro y ruedas) va marcada 255 y no se entrena.
+- **Conjunto (`src/crear_dataset.py`):** 1563 fotogramas de las dos vueltas de `2026-11-08_2` (1 de cada 30), 256×144, 104 MB en
+  `video_vuelta/data/` (no se versiona).
+- **Red (`src/segmentador.py`):** U-Net pequeña de PyTorch puro (16-32-64-96 canales), sin `ultralytics`, `torchvision` ni `scipy`; CPU
+  (torch 2.11+cpu: la RX 6600 XT no entrena con PyTorch en Windows). 53 s por época con el Ryzen 7 5800X; 20 épocas ≈ 19 min.
+  Entrena con s < 2400 m y **valida con s ≥ 2400 m** (un tramo que no ha visto, en las dos vueltas).
+- **Resultado (`modelos/pasillo_v1.pt`):** IoU de validación **0,94** (0,928 a la primera época; se estanca en 0,94: el techo parece el ruido de
+  las propias etiquetas). Error lateral del borde frente a la etiqueta, mediana en metros: 0,00-0,25 hasta 8 m por delante; 0,3-0,8 a 12-20 m
+  (con 256×144 una fila equivale a ≈ 1,4 m de profundidad a 16 m); **percentil 90 ≈ 1,1-1,2 m a 6-8 m: hay fotogramas que fallan** (p. ej. los
+  cuadros de la línea de salida, que se comen un trozo de pasillo). A ojo, en muchos fotogramas la predicción sigue el borde real mejor que la
+  etiqueta. Es una prueba de concepto, **no** mejora al detector de color en Sugo (rango intercuartil ±0,1-0,2 m).
+- **Qué NO está probado:** la generalización a otro circuito (no hay vídeo de otro; todas las grabaciones son de Sugo en seco y nublado), a
+  mojado ni a otro coche o cámara. Eso es lo que justifica la red, y solo se puede comprobar con un segundo circuito.
+- **Cómo añadir un circuito (sin código nuevo):** (1) línea de referencia: `PCARS2-AI/src/reference_recorder.py --source ai --laps 3 --output
+  refs/<pista>_ai.json` (la IA del juego, sin conducir); (2) mapa: `mapa.construir` y guardarlo en `circuito_virtual/pistas/<pista>/mapa.json`;
+  (3) una vuelta del piloto automático a 30 km/h con `aislado.py --teacher-only --speed-band 30 --reference <esa línea>` grabada con las
+  condiciones de D2 y `comprobar_graficos.py` antes; (4) manifiesto y `sincronia.py`; (5) `bordes_video.py` (límites; si no hay línea blanca el detector
+  de color no vale y ahí entra la red); (6) `crear_dataset.py` y reentrenar con las pistas juntas, validando con una pista que no se ha usado.
+  La cámara y las constantes de límite dependen del coche y del juego, no de la pista.
+- **Siguiente:** la prueba de verdad es un segundo circuito; mientras tanto, la red es útil donde el detector de color falla en Sugo y sirve de
+  base si algún día el coche ve el borde (BC / PPO).
