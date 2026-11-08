@@ -1,0 +1,30 @@
+{
+  "video": "C:/Users/doski/Videos/Radeon ReLive/Project CARS 2/Project CARS 2_2026.11.08-16.20.mp4",
+  "log": "PCARS2-AI/logs/learning/20261108T152032Z_sugo_gp_l1_linea.jsonl",
+  "pista": "sugo_gp",
+  "coche": "Formula R (Jiffy Trans Racing Team #13)",
+  "camara": "capo (morro)",
+  "campo_de_vision_horizontal_deg": 70,
+  "resolucion": [1920, 1080],
+  "fps": 60,
+  "codec": "h264 (Radeon ReLive), 6,4 GB en 861,7 s (~64 Mb/s de media)",
+  "hud": "oculto (queda un reloj pequeno en la esquina superior izquierda, fuera de la carretera)",
+  "graficos": "perfil video_vuelta/perfiles/graficos.json (28 ajustes iguales); copia del XML en esta carpeta; trackdetaillevel 3",
+  "conduccion": "automatica (teacher), --speed-band 30, linea sugo_ai.json, 2 vueltas, desde parado, experimento a2_video_auto_30_l2",
+  "sincronia": {
+    "metodo": "arranque_desde_parado",
+    "t_video_s": 2.3,
+    "t_log_s": 0.638,
+    "desfase_s": -1.662,
+    "cruce_de_meta_t_log_s": 429.18,
+    "cruce_de_meta_t_video_s": 430.842,
+    "duracion_video_s": 861.747,
+    "comprobacion_independiente": "a s=1425 m el log dice rueda delantera y trasera izquierdas sobre la franja (terreno 10) y el fotograma muestra el piano bajo las ruedas izquierdas"
+  },
+  "vueltas": {"tiempo_log_s": [429.2, 427.2], "velocidad_kmh": "29-32", "cte_medio_m": 0.22, "cte_max_m": 1.14},
+  "estado_del_video": "utilizable (comprobar_video.py): 51705 fotogramas, 100 % a periodo exacto, 0 rotos, un hueco de 33 ms al final de la grabacion",
+  "cruces_de_terreno": "ruedas izquierdas (indices 0 y 2) en terreno 10 (piano) de s=1400 a 1447 m y en terreno 7 (hierba) de s=1445 a 1451 m, en las dos vueltas",
+  "reglaje": "diferencial 60, frenos 55/45 (no cuenta a 30 km/h)",
+  "condiciones": "seco, ambiente 12 C, pista 16 C",
+  "notas": "Primera grabacion automatica a 30 km/h. Solo hay un tramo con cruces de terreno (lado izquierdo, 1400-1451 m); para calibrar el resto hace falta una vuelta manual o un trazado que toque el borde derecho."
+}

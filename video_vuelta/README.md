@@ -32,6 +32,10 @@ cámara, detección de bordes y fase B a 30-40 km/h) está en `docs/DEBATE.md` �
 | `docs/DEBATE.md` | Qué queremos del vídeo, qué es general y qué no, preguntas abiertas y orden propuesto |
 | `src/comprobar_video.py` | Comprueba un vídeo: resolución, fotogramas perdidos y si el codificador lo ha roto |
 | `src/sincronia.py` | Desfase vídeo-log por el arranque desde parado; saca el fotograma de cualquier distancia de vuelta |
+| `src/comprobar_graficos.py` | Compara el XML gráfico del juego con `perfiles/graficos.json` y la resolución de la captura |
+| `src/camara.py` | Cámara de capó: píxel ↔ suelo y calibración (altura, cabeceo) con la línea de meta |
+| `src/lineas.py` | Detecta la línea blanca de cada lado en un fotograma (por su ancho en metros) |
+| `src/bordes_video.py` | Vídeo + log + mapa → `n` de la línea blanca por metro (`linea_blanca.json`) y validación con los logs antiguos |
 | `tests/` | Tests (`cd video_vuelta; python -m pytest`) |
 | `capturas/<pista>/<coche>/<fecha>/` | Vídeos y su manifiesto (no se versionan los vídeos) |
 | `data/` | Fotogramas extraídos y salidas intermedias (no se versionan) |

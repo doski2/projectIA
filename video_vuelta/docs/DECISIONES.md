@@ -51,8 +51,14 @@ la ruta absoluta en `video`.
   en cada manifiesto). Comprobado con capturas el 2026-11-08 (12:26): todo puesto, `Cámara ladeada` incluida.
 - **Ayuda de línea de carrera apagada** (las flechas verdes tapan el asfalto) y overlay de rendimiento
   apagado.
-- **Pendiente:** filtro de texturas anisotrópico y resolución de texturas más alta (hoy
-  `texturefilter="5"`, `textureresolution="2"`); `comprobar_graficos.py` antes de cada sesión.
+- **Gráficos (cerrado el 2026-11-08, 16:11):** el filtro de texturas (`texturefilter="5"`) y la resolución de
+  texturas (`textureresolution="2"`) ya estaban en el máximo del menú; solo cambió el detalle de pista
+  (`trackdetaillevel` de 0 a 3, el máximo). Perfil de referencia en `perfiles/graficos.json` (28 ajustes, sin
+  `adapter`); `src/comprobar_graficos.py` lo compara con el XML del juego antes de cada sesión (`--captura`
+  mide además el vídeo, `--copiar-a` deja una copia del XML en el manifiesto; con tests). El XML solo se
+  reescribe al cerrar el juego. Vídeo de prueba `Project CARS 2_2026.11.08-16.11.mp4` (54,8 s, 3292
+  fotogramas, 100 % a periodo exacto, 0 huecos, 0 rotos, ≈ 80 Mb/s de media con el detalle de pista 3):
+  utilizable; línea blanca, piano y marcas de goma nítidos.
 
 ## D3 (2026-11-08): primera vuelta utilizable y sincronía por el arranque
 
@@ -87,3 +93,61 @@ la ruta absoluta en `video`.
 - **Pendiente de la sesión:** texturas (filtro anisotrópico y resolución), `comprobar_graficos.py`, error de la
   sincronía con la meta y preguntar si se añaden las vueltas a las cotas (`bordes_logs.py actualizar`).
 
+
+## D5 (2026-11-08): cámara calibrada y línea blanca medida desde el vídeo automático a 30 km/h
+
+- **Grabación:** `Project CARS 2_2026.11.08-16.20.mp4` (861,7 s, 6,4 GB, ≈ 64 Mb/s, 0 rotos) con el piloto
+  automático (`aislado.py --teacher-only --speed-band 30`, línea `sugo_ai.json`, 2 vueltas, 429,2 y 427,2 s,
+  29-32 km/h, |CTE| medio 0,22 m). Manifiesto y resultado en `capturas/sugo_gp/formula_r/2026-11-08_2/`.
+  Sincronía `t_log = t_vídeo − 1,662 s`; a 1425 m el log dice «ruedas izquierdas sobre la franja» y el fotograma
+  muestra el piano bajo ellas (comprobación independiente). Cruces de terreno solo en 1400-1451 m, lado
+  izquierdo.
+- **Cámara (`src/camara.py`):** estenopeica, 70° horizontales, sin alabeo. Ajustada con la fila de la línea de
+  meta que se acerca frente a los metros que el log dice que quedan (cruces de las vueltas 1 y 2, velocidad
+  constante): **altura ≈ 1,02 m, cabeceo ≈ 5,98°, la cámara va ≈ 3,0 m por detrás del punto «posición» del log**
+  (rms 0,6-2,4 px). Comprobación independiente: ese cabeceo pone el horizonte en la fila 396 y en los fotogramas
+  está en la 396-403. La salida desde parado **no vale** para calibrar (el coche se «sienta» al acelerar: sale
+  h = 0,77 m y 4,3°, rms 4 px).
+- **Rumbo del log:** `orientation[1] − π` = dirección del avance (`atan2(dx, dz)`), error medio 0,005 rad,
+  desviación 0,03 rad (1,7°). Con `− π/2` las líneas salían giradas 90° (error mío, ya corregido y con test).
+- **Detector (`src/lineas.py`):** blanco poco saturado cuyo ancho en metros a esa distancia es de línea (4-35 cm);
+  las franjas del piano, el cielo y los muros se descartan por ancho. Recta sobre el suelo con más apoyos a cada
+  lado. Útil entre ≈ 3,6 y 9,6 m por delante de la cámara.
+- **Resultado (`src/bordes_video.py`, `linea_blanca.json`):** mediana de `n` por metro y lado. **Ancho línea a
+  línea 10,18 m (p10-p90 9,8-10,8) en 541 m con las dos líneas; el asfalto comprobado por ruedas era 5,4 m.** Es
+  lo que el usuario declaraba (10-12,5 m, V78): el pasillo de la línea óptima se queda corto en ≈ 4-5 m.
+  Cobertura: izquierda 70 % de la vuelta, derecha 40 %, ambas 15 % (a la derecha hay piano rojo y blanco, no línea).
+- **Frente a las cotas por ruedas de los logs antiguos** (horquillas estrechas, < 0,3 m): la línea cae 0,26-0,30 m
+  hacia dentro del punto medio de la izquierda (independiente de la distancia: no es de escala) y 0,16-0,57 m en
+  la derecha; la dispersión p10-p90 es de ≈ ±0,5 m. Lectura: el terreno «fuera» del juego empieza ≈ 0,3 m más allá
+  de la línea blanca (hay una franja de asfalto entre la línea y el piano) y la semivía de 0,85 m de los logs
+  antiguos no está medida. **No es todavía el borde de carrera**: es la línea blanca.
+- **Pendiente:** (1) el borde derecho: piano rojo y blanco y hierba (color), y la franja entre línea y piano;
+  (2) pasar de «línea blanca» a «límite legal» con una constante por lado medida con los cruces de terreno
+  (1400-1451 m y la vuelta manual en zigzag); (3) la dispersión: corregir el cabeceo del coche con la
+  orientación del log y promediar más vueltas; (4) escribir `bordes_video.json` con el formato de `bordes_logs`
+  solo cuando (2) esté medido; (5) preguntar antes de tocar `observaciones_logs.json`.
+
+## D6 (2026-11-08): borde derecho y límite de carrera sin vuelta manual
+
+- **Por qué el derecho salía mal:** la pista mide ≈ 10 m, el coche va pegado a la izquierda (línea a −3,3 m) y el borde derecho queda
+  en X ≈ +6,9 m; a 6 m por delante la cámara (70°) solo ve ±4,2 m, así que ese borde solo entra en el encuadre más lejos. No era
+  un fallo del detector sino de mi rango (3,6-9,6 m). Con `--fila-min 440 --z-max 22` (hasta ≈ 22 m) la línea derecha se ve en el 97 %
+  de la vuelta y la izquierda en el 99 %.
+- **Dos arreglos del detector:** (1) de las rectas bien apoyadas se elige la **más cercana al coche** (el borde), no la de más puntos:
+  el pit lane (−8 a −11 m en 229-419 m) es blanco y fino pero está por fuera; (2) por metro se pondera 1/Z² (lo cercano pesa más).
+- **Acuerdo lejos / cerca:** donde las dos medidas existen, diferencia mediana 0,01-0,02 m y el 93-97 % a menos de 0,3 m.
+- **Frente a las cotas por ruedas de los logs antiguos** (solo horquillas válidas y estrechas, −0,3 < ancho < 0,3 m; **corregido: antes
+  entraban horquillas cruzadas por decenas de metros**): izquierda 516 m, error mediano +0,24 m (rango intercuartil 0,13-0,33);
+  derecha 228 m, −0,12 m (−0,21 a −0,03); el 96-98 % a menos de 1 m de la mediana. Lectura: desplazamiento común de la cámara de
+  +0,06 m y límite de carrera 0,18 m más allá de la línea a cada lado (incluye el error de la semivía de 0,85 m supuesta).
+- **Resultado (`mapa_bordes_video.json`, un `Mapa` con `borde_izq` / `borde_dcha`):** límite de carrera en el 97 % (izq) y el 96 % (dcha)
+  de la vuelta; **ancho mediana 10,87 m (p10-p90 9,99-13,07)** frente a los 5,4 m comprobados. Se descartaron 145 m con un ancho imposible
+  (< 7 o > 14,5 m: pit lane, línea vista dos veces) y se rellenaron huecos de hasta 15 m. Constantes en `bordes_video.py`
+  (`SESGO_CAMARA_M`, `LIMITE_FUERA_M`, `ANCHO_PLAUSIBLE_M`).
+- **Qué NO está comprobado:** (1) el límite 0,18 m sale de las cotas de los logs antiguos, que dependen de la semivía supuesta; los
+  cruces de 1400-1451 m y una vuelta manual en zigzag lo verificarían de forma independiente; (2) los metros con piano legal fuera de
+  la línea (C4, terreno 48) cuentan como «fuera» aunque el piano sea pisable; (3) curvas ciegas y cuestas: la línea no se ve y la
+  mediana móvil puede tapar un tramo corto; (4) una sola sesión, 2 vueltas, seco y nublado.
+- **Siguiente:** estudio sin juego del tiempo previsto con este pasillo (como V100, `linea_optima.py`); si compensa, ensanchado
+  progresivo con el teacher (V100) usando este mapa como techo y no el ensayo y error.
