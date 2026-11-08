@@ -1,0 +1,35 @@
+{
+  "video": "C:/Users/doski/Videos/Radeon ReLive/Project CARS 2/Project CARS 2_2026.11.08-12.41.mp4",
+  "log": "PCARS2-AI/logs/manual/20261108T114128Z_sugo_gp_mapeo_izq.jsonl",
+  "pista": "sugo_gp",
+  "coche": "Formula R (Jiffy Trans Racing Team #13)",
+  "camara": "capo (morro)",
+  "campo_de_vision_horizontal_deg": 70,
+  "resolucion": [
+    1920,
+    1080
+  ],
+  "fps": 60,
+  "codec": "h264 (Radeon ReLive), 66 Mb/s de media",
+  "hud": "oculto",
+  "conduccion": "manual con teclado, 1 vuelta, desde parado",
+  "sincronia": {
+    "metodo": "arranque_desde_parado",
+    "t_video_s": 8.533,
+    "t_log_s": 17.434,
+    "desfase_s": 8.901,
+    "cruce_de_meta_t_log_s": 144.532,
+    "cruce_de_meta_t_video_s": 135.631,
+    "duracion_video_s": 143.683
+  },
+  "vuelta": {
+    "tiempo_log_s": 144.515,
+    "v_max_kmh": 184,
+    "cruce_de_meta_t_log_s": 144.515,
+    "cruce_de_meta_t_video_s": 135.614
+  },
+  "estado_del_video": "utilizable (comprobar_video.py): 143,7 s, sin fotogramas rotos",
+  "reglaje": "no registrado",
+  "condiciones": "seco, nuboso, ambiente 12 °C, pista 16 °C",
+  "notas": "Primera vuelta valida. Vuelta lenta con teclado: solo sirve para ver cualitativamente (V1) y probar la sincronia (V2)."
+}

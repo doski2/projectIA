@@ -45,3 +45,12 @@ experimental/logs/*
 circuito_virtual/pistas/*/*_smooth.json
 circuito_virtual/pistas/*/*_optima_*.json
 circuito_virtual/pistas/*/informes/
+
+# Vídeo de vuelta: no se versionan los vídeos ni las imágenes (sí los manifiestos .json de capturas/)
+video_vuelta/capturas/**/*.mp4
+video_vuelta/capturas/**/*.mkv
+video_vuelta/capturas/**/*.avi
+video_vuelta/capturas/**/*.png
+video_vuelta/capturas/**/*.jpg
+video_vuelta/data/*
+!video_vuelta/data/.gitkeep
