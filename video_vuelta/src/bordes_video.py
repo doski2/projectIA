@@ -28,7 +28,7 @@ for _p in (REPO, REPO / "PCARS2-AI" / "src"):
         sys.path.insert(0, str(_p))
 
 from circuito_virtual.src.mapa import Mapa  # noqa: E402
-from video_vuelta.src.camara import Camara  # noqa: E402
+from video_vuelta.src.camara import Camara, camara_de_manifiesto  # noqa: E402
 from video_vuelta.src.lineas import Linea, lineas_del_fotograma  # noqa: E402
 
 Z_MIN, Z_MAX, Z_PASO = 3.6, 9.6, 0.5  # tramo de cada línea (delante de la cámara) que se proyecta: el más preciso
@@ -166,9 +166,9 @@ def limites(res: dict, hueco_max: int = 15, ventana: int = 5, ancho: tuple[float
 
 
 def procesar(manifiesto: Path, cada: int, mapa: Mapa, vueltas: list[int] | None = None, cam: Camara | None = None,
-             fila_min: int = 500, z_max: float = Z_MAX) -> dict:
+             fila_min: int = 500, z_max: float = Z_MAX, v_min_kmh: float = VELOCIDAD_MIN_KMH, v_max_kmh: float = 1e9) -> dict:
     man = json.loads(Path(manifiesto).read_text(encoding="utf-8"))
-    cam = cam or Camara(**{k: v for k, v in man.get("camara_modelo", {}).items()})
+    cam = cam or camara_de_manifiesto(man)
     pose = leer_pose(REPO / man["log"])
     desfase = float(man["sincronia"]["desfase_s"])
     cap = cv2.VideoCapture(man["video"], cv2.CAP_FFMPEG)
@@ -191,7 +191,7 @@ def procesar(manifiesto: Path, cada: int, mapa: Mapa, vueltas: list[int] | None 
         if t_log < pose.t[0] or t_log > pose.t[-1]:
             continue
         p = pose.en(t_log)
-        if p[4] < VELOCIDAD_MIN_KMH or (vueltas and p[5] not in vueltas):
+        if not (v_min_kmh <= p[4] <= v_max_kmh) or (vueltas and p[5] not in vueltas):
             continue
         vistos["fotogramas"] += 1
         for lado, linea in lineas_del_fotograma(fot, cam, filas=tuple(range(fila_min, 830, 4))).items():

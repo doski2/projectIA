@@ -5,9 +5,10 @@ blanca y la franja, y más adelante una observación visual para BC / PPO. Nace 
 `circuito_virtual/docs/PENDIENTE.md` (2026-11-08) pero se plantea desde el principio para **cualquier
 pista y cualquier coche**, no solo para Sugo con el coche actual.
 
-**Estado (2026-11-08):** condiciones de grabación fijadas (D2), primera vuelta utilizable y sincronizada
-con su log (D3). Hecho: `comprobar_video.py` y `sincronia.py` (10 tests). Lo que falta (calibración de la
-cámara, detección de bordes y fase B a 30-40 km/h) está en `docs/DEBATE.md` §6.
+**Estado (2026-11-08, tarde):** hecho de extremo a extremo para Sugo con el Formula R: gráficos fijados, vídeo automático a 30 km/h, cámara calibrada,
+línea blanca y límite de carrera medidos (10,87 m de ancho frente a 5,4 m comprobados), estudio de trazada (−0,62 s previstos), etiquetas automáticas y
+primer segmentador (IoU 0,94); 55 tests. **Pendiente y orden de la próxima sesión:** «Al retomar» 1b de `circuito_virtual/docs/PENDIENTE.md`; decisiones D2-D10
+en `docs/DECISIONES.md`. **Aviso:** el piano es superficie legal (D10) y el vídeo subestima el límite donde lo hay; la generalización a otro circuito no está probada.
 
 ## Reglas
 
@@ -36,6 +37,8 @@ cámara, detección de bordes y fase B a 30-40 km/h) está en `docs/DEBATE.md` �
 | `src/camara.py` | Cámara de capó: píxel ↔ suelo y calibración (altura, cabeceo) con la línea de meta |
 | `src/lineas.py` | Detecta la línea blanca de cada lado en un fotograma (por su ancho en metros) |
 | `src/bordes_video.py` | Vídeo + log + mapa → `n` de la línea blanca por metro (`linea_blanca.json`) y validación con los logs antiguos |
+| `src/calibrar_camara.py` | Calibra altura, cabeceo y posición de la cámara con la línea de meta en los cruces del vídeo (repetir si cambia el campo de visión) |
+| `src/verificar_limite.py` | Con un log que mete las ruedas en la hierba, compara los cruces asfalto → fuera con el límite medido por vídeo |
 | `src/etiquetas.py` | Proyecta el pasillo medido sobre cada fotograma (con cuestas): máscara automática |
 | `src/crear_dataset.py` | Vídeo + log + mapa de bordes → fotogramas y máscaras para entrenar (`data/`, no se versiona) |
 | `src/segmentador.py` | U-Net pequeña de PyTorch puro, entrenable en CPU; valida por tramos de pista |

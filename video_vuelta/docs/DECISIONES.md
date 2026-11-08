@@ -100,8 +100,9 @@ la ruta absoluta en `video`.
   automático (`aislado.py --teacher-only --speed-band 30`, línea `sugo_ai.json`, 2 vueltas, 429,2 y 427,2 s,
   29-32 km/h, |CTE| medio 0,22 m). Manifiesto y resultado en `capturas/sugo_gp/formula_r/2026-11-08_2/`.
   Sincronía `t_log = t_vídeo − 1,662 s`; a 1425 m el log dice «ruedas izquierdas sobre la franja» y el fotograma
-  muestra el piano bajo ellas (comprobación independiente). Cruces de terreno solo en 1400-1451 m, lado
-  izquierdo.
+  muestra el piano bajo ellas (comprobación independiente). En el log, las ruedas izquierdas pisan el terreno 10 (piano) en 1400-1447 m y el 7
+  (hierba) en 1445-1451 m. **Ojo: el 10 (`TERRAIN_RUMBLE_STRIPS`) está en `RACING_TERRAIN_IDS`, es superficie legal; solo el paso a hierba, grava, etc. es
+  «fuera»** (corregido en D10; antes lo traté como fuera).
 - **Cámara (`src/camara.py`):** estenopeica, 70° horizontales, sin alabeo. Ajustada con la fila de la línea de
   meta que se acerca frente a los metros que el log dice que quedan (cruces de las vueltas 1 y 2, velocidad
   constante): **altura ≈ 1,02 m, cabeceo ≈ 5,98°, la cámara va ≈ 3,0 m por detrás del punto «posición» del log**
@@ -119,12 +120,12 @@ la ruta absoluta en `video`.
   Cobertura: izquierda 70 % de la vuelta, derecha 40 %, ambas 15 % (a la derecha hay piano rojo y blanco, no línea).
 - **Frente a las cotas por ruedas de los logs antiguos** (horquillas estrechas, < 0,3 m): la línea cae 0,26-0,30 m
   hacia dentro del punto medio de la izquierda (independiente de la distancia: no es de escala) y 0,16-0,57 m en
-  la derecha; la dispersión p10-p90 es de ≈ ±0,5 m. Lectura: el terreno «fuera» del juego empieza ≈ 0,3 m más allá
-  de la línea blanca (hay una franja de asfalto entre la línea y el piano) y la semivía de 0,85 m de los logs
+  la derecha; la dispersión p10-p90 es de ≈ ±0,5 m. Lectura (corregida en D10): donde junto a la línea hay hierba, la superficie legal
+  termina ≈ 0,2-0,3 m más allá de la línea blanca (el asfalto sigue un poco tras la pintura) y la semivía de 0,85 m de los logs
   antiguos no está medida. **No es todavía el borde de carrera**: es la línea blanca.
 - **Pendiente:** (1) el borde derecho: piano rojo y blanco y hierba (color), y la franja entre línea y piano;
   (2) pasar de «línea blanca» a «límite legal» con una constante por lado medida con los cruces de terreno
-  (1400-1451 m y la vuelta manual en zigzag); (3) la dispersión: corregir el cabeceo del coche con la
+  (el paso de asfalto a hierba en 1445-1451 m y una vuelta manual que meta las ruedas en la hierba); (3) la dispersión: corregir el cabeceo del coche con la
   orientación del log y promediar más vueltas; (4) escribir `bordes_video.json` con el formato de `bordes_logs`
   solo cuando (2) esté medido; (5) preguntar antes de tocar `observaciones_logs.json`.
 
@@ -145,9 +146,10 @@ la ruta absoluta en `video`.
   de la vuelta; **ancho mediana 10,87 m (p10-p90 9,99-13,07)** frente a los 5,4 m comprobados. Se descartaron 145 m con un ancho imposible
   (< 7 o > 14,5 m: pit lane, línea vista dos veces) y se rellenaron huecos de hasta 15 m. Constantes en `bordes_video.py`
   (`SESGO_CAMARA_M`, `LIMITE_FUERA_M`, `ANCHO_PLAUSIBLE_M`).
-- **Qué NO está comprobado:** (1) el límite 0,18 m sale de las cotas de los logs antiguos, que dependen de la semivía supuesta; los
-  cruces de 1400-1451 m y una vuelta manual en zigzag lo verificarían de forma independiente; (2) los metros con piano legal fuera de
-  la línea (C4, terreno 48) cuentan como «fuera» aunque el piano sea pisable; (3) curvas ciegas y cuestas: la línea no se ve y la
+- **Qué NO está comprobado:** (1) el límite 0,18 m sale de las cotas de los logs antiguos, que dependen de la semivía supuesta; el
+  paso de asfalto a hierba en 1445-1451 m y una vuelta manual que meta las ruedas en la hierba lo verificarían de forma independiente; (2) **donde hay
+  piano o franja legal (terrenos 10, 25, 48...) el límite de carrera es el borde exterior del piano, no la línea: el vídeo lo subestima** (la unión de V102 lo
+  cubre solo donde ya se pisó); (3) curvas ciegas y cuestas: la línea no se ve y la
   mediana móvil puede tapar un tramo corto; (4) una sola sesión, 2 vueltas, seco y nublado.
 - **Siguiente:** estudio sin juego del tiempo previsto con este pasillo (como V100, `linea_optima.py`); si compensa, ensanchado
   progresivo con el teacher (V100) usando este mapa como techo y no el ensayo y error.
@@ -160,8 +162,8 @@ la ruta absoluta en `video`.
 - **Etiquetas (`src/etiquetas.py`):** el pasillo entre `borde_izq` y `borde_dcha` del mapa se proyecta sobre cada fotograma con la cámara
   de D5, el rumbo y la posición del log y la **altura del mapa** (cuestas: un punto de la calzada está por debajo de la cámara
   `altura − (y_punto − y_coche − pendiente · Z)`). Comprobado sobre 12 fotogramas repartidos por la vuelta (curvas, cuestas y piano):
-  la línea blanca implícita cae sobre la línea real, y en 1425 m el límite de carrera cae dentro del piano, donde el juego marcó
-  «fuera». Valida toda la cadena (cámara, rumbo, mapa, constantes). La carrocería del coche (morro y ruedas) va marcada 255 y no se entrena.
+  la línea blanca implícita cae sobre la línea real, y en 1425 m el límite de carrera cae dentro del piano (que el juego da como legal: ahí el límite
+  está más afuera, ver D10). Valida toda la cadena (cámara, rumbo, mapa, constantes). La carrocería del coche (morro y ruedas) va marcada 255 y no se entrena.
 - **Conjunto (`src/crear_dataset.py`):** 1563 fotogramas de las dos vueltas de `2026-11-08_2` (1 de cada 30), 256×144, 104 MB en
   `video_vuelta/data/` (no se versiona).
 - **Red (`src/segmentador.py`):** U-Net pequeña de PyTorch puro (16-32-64-96 canales), sin `ultralytics`, `torchvision` ni `scipy`; CPU
@@ -182,3 +184,57 @@ la ruta absoluta en `video`.
   La cámara y las constantes de límite dependen del coche y del juego, no de la pista.
 - **Siguiente:** la prueba de verdad es un segundo circuito; mientras tanto, la red es útil donde el detector de color falla en Sugo y sirve de
   base si algún día el coche ve el borde (BC / PPO).
+
+## D8 (2026-11-08): segundo vídeo, el de las 12.41 (vuelta a mano con teclado, hasta 184 km/h, detalle de pista 0)
+
+- **Para qué:** comprobar con un vídeo independiente (otra conducción, otra velocidad, otros gráficos) lo medido con el de las 16.20.
+  Se procesó sin escribir nada junto a su manifiesto (`bordes_video.procesar`, ahora con `v_min_kmh` / `v_max_kmh`).
+- **Línea blanca frente a la de las 16.20** (mismos metros): izquierda mediana **+0,05 m**, rango intercuartil −0,24..+0,21 (59 % a menos de
+  0,3 m); derecha mediana **−0,19 m**, −0,45..+0,11 (45 %). Límite de carrera igual (+0,05 y −0,19 m): las constantes de D6 valen entre
+  vídeos en la izquierda y la derecha queda 0,19 m más adentro en este.
+- **Por velocidad:** a más de 110 km/h (rectas) la izquierda coincide mejor, IQR −0,07..+0,19 m (71 % a menos de 0,3 m), y la derecha tiene
+  un sesgo de **−0,25 m** (IQR −0,45..−0,02); a 5-60 km/h (118 fotogramas, horquillas y curvas lentas con el coche cruzado) la dispersión
+  es la peor (IQR −1,1..+0,4). Lectura: lo que estropea la medida no es ir rápido sino (a) las curvas cerradas, donde la línea no es una
+  recta sobre ≈ 20 m, y (b) a alta velocidad el cabeceo del chasis (el borde derecho está a ≈ 7 m y es más sensible: el error crece con X).
+  Aún no corregido: el log trae `ride_height` por rueda, de donde sale el cabeceo del chasis frente a la calzada; es la mejora siguiente.
+- **Red de D7 aplicada a ese vídeo** (nunca visto; 224 fotogramas con etiqueta, etiquetas = límites del de las 16.20 proyectados): IoU **0,936**
+  (0,939 en validación), con otra conducción, otra velocidad y otros gráficos.
+
+## D9 (2026-11-08): calibración de la cámara reproducible y plan del campo de visión de 90°
+
+- **`src/calibrar_camara.py <manifiesto> [--escribir]`:** repite la calibración de D5 en un comando para cualquier vídeo con al menos una vuelta
+  a velocidad constante: para cada cruce de meta del log mide la fila de la línea de meta en los 3 s anteriores y 0,8 s posteriores (la línea sigue a
+  la vista ≈ 3 m tras el cruce del log porque la cámara va detrás: son las filas más cercanas, las que más pesan) y ajusta altura, cabeceo y distancia al
+  punto del log. **Cada cruce lleva su propio `atras_m`**: el instante del cruce solo se conoce a ±1 tick del log (±0,14 m a 30 km/h, ≈ 20 px cerca de la
+  cámara); con uno compartido el ajuste daba 5,3 px de rms y con uno por cruce **0,39 px**. Recorta fotogramas atípicos.
+- **Resultado con `2026-11-08_2`:** altura **1,009 m**, cabeceo **5,88°**, cámara a 2,88 m del punto del log (2,97 y 2,80 por cruce), horizonte en la
+  fila 399 (medido en las imágenes: 396-403). Coincide con el ajuste manual de D5 (1,02 m, 5,98°, 3,01 m) dentro del 1 %. **Las constantes de D6 (0,06 y
+  0,18 m) se midieron con la cámara de D5, así que no se cambian los valores por defecto de `Camara` hasta repetir D6 con el cabeceo corregido.**
+- **Vídeos de otras fuentes (p. ej. YouTube):** sin el log (posición, rumbo y velocidad) no se puede colocar nada sobre el mapa ni calibrar la cámara, así que
+  no sirven para validar las constantes ni el cabeceo. Solo valen para mirar a ojo si la red de D7 segmenta otros circuitos, y solo si son de cámara de capó
+  con el HUD apagado; con otra cámara el desajuste de dominio engaña. Los datos buenos de otros circuitos salen del propio juego (procedimiento de D7).
+- **Campo de visión de 90° (a probar):** a 70° el borde derecho (a ≈ 7 m) solo entra en la imagen desde ≈ 11 m; a 90° entraría desde ≈ 7 m, donde la
+  medida es mejor (menos error de profundidad y de rumbo). Cuesta densidad de píxeles en el centro (focal 960 px frente a 1371). Procedimiento: cambiar solo
+  el campo de visión de la cámara de capó (que siga siendo horizontal), grabar 2 vueltas del piloto a 30 km/h con el mismo comando, manifiesto con
+  `campo_de_vision_horizontal_deg: 90`, `calibrar_camara.py` y comprobar la focal con la proyección de límites sobre los fotogramas (`etiquetas.py`): si la
+  focal fuera otra, las líneas proyectadas se separarían de las reales hacia los bordes de la imagen. La máscara de carrocería de `etiquetas.carroceria` está
+  medida para 70° y habrá que recalcularla para otro campo de visión.
+- **Siguiente:** (1) cabeceo del chasis con `ride_height` (D8); (2) 90°; (3) antialiasing.
+
+## D10 (2026-11-08): corrección sobre el piano y herramienta para verificar el límite
+
+- **Corrección:** `TERRAIN_RUMBLE_STRIPS` (10), `EXIT_RUMBLE_STRIPS` (25) y los demás pianos están en `RACING_TERRAIN_IDS`: son **superficie legal**. En D5-D7
+  los traté como «fuera» (el 10 de 1400-1447 m, «el juego marcó fuera» en 1425 m); no es así: lo que el juego marca fuera en ese tramo es la hierba (7),
+  en 1445-1451 m. Frases corregidas en su sitio.
+- **Qué cambia:** (1) las constantes de D6 (cámara +0,06 m, límite 0,18 m más allá de la línea) salen de las horquillas estrechas de los logs antiguos, que están
+  donde el asfalto pasa **directo a hierba** (ahí el asfalto sigue ≈ 0,2 m tras la pintura); valen para ese caso. (2) **Donde hay piano, el límite legal es el
+  borde exterior del piano y el vídeo lo subestima** (la línea blanca queda dentro): el pasillo de V102 es la unión de lo comprobado con las ruedas y del vídeo, y
+  solo cubre los pianos donde ya se pisó. (3) La clase «pasillo» de la red de D7 es «asfalto hasta la línea (+ ≈ 0,2 m)», no «superficie legal».
+  (4) Hay más recorrido legal del que el vídeo dice, sobre todo en curvas con piano largo (C4, C1, C11...).
+- **`src/verificar_limite.py <log> [--bordes mapa_bordes_video.json]`:** de un log con posición y terreno (de `sesion_manual.py`, sin vídeo) saca los cruces
+  asfalto → fuera (y fuera → asfalto) de cada lado y compara la posición de la rueda (`n ∓ 0,85`, la misma semivía de `bordes_logs.py`, así se cancela) con el límite del
+  vídeo en ese metro; da el error mediano, el rango intercuartil y los cruces a más de 0,5 m. **Solo hay cruce donde la rueda llega a hierba, grava...; cruzar
+  la línea hacia un piano no cuenta.** Con 55 tests en total. Es la verificación independiente de las constantes de D6: si el error mediano sale ≈ 0, valen; si no,
+  se ajustan `SESGO_CAMARA_M` y `LIMITE_FUERA_M` y se repite D6 y V102.
+- **Qué falta medir:** el borde exterior del piano (la hierba tras él): detectarlo por color (verde) o con una clase «legal» de la red, y verificarlo con cruces
+  de piano a hierba; sin eso el potencial de la trazada en curvas con piano está por debajo de lo real.

@@ -67,29 +67,31 @@ Pregunta: ¿qué más tiene que guardar para que una grabación de dentro de un 
   desde el capó.
 - **Rendimiento del PC** si se captura a la vez que se conduce (opción 2).
 
-## 6. Orden y estado (2026-11-08)
+## 6. Orden y estado (2026-11-08, al cierre de la tarde)
 
-1. **V0, formato:** hecho. Manifiesto y convención de carpetas (D1 de `DECISIONES.md`); primer manifiesto en
-   `capturas/sugo_gp/formula_r/2026-11-08_1/`.
-2. **V1, cualitativo:** hecho con una vuelta de teclado (D3): se ve más asfalto y piano que lo comprobado en
-   C1, C4 y C11; a ojo no se puede decir si es 1 m.
-3. **V2, sincronía:** hecha por el arranque desde parado (`sincronia.py`, `t_log = t_vídeo + 8,901 s`).
-   **Falta medir su error** con el cruce de meta.
-4. **V3, cámara:** pendiente. Necesita fotogramas con una rueda sobre piano o hierba (los cruces de terreno
-   por rueda del log); la vuelta del 08-11 tiene todos los terrenos a 0 (asfalto).
-5. **V4-V5, detección y proyección** sobre `(s, n)`: pendiente.
-6. **V6, validación** y escritura de `bordes_video.json`; solo entonces la fase B (vueltas lentas): pendiente.
-7. **Segunda pista o coche** como prueba de que de verdad es general: pendiente.
+1. **V0, formato:** hecho (D1-D2): manifiesto, convención de carpetas y condiciones de grabación.
+2. **V1, cualitativo:** hecho (D3): se ve más asfalto y piano que lo comprobado.
+3. **V2, sincronía:** hecha (`sincronia.py`). Comprobada con un cruce de terreno independiente (1425 m, D5); sin medir el error con la meta porque la fórmula es la misma.
+4. **V3, cámara:** hecha (`camara.py`, `calibrar_camara.py`, D5 y D9): altura 1,009 m, cabeceo 5,88°, 70° horizontales, rms 0,39 px. Se calibra con la línea de meta, no con cruces de terreno (la
+   salida desde parado no vale; el instante del cruce en el log tiene ±1 tick y por eso cada cruce lleva su `atras_m`).
+5. **V4-V5, detección y proyección:** hechas para la línea blanca (`lineas.py`, `bordes_video.py`, D5-D6) y para el pasillo con un segmentador (`etiquetas.py`,
+   `crear_dataset.py`, `segmentador.py`, D7). Lo de color funciona donde hay línea blanca; la red es la vía para pistas sin ella (sin probar en otra pista).
+6. **V6, validación:** hecha en parte: línea contra cotas por ruedas de los logs antiguos (D6), contra un segundo vídeo (D8, vuelta a mano a alta velocidad) y la red con un tramo no visto (D7).
+   **Falta la verificación independiente de los 0,18 m** con una vuelta que meta las ruedas en la hierba (`verificar_limite.py`, D10).
+7. **Corrección importante (D10):** el piano es superficie legal; el vídeo da la línea blanca y la constante vale donde hay hierba tras la línea; donde hay piano el límite legal es el exterior del piano.
+8. **Estudio de trazada (V102):** pasillo unión (lo pisado ∪ vídeo), margen 0,6: **−0,62 s** previstos; con margen 1,0 no gana (+0,24 s). Manda el margen.
+9. **Segunda pista o coche** como prueba de que de verdad es general: pendiente (D7 explica el procedimiento).
+
+Mejoras abiertas, con su efecto esperado (D8-D9): campo de visión de 90° (ver el borde derecho desde ≈ 7 m en vez de ≈ 11 m), cabeceo del chasis con `ride_height` (sesgo −0,25 m del borde
+derecho a más de 110 km/h), antialiasing (líneas lejanas rotas), red a 512×288. Más fps no ayuda; más resolución solo en lo lejano.
 
 ## Pendiente para la próxima sesión (el mismo texto, con comandos, está en `circuito_virtual/docs/PENDIENTE.md`, «Al retomar» 1b)
 
-1. Filtro de texturas anisotrópico y texturas más altas en el menú; reiniciar y leer el XML para saber qué
-   número es cada opción. Comprobar 1920×1080 y anotar la tasa de bits exacta de Radeon.
-2. Dos vueltas manuales con vídeo, una por lado, a ≈ 40 km/h o con el limitador, con
-   `sesion_manual.py --lado izq|dcha --laps 1`; una tercera zigzagueando, opcional.
-3. `comprobar_graficos.py` (XML + captura frente al perfil de D2).
-4. Error de la sincronía con la meta; después V3-V6.
-5. Preguntar si se añaden esas vueltas a las cotas con `bordes_logs.py actualizar`.
+1. Vuelta manual metiendo las ruedas en la hierba (solo log, `sesion_manual.py`; el juego puede ir en ventana) y `verificar_limite.py`.
+2. Grabar 2 vueltas con 90° de campo de visión; manifiesto, sincronía, `calibrar_camara.py --escribir`, comprobar la focal y recalcular la máscara de carrocería.
+3. Cabeceo con `ride_height`; repetir D6 con la cámara de D9.
+4. Antialiasing; borde exterior del piano; segundo circuito; versión manual a 30 km/h; red a 512×288.
+5. Decidir el margen al borde y, solo entonces y preguntando, escribir el pasillo en `observaciones_logs.json`.
 
 ## 7. Herramientas de lectura de vídeo
 

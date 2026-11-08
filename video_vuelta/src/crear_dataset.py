@@ -24,7 +24,7 @@ for _p in (REPO, REPO / "PCARS2-AI" / "src"):
 
 from circuito_virtual.src.mapa import Mapa  # noqa: E402
 from video_vuelta.src import bordes_video as bv  # noqa: E402
-from video_vuelta.src.camara import Camara  # noqa: E402
+from video_vuelta.src.camara import Camara, camara_de_manifiesto  # noqa: E402
 from video_vuelta.src.etiquetas import mascara_pasillo  # noqa: E402
 
 TAM = (256, 144)  # (ancho, alto) de lo que se guarda y entrena
@@ -38,7 +38,7 @@ def _tiene_limites(mapa: Mapa, izq: np.ndarray, dcha: np.ndarray, s_coche: float
 
 def crear(manifiesto: Path, bordes: Path, cada: int, mapa: Mapa, cam: Camara | None = None) -> dict:
     man = json.loads(Path(manifiesto).read_text(encoding="utf-8"))
-    cam = cam or Camara()
+    cam = cam or camara_de_manifiesto(man)
     mb = Mapa.cargar(bordes)
     pose = bv.leer_pose(REPO / man["log"])
     desfase = float(man["sincronia"]["desfase_s"])

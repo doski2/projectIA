@@ -94,22 +94,46 @@ def _levenberg(resid, p0, iteraciones: int = 200) -> np.ndarray:
     return p
 
 
-def ajustar_altura_cabeceo(filas_px, restante_m, base: Camara | None = None, inicial=(0.9, 0.05, 4.0)) -> tuple[Camara, dict]:
+def ajustar_altura_cabeceo(filas_px, restante_m, base: Camara | None = None, inicial=(0.9, 0.05, 4.0), evento=None) -> tuple[Camara, dict]:
     """Ajusta altura, cabeceo y ``atras_m`` con las filas de una línea del suelo que se acerca.
 
     ``filas_px``: fila (v) de la línea en cada fotograma; ``restante_m``: metros que le quedan al coche, según el log,
-    hasta el instante de referencia (el cruce de meta del log) en ese fotograma. Devuelve la cámara y el residuo.
+    hasta el instante de referencia (el cruce de meta del log) en ese fotograma. ``evento``: a qué cruce pertenece cada fotograma; el instante
+    del cruce solo se conoce a ±1 tick del log (±0,14 m a 30 km/h, y cerca de la cámara son ≈ 20 px), así que cada cruce tiene su propio
+    ``atras_m`` y la cámara lleva la media. Devuelve la cámara y el residuo.
     """
     base = base or Camara()
     v, r = np.asarray(filas_px, dtype=float), np.asarray(restante_m, dtype=float)
-    cx, cy = base.c
+    ev = np.zeros(len(v), dtype=int) if evento is None else np.unique(np.asarray(evento), return_inverse=True)[1]
+    n_ev = int(ev.max()) + 1
+    cy = base.c[1]
 
-    def modelo(p):
-        h, th, zc = p
-        Z = np.maximum(zc + r, 0.2)
-        return cy + base.f * np.tan(np.arctan2(h, Z) - th)
+    def predecir(p, r_, ev_):
+        h, th, zc = p[0], p[1], np.asarray(p[2:])[ev_]
+        return cy + base.f * np.tan(np.arctan2(h, np.maximum(zc + r_, 0.2)) - th)
 
-    p = _levenberg(lambda q: modelo(q) - v, inicial)
-    res = modelo(p) - v
-    cam = replace(base, altura_m=float(p[0]), cabeceo_rad=float(p[1]), atras_m=float(p[2]))
-    return cam, {"rms_px": float(np.sqrt(np.mean(res ** 2))), "n": int(len(v))}
+    p0 = np.concatenate([inicial[:2], np.full(n_ev, inicial[2])])
+    p = _levenberg(lambda q: predecir(q, r, ev) - v, p0)
+    res = predecir(p, r, ev) - v
+    usados = np.ones(len(v), dtype=bool)
+    for _ in range(3):  # recorta los fotogramas donde la «línea» era otra cosa y reajusta
+        umbral = max(2.0, 3.0 * 1.4826 * float(np.median(np.abs(res[usados]))))
+        nuevos = np.abs(res) <= umbral
+        if nuevos.sum() < 10 or (nuevos == usados).all():
+            break
+        usados = nuevos
+        p = _levenberg(lambda q: predecir(q, r[usados], ev[usados]) - v[usados], p)
+        res = predecir(p, r, ev) - v
+    cam = replace(base, altura_m=float(p[0]), cabeceo_rad=float(p[1]), atras_m=float(np.mean(p[2:])))
+    return cam, {"rms_px": float(np.sqrt(np.mean(res[usados] ** 2))), "n": int(usados.sum()), "descartados": int((~usados).sum()),
+                 "atras_por_evento_m": [round(float(z), 3) for z in p[2:]]}
+
+
+def camara_de_manifiesto(man: dict) -> Camara:
+    """Cámara de un manifiesto: `camara_modelo` (calibrada) si lo trae; si no, el campo de visión y la resolución del manifiesto y lo demás por defecto."""
+    campos = dict(man.get("camara_modelo") or {})
+    if "fov_h_deg" not in campos and man.get("campo_de_vision_horizontal_deg"):
+        campos["fov_h_deg"] = float(man["campo_de_vision_horizontal_deg"])
+    if man.get("resolucion") and "ancho" not in campos:
+        campos["ancho"], campos["alto"] = int(man["resolucion"][0]), int(man["resolucion"][1])
+    return Camara(**campos)
