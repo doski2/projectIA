@@ -357,6 +357,7 @@ def main(argv: Optional[list] = None) -> int:
     ap.add_argument("--margen", type=float, default=MARGEN_M)
     ap.add_argument("--max-barridos", type=int, default=60)
     ap.add_argument("--salida-dir", type=Path, default=PISTA)
+    ap.add_argument("--observaciones", default="observaciones_logs.json", help="archivo de observaciones (en --salida-dir) del que sale el pasillo; p. ej. observaciones_pasillo_d11.json (video_vuelta, D12)")
     ap.add_argument("--pasillo-estricto", action="store_true",
                     help="no obliga a que el eje quepa: el margen al borde se respeta también donde el pasillo comprobado es más estrecho que el coche (V35, 759-771 m)")
     ap.add_argument("--salto-max-rel", type=float, default=None,
@@ -369,7 +370,7 @@ def main(argv: Optional[list] = None) -> int:
     ap.add_argument("--nombre", default=None, help="nombre del archivo de salida sin extensión (por defecto sugo_optima_a1mu<MU> o sugo_optima_f<ritmo>)")
     args = ap.parse_args(argv)
     mapa = Mapa.cargar(args.salida_dir / "mapa.json")
-    obs = Observaciones.de_dict(json.loads((args.salida_dir / "observaciones_logs.json").read_text(encoding="utf-8")))
+    obs = Observaciones.de_dict(json.loads((args.salida_dir / args.observaciones).read_text(encoding="utf-8")))
     suavizada = json.loads((args.salida_dir / "sugo_smooth.json").read_text(encoding="utf-8"))
     lo, hi = pasillo_centro(mapa, obs, args.margen, incluir_eje=not args.pasillo_estricto)
     if args.coche_a1_mu is not None:

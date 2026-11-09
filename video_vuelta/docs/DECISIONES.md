@@ -1,5 +1,22 @@
 # Decisiones de video_vuelta
 
+Registro cronológico. Una decisión posterior puede corregir una anterior (se indica en las dos). Para repetirlo en otra pista: `PROCEDIMIENTO.md`.
+
+| Decisión | Fecha | Tema | Vigente |
+| --- | --- | --- | --- |
+| D1 | 2026-11-08 | Alcance, captura y herramienta (OpenCV, grabadora externa) | Sí |
+| D2 | 2026-11-08 | Condiciones de grabación: formato, cámara de capó, gráficos | Sí |
+| D3 | 2026-11-08 | Primera vuelta utilizable; sincronía por el arranque | Sí, con D12 si el log no empieza parado |
+| D4 | 2026-11-08 | Plan de vueltas con ruedas fuera del asfalto (40 km/h) | **Sustituido por D11** (30 km/h con gas automático) |
+| D5 | 2026-11-08 | Cámara calibrada y línea blanca (vídeo automático a 30 km/h) | Sí; el 10 es legal (D10) |
+| D6 | 2026-11-08 | Borde derecho y límite de carrera; constantes 0,06 y 0,18 m | Sí, verificadas en D11 |
+| D7 | 2026-11-08 | Etiquetas automáticas y primer segmentador; cómo añadir un circuito | Red sin probar fuera de Sugo |
+| D8 | 2026-11-08 | Segundo vídeo (12.41) y sesgo a alta velocidad | Sí |
+| D9 | 2026-11-08 | Calibración reproducible; plan de 90° | 90° sin hacer |
+| D10 | 2026-11-08 | El piano es legal; `verificar_limite.py` | Sí |
+| D11 | 2026-11-09 | Reglas del límite, verificación con dos vueltas manuales y mapa corregido | Sí |
+| D12 | 2026-11-09 | Pasillo y línea nueva para la sesión; herramientas de sincronía y revisión; cierre para Sugo | Sí |
+
 ## D1 (2026-11-08): alcance, captura y herramienta
 
 - **Alcance:** medir la pista (bordes, línea blanca y franja, usos A + B del debate). La observación
@@ -75,6 +92,8 @@ la ruta absoluta en `video`.
   desplazadas y el comparador de cruces de terreno (ver PENDIENTE, D1c).
 
 ## D4 (2026-11-08): plan de las vueltas con ruedas fuera del asfalto
+
+> **Sustituido por D11:** al final se hicieron a 30 km/h con gas automático (`sesion_manual.py --velocidad-auto 30`), con zigzag en lugar de ruedas todo el rato fuera, y sin vídeo obligatorio.
 
 - **Qué:** dos vueltas manuales, una con las ruedas del lado izquierdo sobre hierba y piano y otra con las del
   derecho, a unos 40 km/h (o con el limitador a 60), cada una con su vídeo y su log
@@ -274,3 +293,19 @@ la ruta absoluta en `video`.
   pintura 49 dentro del piano de la recta tras C8; **solo el 20 % de la vuelta tiene horquilla de las ruedas y cerca del 60 % es corrección propagada**.
 - **Estudio de trazada con este mapa (V103 de `circuito_virtual/docs/DECISIONES.md`):** −0,67 s previstos con margen 0,6, pero solo −0,08 s si los metros propagados o del
   vídeo se acercan 0,3 m a la pista. Antes de escribir nada en `observaciones_logs.json`, verificar esos metros con una vuelta extra de zigzag por lado.
+
+## D12 (2026-11-09): pasillo y línea para la sesión, herramientas de sincronía y revisión, y cierre para Sugo
+
+- **Pasillo preparado:** `circuito_virtual/pistas/sugo_gp/observaciones_pasillo_d11.json` (`pasillo_a_observaciones.py` sobre `mapa_bordes_corregido.json`; ancho mediano de la rueda 10,79 m, mínimo
+  8,22 m). **`observaciones_logs.json` no se ha tocado**: `linea_optima.py` gana `--observaciones <archivo>` (por defecto el de siempre) para elegir el pasillo. Las excepciones de Sugo salen del código
+  a `circuito_virtual/pistas/sugo_gp/reglas_limite.json` (`mapa_corregido.py --reglas`; sin ese archivo no hay excepciones); el mapa corregido sale idéntico.
+- **Línea nueva `sugo_optima_a1mu9c12d11`** (mismos parámetros que `a1mu9c12` y margen 0,6; solo cambia el pasillo): **117,773 s previstos frente a 118,447 s**, holgura mínima de la rueda al borde 0,52 m
+  (en 772-773 m y 816-822 m, salida de C4; 9 m con menos de 0,6 m). El ápice de cada curva queda 0,3-0,8 m más por dentro que en `a1mu9c12` (C1 +0,75 m, C2 +0,82 m, C4 −0,49 m, C5 −0,50 m, C10 −0,42 m...); la
+  diferencia media |Δn| es de 0,48 m y la máxima de 3,91 m, en 1917 m (recta antes de C9, donde el pasillo viejo era muy estrecho). Los `.json` de las líneas no se versionan; el `_n.npy` sí. Comando en `PROCEDIMIENTO.md`.
+- **`src/sincronia_giro.py`:** desfase por correlación del giro del log con el desplazamiento horizontal de la imagen. Reproduce los +8,55 s (correlación 0,965) donde `sincronia.py` dio −10,18 s por un log que empezaba
+  a mitad de vuelta. **`src/tramos_dudosos.py`:** lista los tramos con cruces a más de 0,5 m del límite con su instante de vídeo, su curva y la secuencia de terrenos de las dos ruedas, y guarda un fotograma por tramo
+  para revisarlos con el usuario uno por uno (así se hizo D11). Con tests.
+- **Qué falta para dar el pasillo por bueno:** la sesión (Sesión D, `--reference` con la línea nueva) y, si salen ruedas fuera donde no se esperaban, una vuelta extra de zigzag por lado con el mapa corregido como
+  `--bordes`. El 60 % de la vuelta es corrección propagada, no medida.
+- **Cierre:** `video_vuelta` queda **terminado para Sugo con el Formula R** como herramienta de medición. Quedan opcionales (no necesarios para Sugo): 90° de campo de visión, cabeceo con `ride_height`, antialiasing, clase «piano»
+  en la red, segundo circuito y la vuelta extra de zigzag. Documentación reordenada: `README.md` (estado e índice de scripts), `PROCEDIMIENTO.md` (guía para otra pista), este registro con índice, `DEBATE.md` como histórico.

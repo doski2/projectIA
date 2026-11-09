@@ -98,3 +98,12 @@ def test_illegal_wheel_on_the_far_side_of_the_track_does_not_mark_this_edge():
     # el coche en la hierba del otro lado: la rueda «derecha» ilegal está a −9 m hacia fuera
     dentro, fuera = _cotas([(60, 4.0, 0), (60, -9.0, 7), (60, 5.0, 7)])
     assert fuera[60] == 5.0
+
+
+def test_rules_file_is_read_and_a_missing_one_means_no_exceptions(tmp_path):
+    f = tmp_path / "reglas_limite.json"
+    f.write_text('{"sin_48": {"dcha": [[10, 20]]}, "linea_manda": {"izq": [[30.5, 40]]}}', encoding="utf-8")
+    r = mc.cargar_reglas(f)
+    assert r["sin_48"] == {"izq": [], "dcha": [(10.0, 20.0)]} and r["linea_manda"] == {"izq": [(30.5, 40.0)], "dcha": []}
+    vacio = mc.cargar_reglas(tmp_path / "no_existe.json")
+    assert vacio["sin_48"] == {"izq": [], "dcha": []} and vacio["linea_manda"] == {"izq": [], "dcha": []}

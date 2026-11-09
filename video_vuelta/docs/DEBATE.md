@@ -1,6 +1,8 @@
 # Debate: grabar la vuelta (para todas las pistas y coches)
 
-Documento vivo. Aquí se discute y se decide; lo decidido pasa a `DECISIONES.md` (D1, D2...) con la
+> **Histórico (2026-11-08).** Lo decidido está en `DECISIONES.md` (D1-D12) y cómo repetirlo en `PROCEDIMIENTO.md`; el estado vigente, en `README.md`. Lo de abajo, sobre todo «Pendiente para la próxima sesión», **no está al día**.
+
+Documento de debate. Aquí se discutió y se decidió; lo decidido pasó a `DECISIONES.md` (D1, D2...) con la
 fecha. Punto de partida: D1c en `circuito_virtual/docs/PENDIENTE.md` («Al retomar», tareas 1 y 9, y
 «Siguiente», punto 6).
 

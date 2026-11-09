@@ -1,0 +1,16 @@
+{
+ "pista": "sugo_gp",
+ "origen": "D11 de video_vuelta/docs/DECISIONES.md (2026-11-09, acordado con el usuario viendo los fotogramas)",
+ "sin_48": {
+  "izq": [],
+  "dcha": [[2900.0, 2945.0]]
+ },
+ "linea_manda": {
+  "izq": [[3380.0, 3470.0]],
+  "dcha": []
+ },
+ "notas": {
+  "sin_48": "tramos (m de vuelta) donde el terreno 48 no es piano sino pintura de la base de bloques: C13 salida, el límite es el borde del asfalto",
+  "linea_manda": "tramos donde el límite es la línea blanca aunque detrás haya asfalto pisable que el juego no marca como fuera: recta final izquierda (pasillo de adelantamiento)"
+ }
+}

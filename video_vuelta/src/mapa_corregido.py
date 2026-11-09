@@ -12,6 +12,9 @@ Superficie legal = terrenos de carrera del juego + 48 (piano plano pintado, D11)
 C4, C9, C10, C12, C13) solo vale la parte plana; si el log no distingue las dos partes, el piano vale entero. El asfalto que se vuelve a pisar detrás de
 una salida (parche detrás del piano, entrada a boxes) no cuenta: solo valen las ruedas legales hasta la primera superficie ilegal.
 
+Las excepciones propias de cada pista (tramos donde el 48 no es piano, tramos donde manda la línea blanca) viven en `circuito_virtual/pistas/<pista>/reglas_limite.json`
+(`--reglas`); sin ese archivo no hay excepciones.
+
 Combinación por metro: con las dos cotas a menos de 0,6 m, su punto medio; si no, el límite del vídeo recortado a las cotas que haya. La corrección
 (`límite − vídeo`) se propaga a los metros vecinos sin cota (interpolada entre dos cotas o mantenida y atenuada junto a una), y se guarda la
 incertidumbre y la fuente de cada metro. Solo lee los logs y el mapa de vídeo: no toca la pista ni el juego.
@@ -46,11 +49,6 @@ MAX_HORQUILLA_M = 0.6
 MIN_CAMBIO_M = 0.10  # una cota que mueve el límite del vídeo menos que esto es ruido de la posición, no corrección
 ALCANCE_M, PLENO_M, MAX_HUECO_M = 25, 8, 50  # propagación de la corrección
 SIGMA_VIDEO_M, SIGMA_COTA_M, SIGMA_PROPAGADO_M = 0.6, 0.4, 0.6
-# (lado, desde, hasta): donde el 48 no es piano sino pintura de la base de los bloques (C13 salida; el límite es el borde del asfalto)
-SIN_48 = {"izq": [], "dcha": [(2900.0, 2945.0)]}
-# (lado, desde, hasta): el límite es la línea blanca aunque detrás haya asfalto pisable (el juego no lo marca como fuera: recta final izquierda, pasillo de adelantamiento; D11)
-LINEA_MANDA = {"izq": [(3380.0, 3470.0)], "dcha": []}
-
 FUENTE_VIDEO, FUENTE_DENTRO, FUENTE_FUERA, FUENTE_HORQUILLA, FUENTE_PROPAGADO = 0, 1, 2, 3, 4
 LADOS = {"izq": (LEFT_WHEELS, -1.0), "dcha": (RIGHT_WHEELS, 1.0)}
 
@@ -178,7 +176,20 @@ def validacion_cruzada(video_afuera: np.ndarray, dentro: np.ndarray, fuera: np.n
             "p90_corregido": float(np.percentile(ep, 90)) if len(ep) else None}
 
 
-def cotas_de_logs(logs: list[Path], mapa: Mapa) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+def cargar_reglas(ruta: Path | None) -> dict[str, dict[str, list[tuple[float, float]]]]:
+    """`{"sin_48": {lado: [(desde, hasta)]}, "linea_manda": {lado: [(desde, hasta)]}}`; vacío si no hay archivo."""
+    vacio: dict[str, dict[str, list[tuple[float, float]]]] = {"sin_48": {"izq": [], "dcha": []}, "linea_manda": {"izq": [], "dcha": []}}
+    if ruta is None or not Path(ruta).exists():
+        return vacio
+    datos = json.loads(Path(ruta).read_text(encoding="utf-8"))
+    for clave in vacio:
+        for lado in LADOS:
+            vacio[clave][lado] = [(float(a), float(b)) for a, b in datos.get(clave, {}).get(lado, [])]
+    return vacio
+
+
+def cotas_de_logs(logs: list[Path], mapa: Mapa, reglas: dict | None = None) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    reglas = reglas or cargar_reglas(None)
     n = mapa.n_puntos
     acum = {lado: (np.full(n, np.nan), np.full(n, np.nan)) for lado in LADOS}
     muestras = {lado: ([], [], []) for lado in LADOS}
@@ -194,7 +205,7 @@ def cotas_de_logs(logs: list[Path], mapa: Mapa) -> dict[str, tuple[np.ndarray, n
                 lista.append(arr)
     for lado in LADOS:
         bins, afuera, terr = (np.concatenate(m) for m in muestras[lado])
-        acum[lado] = cotas_de_lado(bins, afuera, terr, n, mapa.longitud_m, lado, SIN_48[lado], LINEA_MANDA[lado])
+        acum[lado] = cotas_de_lado(bins, afuera, terr, n, mapa.longitud_m, lado, reglas["sin_48"][lado], reglas["linea_manda"][lado])
     return acum
 
 
@@ -203,13 +214,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("logs", type=Path, nargs="+", help="logs de sesion_manual.py (uno por lado como mínimo)")
     ap.add_argument("--video", type=Path, default=BORDES)
     ap.add_argument("--mapa", type=Path, default=MAPA)
+    ap.add_argument("--reglas", type=Path, help="reglas_limite.json de la pista (por defecto, junto al mapa de la pista si existe)")
     ap.add_argument("--salida", type=Path, help="por defecto, junto al mapa del vídeo como mapa_bordes_corregido.json")
     a = ap.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     mapa = Mapa.cargar(a.mapa)
     video = Mapa.cargar(a.video)
-    cotas = cotas_de_logs(a.logs, mapa)
+    reglas = cargar_reglas(a.reglas or Path(a.mapa).with_name("reglas_limite.json"))
+    cotas = cotas_de_logs(a.logs, mapa, reglas)
     res, afuera_video = {}, {"izq": -video.borde_izq, "dcha": video.borde_dcha}
     for lado, (dentro, fuera) in cotas.items():
         res[lado] = corregir_lado(afuera_video[lado], dentro, fuera)
