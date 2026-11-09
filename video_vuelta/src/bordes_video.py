@@ -76,7 +76,7 @@ def leer_pose(ruta: str | Path) -> LogPose:
     if not t:
         raise ValueError(f"{ruta}: sin ticks con posición y orientación")
     # orientation[1] del log = rumbo del avance (atan2(dx, dz)) + π: medido el 2026-11-08 con el movimiento real (error medio 0,005 rad, desviación 0,03 rad)
-    return LogPose(np.array(t), np.array(vu), np.array(s), np.array(x), np.array(z), np.unwrap(np.array(yaw)) - np.pi, np.array(v))
+    return LogPose(np.array(t), np.array(vu), np.array(s), np.array(x), np.array(z), np.unwrap(np.asarray(yaw, dtype=np.float64)) - np.pi, np.array(v))
 
 
 def punto_al_mundo(x: float, z: float, rumbo: float, Z: np.ndarray, X: np.ndarray, atras_m: float) -> tuple[np.ndarray, np.ndarray]:

@@ -93,7 +93,6 @@ la ruta absoluta en `video`.
 - **Pendiente de la sesión:** texturas (filtro anisotrópico y resolución), `comprobar_graficos.py`, error de la
   sincronía con la meta y preguntar si se añaden las vueltas a las cotas (`bordes_logs.py actualizar`).
 
-
 ## D5 (2026-11-08): cámara calibrada y línea blanca medida desde el vídeo automático a 30 km/h
 
 - **Grabación:** `Project CARS 2_2026.11.08-16.20.mp4` (861,7 s, 6,4 GB, ≈ 64 Mb/s, 0 rotos) con el piloto
@@ -238,3 +237,40 @@ la ruta absoluta en `video`.
   se ajustan `SESGO_CAMARA_M` y `LIMITE_FUERA_M` y se repite D6 y V102.
 - **Qué falta medir:** el borde exterior del piano (la hierba tras él): detectarlo por color (verde) o con una clase «legal» de la red, y verificarlo con cruces
   de piano a hierba; sin eso el potencial de la trazada en curvas con piano está por debajo de lo real.
+
+## D11 (2026-11-08/09): reglas del límite acordadas con el usuario, verificación con dos vueltas manuales y mapa de bordes corregido
+
+- **Vueltas (solo log, `sesion_manual.py --lado izq|dcha --laps 1 --velocidad-auto 30`):** el programa lleva gas y freno por un mando virtual y el usuario solo gira,
+  haciendo zigzag hacia el lado cuyo borde se mide cada ≈ 3,6 s (30 m a 30 km/h). Lado izquierdo `20261108T215747Z_sugo_gp_mapeo_izq.jsonl` (vídeo `22.57`) y lado
+  derecho `20261108T230117Z_sugo_gp_mapeo_dcha.jsonl` (vídeo `2026.11.09-00.01`); los dos vídeos son utilizables (1920×1080, 100 % a periodo exacto, sin fotogramas rotos,
+  un hueco en el último fotograma). La primera mitad de la vuelta izquierda fue a 44-46 km/h (el control estaba más suave que el pedal del usuario) y el resto a
+  30,0 km/h; la derecha fue a 30 km/h toda la vuelta. **Sincronía:** el arranque desde parado no vale con un log que empieza a mitad de vuelta (la derecha); se calcula por
+  correlación del giro del log con el desplazamiento horizontal de la imagen: **t_log = t_vídeo + 7,40 s (izq) y + 8,55 s (dcha)**, correlación 0,97.
+- **Verificación de D6 (`verificar_limite.py`):** izquierda, 123 cruces, error mediano **+0,11 m** (IQR −0,04…+0,28; 57 % a menos de 0,3 m); derecha, 150 cruces, mediano
+  **−0,06 m** (IQR −0,43…+0,31; 45 % a menos de 0,3 m). Las constantes (0,06 y 0,18 m) valen de media, pero **la dispersión es grande: 43 cruces a la izquierda y 53 a la
+  derecha caen a más de 0,5 m** y el mapa del vídeo falla entre 0,6 y 1,8 m en los dos sentidos (curvas, pasillos de asfalto fuera de la línea, pianos).
+- **Reglas del límite (acordadas viendo ≈ 35 fotogramas, uno por uno, con el usuario):**
+  1. El límite es la **línea blanca continua**. Pasar la línea no se penaliza legalmente, pero se pierde agarre y velocidad, así que no gana nada. Donde fuera de la línea hay
+     un pasillo de asfalto (recta final izquierda, C1 entrada derecha, C2 entrada izquierda) **no cuenta** (el terreno 46, `TERRAIN_RUNOFF_ROAD`, es ese asfalto: ilegal).
+  2. **Donde hay piano, el límite es su borde exterior.** Se puede usar en la salida de la curva con el volante casi recto. Los pianos de C4, C9, C10, C12 y C13 tienen dos
+     partes: una interior plana y lisa (terreno 48, pintado; no está en `pcars2_surface.py` pero se toma como legal) y una banda exterior rugosa (10); **cuenta solo la plana**.
+     Si el log no distingue las dos, el piano vale entero («ya ajustaremos en pruebas»).
+  3. **Lo que hay detrás del piano no cuenta:** el parche de asfalto de C4 y C9, la moqueta verde de C11 (frena; en el log sale como 7) y la isleta de cemento de C3. En C3
+     el límite es el piano.
+  4. En C13 salida, donde no hay línea ni piano (bloques de hormigón de otro trazado separados por línea discontinua), el límite es el **borde del asfalto**, que enlaza con
+     la línea de antes y de después. El 48 de ahí es la base de los bloques y no cuenta.
+  5. El asfalto que se pisa de nuevo tras salir (entrada a boxes en 3219 m, patches tras el piano) no cuenta.
+- **`src/mapa_corregido.py <log izq> <log dcha> [...]`:** por metro y lado, cota inferior (rueda más exterior legal hasta la primera superficie ilegal) y cota superior (rueda
+  ilegal más interior que esté a más de 0,3 m del eje), y se combinan con el vídeo: con las dos a menos de 0,6 m, punto medio (σ 0,1-0,15 m); si no, el vídeo recortado a las
+  cotas que lo cambian (> 0,1 m; σ 0,4 m); y la corrección se propaga a los vecinos (interpolada entre dos anclas a menos de 50 m, o mantenida 8 m y atenuada hasta 25 m;
+  σ 0,6 m). Salida: `capturas/sugo_gp/formula_r/2026-11-08_2/mapa_bordes_corregido.json` (mismo formato que `mapa_bordes_video.json` más `sigma_*`, `fuente_*`, `delta_*`).
+  Con las dos vueltas: horquilla en 378 m (izq) y 337 m (dcha), propagado en 2309 y 2063 m, solo vídeo en 184 y 302 m; ancho mediano del límite 10,79 m (vídeo 10,88 m).
+  Un contacto ilegal con menos de 0,3 m «hacia fuera» (el coche en la hierba del otro lado) se ignora: sin eso el pasillo salía invertido en 1250-1410 m.
+- **Validación cruzada** (se quita la horquilla de cada metro con sus vecinos ±4 m y se predice su corrección): error mediano 0,18 → 0,12 m (izq) y 0,36 → 0,21 m (dcha); p90
+  1,04 → 0,56 m y 1,11 → 0,56 m; la corrección mejora al vídeo solo en el 58 % y el 70 % de los metros. Comparar con los mismos cruces (57 → 95 % y 45 → 94 % a menos de 0,3 m) es
+  circular: el mapa se ajustó con ellos.
+- **Límites:** el borde exterior del piano solo se conoce donde una rueda lo alcanzó (C9 salida 2088 m queda con el límite del vídeo, que lo subestima); unos 200 m por lado
+  quedan más estrechos que lo que ya pisaron las ruedas en los logs antiguos (recta tras C8 en 1355-1444 m, C4 derecha en 799-835 m...), sobre todo parches, franjas y la
+  pintura 49 dentro del piano de la recta tras C8; **solo el 20 % de la vuelta tiene horquilla de las ruedas y cerca del 60 % es corrección propagada**.
+- **Estudio de trazada con este mapa (V103 de `circuito_virtual/docs/DECISIONES.md`):** −0,67 s previstos con margen 0,6, pero solo −0,08 s si los metros propagados o del
+  vídeo se acercan 0,3 m a la pista. Antes de escribir nada en `observaciones_logs.json`, verificar esos metros con una vuelta extra de zigzag por lado.

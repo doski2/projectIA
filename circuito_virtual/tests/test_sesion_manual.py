@@ -134,3 +134,65 @@ def test_a_manual_lap_with_the_left_wheels_on_the_grass_gives_a_tight_left_edge(
     assert np.nanmax(np.abs(borde - BORDE_IZQ)) < 0.1
     hueco = obs.izq_dentro[150:850] - obs.izq_fuera[150:850]
     assert np.nanmedian(np.abs(hueco)) < 0.15
+
+
+def _simular(objetivo, v0=0.0, segundos=60.0, resistencia=0.0, dt=1 / 60):
+    """Coche de juguete: aceleración ∝ gas, frenada ∝ freno, rozamiento lineal y una pendiente constante (m/s² en contra)."""
+    c = sm.ControlVelocidad(objetivo)
+    v = v0
+    historia = []
+    for _ in range(int(segundos / dt)):
+        gas, freno = c.paso(v, dt)
+        a = 14.0 * gas - 12.0 * freno - 0.05 * v / 3.6 - resistencia
+        v = max(0.0, v + a * 3.6 * dt)
+        historia.append((v, gas, freno))
+    return historia
+
+
+def test_speed_control_reaches_target_from_standstill_without_overshoot():
+    h = _simular(30.0)
+    assert max(v for v, _, _ in h) < 33.0
+    assert abs(h[-1][0] - 30.0) < 1.0
+    assert max(g for _, g, _ in h) <= sm.ControlVelocidad.GAS_MAX
+
+
+def test_speed_control_holds_target_on_uphill_and_after_grass_drag():
+    h = _simular(30.0, v0=30.0, resistencia=0.6, segundos=90.0)
+    assert abs(h[-1][0] - 30.0) < 1.5
+
+
+def test_speed_control_brakes_only_well_above_target_and_never_both_pedals():
+    c = sm.ControlVelocidad(30.0)
+    assert c.paso(34.0, 0.02)[1] == 0.0
+    gas, freno = c.paso(45.0, 0.02)
+    assert gas == 0.0 and 0.0 < freno <= sm.ControlVelocidad.FRENO_MAX
+
+
+def test_speed_control_yields_when_user_brakes():
+    c = sm.ControlVelocidad(30.0)
+    for _ in range(100):
+        c.paso(10.0, 0.02)
+    assert c.paso(10.0, 0.02, freno_usuario=True) == (0.0, 0.0)
+    assert c.paso(30.0, 0.02)[0] == pytest.approx(sm.ControlVelocidad.GAS_BASE)  # la integral se reinició
+
+
+def test_speed_control_rejects_non_positive_target():
+    with pytest.raises(ValueError):
+        sm.ControlVelocidad(0.0)
+
+
+def test_aviso_gas_ajeno_only_after_sustained_excess_and_not_repeated_every_tick():
+    a = sm.AvisoGasAjeno()
+    assert not a.paso(0.95, 0.1, 0.0)          # empieza el exceso
+    assert not a.paso(0.95, 0.1, 0.5)          # aún < 1 s
+    assert a.paso(0.95, 0.1, 1.2)              # sostenido: avisa
+    assert not a.paso(0.95, 0.1, 2.0)          # no repite hasta pasar REPETIR_S
+    assert a.paso(0.95, 0.1, 6.5)              # y vuelve a avisar
+
+
+def test_aviso_gas_ajeno_resets_when_excess_ends_and_ignores_the_programs_own_gas():
+    a = sm.AvisoGasAjeno()
+    a.paso(0.9, 0.1, 0.0)
+    assert not a.paso(0.2, 0.15, 0.9)          # el exceso terminó: reinicia
+    assert not a.paso(0.9, 0.1, 1.5)           # vuelve a empezar de cero
+    assert not a.paso(0.7, 0.7, 5.0)           # el gas lo manda el programa: sin aviso

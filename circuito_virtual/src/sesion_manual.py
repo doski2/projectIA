@@ -1,6 +1,6 @@
 """D1b por conducción manual (V77): grabador pasivo de una vuelta conducida por el usuario con dos ruedas sobre la hierba.
 
-No envía ningún mando ni arranca el juego: solo escucha el UDP y escribe un log con lo que lee `bordes_logs.py` (posición, terreno de cada rueda, distancia de
+Por defecto no envía ningún mando ni arranca el juego (con `--velocidad-auto KMH` lleva el gas y el freno por un mando virtual y el usuario solo gira): solo escucha el UDP y escribe un log con lo que lee `bordes_logs.py` (posición, terreno de cada rueda, distancia de
 vuelta). Es el equivalente a las rondas del teacher de `PLAN.md` (D1b), pero con el usuario llevando las dos ruedas de un lado fuera del asfalto: la rueda que
 sigue dentro y la que ya está fuera acotan el borde con pocos centímetros.
 
@@ -29,11 +29,74 @@ for _p in (REPO, REPO / "PCARS2-AI" / "src"):
 from circuito_virtual.src.bordes_logs import LEFT_WHEELS, RIGHT_WHEELS  # noqa: E402
 from pcars2_surface import RACING_TERRAIN_IDS  # noqa: E402
 from session_log import GAME_PROFILE, LOG_SCHEMA  # noqa: E402
-from telemetry_udp import PACKET_CAR_PHYSICS, PACKET_TIMINGS, SMS_UDP_PORT, UDPListener  # noqa: E402
+from telemetry_udp import PACKET_CAR_PHYSICS, PACKET_TIMINGS, SMS_UDP_PORT, TelemetryFrame, UDPListener  # noqa: E402
 
 CARPETA = REPO / "PCARS2-AI" / "logs" / "manual"
 MIN_SPEED_KMH = 10.0  # por debajo de esto no se cuentan los ticks en el resumen (parado o saliendo de boxes)
 LADOS = {"izq": LEFT_WHEELS, "dcha": RIGHT_WHEELS}
+
+
+class ControlVelocidad:
+    """Gas y freno que mantienen una velocidad objetivo (PI con zona muerta de freno). El volante no se toca: lo lleva el usuario.
+
+    `paso(v_kmh, dt_s, freno_usuario)` devuelve `(gas, freno)` en [0, 1]. Si el usuario pisa su propio freno, el gas se corta y la integral se reinicia.
+    """
+
+    KP = 0.05          # gas por km/h de error
+    KI = 0.02          # gas por km/h·s de error acumulado
+    GAS_BASE = 0.20    # gas de mantenimiento a 30 km/h en llano
+    GAS_MAX = 0.70     # tope del gas (el monoplaza patina con más a baja velocidad)
+    FRENO_DESDE = 6.0  # km/h por encima del objetivo desde los que se frena (por debajo basta soltar el gas)
+    KF = 0.04          # freno por km/h por encima de esa zona
+    FRENO_MAX = 0.50
+    INTEGRAL_MAX = 15.0  # km/h·s, antiwindup
+
+    def __init__(self, objetivo_kmh: float):
+        if objetivo_kmh <= 0:
+            raise ValueError("la velocidad objetivo debe ser positiva")
+        self.objetivo = float(objetivo_kmh)
+        self._integral = 0.0
+
+    def paso(self, v_kmh: float, dt_s: float, freno_usuario: bool = False) -> tuple[float, float]:
+        if freno_usuario:
+            self._integral = 0.0
+            return 0.0, 0.0
+        error = self.objetivo - v_kmh
+        if error < 0:
+            freno = min(self.FRENO_MAX, self.KF * max(0.0, -error - self.FRENO_DESDE))
+            self._integral = max(0.0, self._integral + error * dt_s)  # al pasarse, la integral solo baja
+            return 0.0, freno
+        gas_sin_tope = self.GAS_BASE + self.KP * error + self.KI * self._integral
+        gas = min(self.GAS_MAX, gas_sin_tope)
+        if gas_sin_tope < self.GAS_MAX:  # sin saturar: acumular
+            self._integral = min(self.INTEGRAL_MAX, self._integral + error * dt_s)
+        return max(0.0, gas), 0.0
+
+
+class AvisoGasAjeno:
+    """Detecta que el usuario pisa su propio gas con `--velocidad-auto` (la telemetría lleva más gas del que manda el programa).
+
+    `paso(gas_telemetria, gas_enviado, ahora_s)` devuelve True una vez cada `REPETIR_S` mientras el exceso dure más de `DESDE_S`.
+    """
+
+    EXCESO = 0.30
+    DESDE_S = 1.0
+    REPETIR_S = 5.0
+
+    def __init__(self):
+        self._desde: Optional[float] = None
+        self._ultimo_aviso = -1e9
+
+    def paso(self, gas_telemetria: float, gas_enviado: float, ahora_s: float) -> bool:
+        if gas_telemetria - gas_enviado <= self.EXCESO:
+            self._desde = None
+            return False
+        if self._desde is None:
+            self._desde = ahora_s
+        if ahora_s - self._desde >= self.DESDE_S and ahora_s - self._ultimo_aviso >= self.REPETIR_S:
+            self._ultimo_aviso = ahora_s
+            return True
+        return False
 
 
 class GrabadorManual:
@@ -114,9 +177,12 @@ class GrabadorManual:
             },
             "timing": {"sector": tm.sector, "sector_time_s": round(tm.current_sector_time, 2), "game_time_s": round(tm.current_time, 2)},
         }
-        self._file.write(json.dumps(fila, ensure_ascii=False) + "\n")
+        archivo = self._file
+        if archivo is None:
+            return
+        archivo.write(json.dumps(fila, ensure_ascii=False) + "\n")
         if self.ticks % 100 == 0:
-            self._file.flush()
+            archivo.flush()
         if velocidad_kmh >= MIN_SPEED_KMH:
             fuera_lado = sum(terreno[i] not in RACING_TERRAIN_IDS for i in LADOS[self.lado])
             otro = LADOS["dcha" if self.lado == "izq" else "izq"]
@@ -147,24 +213,54 @@ def main(argv=None) -> int:
     ap.add_argument("--puerto", type=int, default=SMS_UDP_PORT)
     ap.add_argument("--carpeta", type=Path, default=CARPETA)
     ap.add_argument("--track", default="SUGO_GP")
+    ap.add_argument("--velocidad-auto", type=float, default=0.0, metavar="KMH",
+                    help="el programa lleva el gas y el freno (mando virtual) para mantener esta velocidad y tú solo giras; 0 = conduces tú todo")
+    ap.add_argument("--gamepad", choices=["xbox", "ds4"], default="xbox", help="tipo de mando virtual con --velocidad-auto")
     args = ap.parse_args(argv)
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     ruta = args.carpeta / f"{ts}_{args.track.lower()}_mapeo_{args.lado}.jsonl"
     grabador = GrabadorManual(ruta, args.lado, args.laps, args.track)
     grabador.abrir()
-    print(f"Grabando {ruta} (lado {args.lado}, {args.laps} vueltas). Conduce tú; Ctrl+C para terminar antes.", flush=True)
+    mando = None
+    control = None
+    if args.velocidad_auto > 0:
+        from controller import DS4Controller  # noqa: E402  (vgamepad solo hace falta con --velocidad-auto)
+
+        control = ControlVelocidad(args.velocidad_auto)
+        mando = DS4Controller(mode=args.gamepad)
+    modo = f"gas y freno automáticos a {args.velocidad_auto:g} km/h, tú solo el volante" if control else "conduces tú"
+    print(f"Grabando {ruta} (lado {args.lado}, {args.laps} vueltas; {modo}). Ctrl+C para terminar antes.", flush=True)
     ultimo_aviso = time.monotonic()
+    t_previo = time.monotonic()
+    freno_enviado = 0.0
+    gas_enviado = 0.0
+    aviso_gas = AvisoGasAjeno()
     try:
         with UDPListener(args.puerto) as escucha:
             while not grabador.terminado:
                 ptype, paquete = escucha.recv(timeout=1.0)
-                grabador.procesar(ptype, paquete)
+                if ptype is not None:
+                    grabador.procesar(ptype, paquete)
+                if control is not None and mando is not None and ptype == PACKET_CAR_PHYSICS and isinstance(paquete, TelemetryFrame) \
+                        and not getattr(paquete, "viewed_is_ai", False):
+                    ahora = time.monotonic()
+                    # el freno de la telemetría que no hemos mandado nosotros es del usuario: cede el gas
+                    freno_usuario = paquete.brake / 255 > 0.15 and freno_enviado < 0.05
+                    gas, freno = control.paso(paquete.speed * 3.6, min(0.2, ahora - t_previo), freno_usuario)
+                    t_previo = ahora
+                    freno_enviado = freno
+                    if aviso_gas.paso(paquete.throttle / 255, gas_enviado, ahora):
+                        print("  AVISO: se está pisando el gas por otro lado (pedales del volante); suéltalo, el programa lleva el gas", flush=True)
+                    gas_enviado = gas
+                    mando.apply_action(throttle=gas, brake=freno, steering=0.0)
                 if time.monotonic() - ultimo_aviso > 5.0:
                     ultimo_aviso = time.monotonic()
                     print(f"  {grabador.ticks} ticks, {grabador.vueltas_completas}/{args.laps} vueltas", flush=True)
     except KeyboardInterrupt:
         print("Interrumpido.")
     finally:
+        if mando is not None:
+            mando.release()
         grabador.cerrar()
     print(grabador.resumen())
     return 0

@@ -5,9 +5,11 @@ blanca y la franja, y más adelante una observación visual para BC / PPO. Nace 
 `circuito_virtual/docs/PENDIENTE.md` (2026-11-08) pero se plantea desde el principio para **cualquier
 pista y cualquier coche**, no solo para Sugo con el coche actual.
 
+**Estado (2026-11-09, noche):** dos vueltas manuales a 30 km/h (una por lado, gas automático) verifican D6 (error mediano +0,11 m izq y −0,06 m dcha, con mucha dispersión), se acuerdan con el usuario las reglas del límite (línea blanca; piano = su borde exterior; lo de detrás no cuenta) y `src/mapa_corregido.py` mezcla vídeo y ruedas: −0,67 s previstos con margen 0,6 (−0,08 s si lo propagado se acerca 0,3 m). Detalle en D11 de `docs/DECISIONES.md`; siguiente: una vuelta de zigzag extra por lado para verificar lo propagado. Estado anterior:
+
 **Estado (2026-11-08, tarde):** hecho de extremo a extremo para Sugo con el Formula R: gráficos fijados, vídeo automático a 30 km/h, cámara calibrada,
 línea blanca y límite de carrera medidos (10,87 m de ancho frente a 5,4 m comprobados), estudio de trazada (−0,62 s previstos), etiquetas automáticas y
-primer segmentador (IoU 0,94); 55 tests. **Pendiente y orden de la próxima sesión:** «Al retomar» 1b de `circuito_virtual/docs/PENDIENTE.md`; decisiones D2-D10
+primer segmentador (IoU 0,94); 55 tests. **Pendiente y orden de la próxima sesión:** «Al retomar» 1b de `circuito_virtual/docs/PENDIENTE.md`; decisiones D2-D11
 en `docs/DECISIONES.md`. **Aviso:** el piano es superficie legal (D10) y el vídeo subestima el límite donde lo hay; la generalización a otro circuito no está probada.
 
 ## Reglas
