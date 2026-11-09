@@ -1,10 +1,10 @@
 # Pendiente de circuito_virtual
 
-Estado al cierre del **2026-11-08** (V1-V100). Lo que no es del circuito (rampa del BC, PPO, daño
+Estado al cierre del **2026-11-09** (V1-V104). Lo que no es del circuito (rampa del BC, PPO, daño
 de motor P26, controles de seco, reentreno v2) está en `experimental/docs/PENDIENTE.md`. El plan está
 en `docs/PLAN.md`, las decisiones en `docs/DECISIONES.md` y la historia en `docs/DIARIO.md`.
 
-**Qué significan las «V»:** cada Vnn es una entrada del registro de decisiones (hoy V1-V100), no una
+**Qué significan las «V»:** cada Vnn es una entrada del registro de decisiones (hoy V1-V104), no una
 versión del software. La versión del software es el commit de git, que cada sesión guarda en la
 cabecera de su log. Este documento recoge solo el estado actual y lo que sigue; las cifras de sesiones
 anteriores son referencia (están en `DECISIONES.md`) y cada sesión nueva se juzga contra el criterio de
@@ -12,8 +12,8 @@ volante de más abajo, no contra la anterior.
 
 ## Dónde estamos
 
-- **Estado del código (2026-11-08):** todo commiteado en local y **sin subir a GitHub**; solo queda suelto el `1.tzip` de la raíz (se puede borrar). Hoy no hubo cambios de código, solo reglaje del coche, un mapa de agarre hecho a mano (`seco_b140_lim95_cap14_c121314_t21.json`) y documentación. Los logs llevan en la cabecera el hash de `HEAD`: commitear antes de lanzar.
-- **Tests en verde:** `circuito_virtual` 79, `experimental` 132, `PCARS2-AI` 601 (ruff limpio en todo lo tocado; en `experimental` quedan los avisos antiguos de `resumen_sesion.py` y `test_resumen_sesion.py`). Se lanzan con `pytest` dentro de cada carpeta.
+- **Estado del código (2026-11-09):** todo commiteado en local (último commit `2c607fa`) y **sin subir a GitHub**; solo queda suelto el `1.tzip` de la raíz (se puede borrar). El 08-11 no hubo cambios de código del teacher; el 09-11 se añadieron `sesion_manual.py --velocidad-auto`, `linea_optima.py --observaciones` y las herramientas de `video_vuelta` (V103-V104). Los logs llevan en la cabecera el hash de `HEAD`: commitear antes de lanzar.
+- **Tests en verde (2026-11-09):** `circuito_virtual` 86, `video_vuelta` 76; `experimental` 132 y `PCARS2-AI` 601 sin cambios desde el 08-11. Se lanzan con `pytest` dentro de cada carpeta (`python -m pytest video_vuelta/tests` desde la raíz).
 - **Mejor vuelta: 1:48.898** (`233729Z`, 2026-11-07, banda 150 con el diferencial a 60°). **Receta vigente (V97-V99): banda 150, ≈ 1:49.02 de media** (`233729Z` 1:49.032 y `000717Z` 1:49.019, vueltas 3-8): línea `a1mu9c12`, límite lateral 9,5 con el mapa del agarre de tope 13 y **C12, C13 y C14 a 14 m/s²** (`seco_b140_lim95_cap14_c121314_t21.json`), contravolante `--steer-slip-gain 8`, gas de salida `--exit-circle 18` con su mapa, frenada `--brake-decel-straight 11` con su mapa, los tres ajustes por curva congelados y el coche con el diferencial a 60° y los frenos a 55/45 (comando en «Comandos vigentes»). Referencias: banda 150 con tope 13 1:49.38; banda 145 1:50.264; banda 140 1:51.20 (mejor 1:51.114).
 - **Teacher** (`teacher_controller.py`, `learn_driver.py`): cada opción es opt-in y su valor por defecto es el de producción. Los tres ajustes por curva (`--lat-adapt`, `--exit-adapt`, `--brake-adapt`) comparten esquema: un multiplicador por curva que se mide al cerrar cada vuelta y se aplica en la siguiente, con vueltas congeladas y mapa que se guarda y se carga con las condiciones de pista y gomas.
 - **Mapas versionados** (`circuito_virtual/pistas/sugo_gp/`; un archivo por condiciones, no mezclarlos): `mapas_lat_adapt/` (`seco_b140_lim95_cap12.json` 16 °C; `…_cap12_t21.json` y `…_cap13_t21.json` 21 °C, `seco_b140_lim95_cap14_c121314_t21.json` es el vigente: el de 13 con solo C12, C13 y C14 a ×1,4737 = 14 m/s², hecho a mano el 2026-11-07, V97), `mapas_exit_adapt/seco_b140_exit18_t21.json` y `mapas_freno_adapt/seco_b140_dec11_t21.json`. Con otras condiciones el programa recorta el margen sobre 1,0 y nunca acelera más que el ajuste normal (V88).
@@ -61,13 +61,24 @@ volante de más abajo, no contra la anterior.
 
 **Descartado:** `--lat-adapt` aprendiendo a banda 150 con tope 14 (V96): los umbrales de «curva mala» de V19 (|CTE| 1,8 m, deriva 4,0°) bajan C2-C7 y C9 y la media sube a 1:50.15. **Lo que manda hoy:** la banda de velocidad en las rectas (coincide con el techo de la 3.ª marcha, 151,5 km/h) y los topes de los mapas; las dobles frenadas de C2, C4 y C8 salen del perfil óptimo y no se tocan.
 
+### Próxima sesión (el usuario dice «cerramos»): probar la línea nueva y cerrar el bloque de la trazada
+
+Orden, sin vídeo (para estas dos sesiones no hace falta grabar; si algún día se graba, `comprobar_graficos.py` antes):
+
+1. **Antes de nada:** `git status` limpio y leer «Comandos vigentes». Comprobar en el garaje el reglaje (diferencial 60°, frenos 55/45) y la pista y el ambiente (21 / 14 °C). Si algo cambia, ponerlo en el nombre del experimento.
+2. **Sesión A, control del día** (la receta vigente tal cual, 8 vueltas, debe dar ≈ 1:49.0): referencia para la D.
+3. **Sesión D, la línea nueva `a1mu9c12d11`** (la receta con solo `--reference` cambiado; comando en «Comandos vigentes»), 8 vueltas, el usuario atento y con Ctrl+C a mano: la línea pasa 0,3-0,8 m más por dentro en cada ápice y los mapas congelados se aprendieron con la anterior.
+4. **Analizar las dos** con «Cómo analizar una sesión» y, para la D, además: ticks con rueda fuera (terreno 7) por tramo (salida de C4 en 772-822 m, C10, C12-C14), velocidad a la entrada de cada curva frente a la A, y tiempo frente a la A (la previsión del solver es −0,67 s; un −0,1 a −0,3 s ya sería una buena señal).
+5. **Decidir y apuntar** (V105): (i) la D gana y queda limpia → **preguntar** si el pasillo `observaciones_pasillo_d11.json` sustituye a `observaciones_logs.json` (versionado), y si los mapas de agarre, gas y frenada se reaprenden con la línea nueva (una sesión por mapa, en este orden: agarre, gas, frenada); (ii) la D no gana pero queda limpia → mirar curva a curva dónde pierde (la línea más por dentro puede pedir más frenada o menos velocidad en el vértice) antes de descartarla; (iii) salen ruedas fuera donde no se esperaban → vuelta extra de zigzag por lado y rehacer el mapa corregido con los cuatro logs (`video_vuelta/docs/PROCEDIMIENTO.md`, pasos 2-5; comando en «Al retomar» 1b (a2)).
+6. Con eso el **punto 9 (trazada)** se da por cerrado y se pasa a la Sesión B (más deceleración en el perfil) o a lo que decida el usuario.
+
 ### Antes de lanzar cualquier sesión
 
 0. `git status` limpio (el `1.tzip` suelto de la raíz no cuenta; se puede borrar). Comprobar en el garaje el **reglaje** de arriba y la pista / ambiente (21 / 14 °C); si algo cambia, ponerlo en el nombre del experimento y apuntar el «desajuste de condiciones» que escribe cada ajuste al empezar.
 
 ### Tareas, por orden
 
-1. **Sesión A: control del día** (la receta vigente tal cual, 8 vueltas, debe dar ≈ 1:49.0): confirma condiciones y reglaje y es la referencia de B. Comando «RECETA VIGENTE» en «Comandos vigentes». **Grabarla en vídeo (D1c, bordes por vídeo):** cámara de capó o de parachoques, HUD oculto, campo de visión fijo, 1080p y 60 fps con bitrate alto, empezando desde parado (sirve para sincronizar con el log); anotar la ruta del archivo y el nombre del log.
+1. **Sesión A: control del día** (la receta vigente tal cual, 8 vueltas, debe dar ≈ 1:49.0): confirma condiciones y reglaje y es la referencia de B. Comando «RECETA VIGENTE» en «Comandos vigentes». **Ya no hace falta grabarla en vídeo:** `video_vuelta` quedó cerrado para Sugo (D12); si se quisiera, las condiciones están en `video_vuelta/docs/PROCEDIMIENTO.md`.
 1b. **Vídeo de la vuelta y bordes de la pista (`video_vuelta/`, V101-V104; cerrado para Sugo con el Formula R en D12; guía para otra pista en `video_vuelta/docs/PROCEDIMIENTO.md`).** **Hecho el 2026-11-08/09:** cadena completa (gráficos, vídeo, cámara calibrada, línea blanca, límite de carrera de 10,87 m de ancho frente a 5,4 m comprobados por ruedas, verificación con dos vueltas manuales a 30 km/h con gas automático, reglas del límite acordadas con el usuario viendo los fotogramas, mapa corregido, estudio de trazada: **−0,67 s previstos con margen 0,6, −0,08 s si lo propagado se acerca 0,3 m**) y **pasillo y línea preparados:** `pistas/sugo_gp/observaciones_pasillo_d11.json` y `sugo_optima_a1mu9c12d11` (117,773 s previstos frente a 118,447 s de `a1mu9c12`, holgura mínima de la rueda 0,52 m en la salida de C4, ápice de cada curva 0,3-0,8 m más por dentro); `observaciones_logs.json` y las líneas anteriores sin tocar. **Siguiente, por orden:**
    - (a) **Sesión D: la línea nueva** (receta vigente con solo `--reference` cambiado; comando en «Comandos vigentes»), con el usuario atento y Ctrl+C a mano y 8 vueltas. Qué mirar: ticks con rueda fuera (terreno 7) por tramo, sobre todo en la salida de C4 (772-822 m), C10 y C12-C14; el tiempo frente al control del día (Sesión A) y la velocidad a la entrada de cada curva (la línea cambia el radio, y los mapas de agarre, gas y frenada se aprendieron con la anterior). Si gana y queda limpia, preguntar si el pasillo sustituye a `observaciones_logs.json`; si no, volver a (a2).
    - (a2) **Solo si algo no cuadra: una vuelta extra de zigzag por lado** para verificar los metros propagados (≈ 60 % de la vuelta): `C:\Users\doski\projectIA\.venv\Scripts\python.exe C:\Users\doski\projectIA\circuito_virtual\src\sesion_manual.py --lado izq --laps 1 --velocidad-auto 30` (y `--lado dcha`; no tocar los pedales del volante), `verificar_limite.py --bordes video_vuelta/capturas/sugo_gp/formula_r/2026-11-08_2/mapa_bordes_corregido.json <log>` y `mapa_corregido.py` con los cuatro logs (`PROCEDIMIENTO.md`, pasos 2-5).
