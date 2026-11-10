@@ -1,3 +1,3 @@
 pendiente: experimental 20 2 vueltas sin bc y pasar informe cada banda hasta 80
 revisiones:
-
+teniendo ese programa que detecta objetos porque no lo usamos y actualizamos donde esta cada piano y linea algo mas preciso 

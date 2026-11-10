@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "base_limit": 18.0,
+  "cap_limit": 23.400000000000002,
+  "max_scale": 1.3,
+  "scales": {
+    "1": 1.1561,
+    "2": 1.3,
+    "3": 1.3,
+    "4": 0.8393,
+    "5": 0.7437,
+    "6": 1.3,
+    "7": 0.9916,
+    "8": 0.9551,
+    "9": 0.92,
+    "10": 1.2918,
+    "11": 1.119,
+    "12": 1.0,
+    "13": 1.2412,
+    "14": 1.0
+  },
+  "conditions": {
+    "rain": 0,
+    "track_c": 16,
+    "ambient_c": 12,
+    "tyre_start_c": 86.0,
+    "compound": "Lisos/Lisos/Lisos/Lisos",
+    "tyre_ref_c": 48.5
+  },
+  "tyre_by_lap": {
+    "2": 58.4,
+    "3": 53.1,
+    "4": 50.8,
+    "5": 49.8,
+    "6": 49.3,
+    "7": 48.9,
+    "8": 48.7,
+    "9": 48.4,
+    "10": 48.3
+  },
+  "laps_closed": 9,
+  "clean_tail": false,
+  "meta": {
+    "experiment": "a2_optA1mu9c12_150_g3_lat95_slip8_v70_ff0_cap100_pv03_gas1_fr11_perfil_c10_slip_exit18_aprende_cap14_c121314_fijo_t21_dif60_frenos55_refd11_p16a12_l10",
+    "lap": 10,
+    "reconstruido_del_log": "20261109T221139Z_sugo_gp_l1_linea.jsonl",
+    "nota": "estado tras cerrar la vuelta 10; la vuelta 9 tuvo bajadas (C7, C8), por eso no se guardó solo"
+  }
+}
