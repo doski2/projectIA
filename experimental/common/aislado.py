@@ -100,7 +100,7 @@ def build_argv(
     ident_straights: str = "", ident_caps: str = "",
     ident_arc_speeds: str = "", ident_arc_window: str = "3200,600", ident_arc_cte: float = 2.5, steer_ff_gain: float = 0.0,
     max_gear: int = 2, reference: str = DEFAULT_REFERENCE, lat_accel_limit: float = LAT_ACCEL_LIMIT, steer_slip_gain: float = 0.0,
-    lat_gain_v0_kmh: float = 0.0, steer_ff_v0_kmh: float = -1.0, steer_preview_s: float = 0.0,
+    lat_gain_v0_kmh: float = 0.0, steer_ff_v0_kmh: float = -1.0, steer_preview_s: float = 0.0, steer_heading_gain: float = 0.0,
     throttle_max: float = 0.85, brake_decel_straight: float = 0.0, brake_overspeed_straight_ms: float = 8.0,
     brake_slip_limit: float = 0.0, brake_slip_hold: float = 0.0, steer_ff_cap_kmh: float = 0.0,
     pedal_technique: bool = False, pedal_exit_slew: float = 1.5, brake_profile: bool = False, brake_circle: float = 14.6, exit_circle: float = 0.0, profile_peak_min_m: float = 0.0, profile_peak_min_kmh: float = 0.0,
@@ -147,6 +147,8 @@ def build_argv(
         argv += ["--throttle-max", f"{throttle_max:g}"]
     if steer_preview_s:  # V22: anticipación del volante por tiempo; 0 = 30 m fijos de producción
         argv += ["--steer-preview-s", f"{steer_preview_s:g}"]
+    if steer_heading_gain:  # V108: ganancia sobre el error de rumbo; 0 = producción (0,55)
+        argv += ["--steer-heading-gain", f"{steer_heading_gain:g}"]
     if steer_ff_v0_kmh >= 0.0:  # V21: velocidad desde la que crece la anticipación de volante (por defecto 60)
         argv += ["--steer-ff-v0-kmh", f"{steer_ff_v0_kmh:g}"]
     if lat_gain_v0_kmh:  # V18: ganancia de CTE programada por velocidad; 0 = producción
@@ -220,7 +222,7 @@ def run_isolated(
     ident_straights: str = "", ident_caps: str = "",
     ident_arc_speeds: str = "", ident_arc_window: str = "3200,600", ident_arc_cte: float = 2.5, steer_ff_gain: float = 0.0,
     max_gear: int = 2, reference: str = DEFAULT_REFERENCE, lat_accel_limit: float = LAT_ACCEL_LIMIT, steer_slip_gain: float = 0.0,
-    lat_gain_v0_kmh: float = 0.0, steer_ff_v0_kmh: float = -1.0, steer_preview_s: float = 0.0,
+    lat_gain_v0_kmh: float = 0.0, steer_ff_v0_kmh: float = -1.0, steer_preview_s: float = 0.0, steer_heading_gain: float = 0.0,
     throttle_max: float = 0.85, brake_decel_straight: float = 0.0, brake_overspeed_straight_ms: float = 8.0,
     brake_slip_limit: float = 0.0, brake_slip_hold: float = 0.0, steer_ff_cap_kmh: float = 0.0,
     pedal_technique: bool = False, pedal_exit_slew: float = 1.5, brake_profile: bool = False, brake_circle: float = 14.6, exit_circle: float = 0.0, profile_peak_min_m: float = 0.0, profile_peak_min_kmh: float = 0.0,
@@ -259,7 +261,7 @@ def run_isolated(
                 ident_arc_speeds=ident_arc_speeds, ident_arc_window=ident_arc_window, ident_arc_cte=ident_arc_cte,
                 steer_ff_gain=steer_ff_gain, max_gear=max_gear, reference=reference, lat_accel_limit=lat_accel_limit,
                 steer_slip_gain=steer_slip_gain, lat_gain_v0_kmh=lat_gain_v0_kmh,
-                steer_ff_v0_kmh=steer_ff_v0_kmh, steer_preview_s=steer_preview_s,
+                steer_ff_v0_kmh=steer_ff_v0_kmh, steer_preview_s=steer_preview_s, steer_heading_gain=steer_heading_gain,
                 throttle_max=throttle_max, brake_decel_straight=brake_decel_straight,
                 brake_overspeed_straight_ms=brake_overspeed_straight_ms, brake_slip_limit=brake_slip_limit,
                 brake_slip_hold=brake_slip_hold, steer_ff_cap_kmh=steer_ff_cap_kmh,
@@ -342,6 +344,8 @@ if __name__ == "__main__":
                     help="Tope del gas del teacher al acelerar (V24); 0,85 = producción, 1,0 = a fondo como en A1")
     ap.add_argument("--steer-preview-s", type=float, default=0.0,
                     help="Anticipación del volante por tiempo (V22): la curvatura que anticipa el volante se lee a v · T metros (mín. 4 m) en lugar de 30 m fijos; 0 = producción")
+    ap.add_argument("--steer-heading-gain", type=float, default=0.0,
+                    help="Ganancia del volante sobre el error de rumbo (k_heading, V108): cuánto gira por cada radián que el coche apunta fuera de la línea; 0 = producción (0,55)")
     ap.add_argument("--steer-ff-v0-kmh", type=float, default=-1.0,
                     help="Velocidad (km/h) desde la que crece la anticipación de volante de --steer-ff-gain (por defecto 60); con 0 el factor es 1 + G · v² (V21)")
     ap.add_argument("--lat-gain-v0-kmh", type=float, default=0.0,
@@ -425,7 +429,7 @@ if __name__ == "__main__":
     except ValueError as exc:
         ap.error(str(exc))
     problem = a2_error(a.ident, a.max_gear, a.lat_accel_limit, a.teacher_only, a.experiment, a.speed_band, cap_limit,
-                         bool(a.steer_ff_gain or a.steer_slip_gain or a.lat_gain_v0_kmh or a.steer_ff_v0_kmh >= 0.0 or a.steer_preview_s
+                         bool(a.steer_ff_gain or a.steer_slip_gain or a.lat_gain_v0_kmh or a.steer_ff_v0_kmh >= 0.0 or a.steer_preview_s or a.steer_heading_gain
                          or a.throttle_max != 0.85 or a.brake_decel_straight or a.brake_overspeed_straight_ms != 8.0 or a.brake_slip_limit or a.brake_slip_hold or a.steer_ff_cap_kmh or a.pedal_technique or a.brake_profile or a.exit_circle or a.profile_peak_min_m or a.profile_peak_min_kmh or a.lat_adapt or a.exit_adapt or a.brake_adapt))
     if problem:
         ap.error(problem)
@@ -539,8 +543,8 @@ if __name__ == "__main__":
         ap.error("--steer-ff-cap-kmh no puede ser negativo (0 = sin tope)")
     if a.steer_ff_cap_kmh and not a.steer_ff_gain:
         ap.error("--steer-ff-cap-kmh necesita --steer-ff-gain (el tope es del factor de esa anticipación)")
-    if a.steer_ff_gain < 0 or a.steer_slip_gain < 0 or a.lat_gain_v0_kmh < 0 or a.steer_preview_s < 0:
-        ap.error("--steer-ff-gain, --steer-slip-gain, --lat-gain-v0-kmh y --steer-preview-s no pueden ser negativos")
+    if a.steer_ff_gain < 0 or a.steer_slip_gain < 0 or a.lat_gain_v0_kmh < 0 or a.steer_preview_s < 0 or a.steer_heading_gain < 0:
+        ap.error("--steer-ff-gain, --steer-slip-gain, --lat-gain-v0-kmh, --steer-preview-s y --steer-heading-gain no pueden ser negativos")
     if a.ident:
         a.teacher_only = True  # el BC no conduce en A1
     t0 = time.time() - 5
@@ -556,7 +560,7 @@ if __name__ == "__main__":
                        ident_straights=a.ident_straights, ident_caps=a.ident_caps,
                        ident_arc_speeds=a.ident_arc_speeds, ident_arc_window=a.ident_arc_window, ident_arc_cte=a.ident_arc_cte,
                        steer_ff_gain=a.steer_ff_gain, max_gear=a.max_gear, reference=a.reference, lat_accel_limit=a.lat_accel_limit, steer_slip_gain=a.steer_slip_gain,
-                       lat_gain_v0_kmh=a.lat_gain_v0_kmh, steer_ff_v0_kmh=a.steer_ff_v0_kmh, steer_preview_s=a.steer_preview_s,
+                       lat_gain_v0_kmh=a.lat_gain_v0_kmh, steer_ff_v0_kmh=a.steer_ff_v0_kmh, steer_preview_s=a.steer_preview_s, steer_heading_gain=a.steer_heading_gain,
                        throttle_max=a.throttle_max, brake_decel_straight=a.brake_decel_straight,
                        brake_overspeed_straight_ms=a.brake_overspeed_straight_ms, brake_slip_limit=a.brake_slip_limit,
                        brake_slip_hold=a.brake_slip_hold, steer_ff_cap_kmh=a.steer_ff_cap_kmh,

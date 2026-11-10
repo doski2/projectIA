@@ -333,6 +333,12 @@ def test_steer_preview_goes_to_learn_driver_only_when_set():
     assert argv[argv.index("--steer-preview-s") + 1] == "0.3"
 
 
+def test_steer_heading_gain_goes_to_learn_driver_only_when_set():
+    assert "--steer-heading-gain" not in aislado.build_argv(Path("python"), "a2_x", 80.0, 3, teacher_only=True)
+    argv = aislado.build_argv(Path("python"), "a2_x", 80.0, 3, teacher_only=True, steer_heading_gain=0.7)
+    assert argv[argv.index("--steer-heading-gain") + 1] == "0.7"
+
+
 def test_throttle_max_goes_to_learn_driver_only_when_not_production():
     assert "--throttle-max" not in aislado.build_argv(Path("python"), "a2_x", 90.0, 3, teacher_only=True)
     argv = aislado.build_argv(Path("python"), "a2_x", 90.0, 3, teacher_only=True, throttle_max=1.0)

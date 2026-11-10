@@ -202,6 +202,10 @@ def parse_args() -> argparse.Namespace:
         help="Anticipación del volante por tiempo (V22): la curvatura que anticipa el volante se lee a v · T metros (mín. 4 m) en lugar de 30 m fijos. 0 = producción.",
     )
     parser.add_argument(
+        "--steer-heading-gain", type=float, default=0.0,
+        help="Ganancia del volante sobre el error de rumbo (k_heading, V108): cuánto gira por cada radián que el coche apunta fuera de la línea. 0 = producción (0,55).",
+    )
+    parser.add_argument(
         "--brake-decel-straight", type=float, default=0.0,
         help="Frenada que el teacher supone en RECTA para anticipar la curva (m/s², V31). 0 = la de siempre (4 m/s²).",
     )
@@ -565,6 +569,7 @@ def run(args: argparse.Namespace) -> int:
         slip_steer_gain=float(getattr(args, "steer_slip_gain", 0.0) or 0.0),
         lat_gain_v0_kmh=float(getattr(args, "lat_gain_v0_kmh", 0.0) or 0.0),
         steer_preview_s=float(getattr(args, "steer_preview_s", 0.0) or 0.0),
+        **({"k_heading": float(args.steer_heading_gain)} if float(getattr(args, "steer_heading_gain", 0.0) or 0.0) > 0.0 else {}),
         throttle_max=float(getattr(args, "throttle_max", 0.85) or 0.85),
         brake_decel_straight=float(getattr(args, "brake_decel_straight", 0.0) or 0.0),
         brake_overspeed_straight_ms=float(getattr(args, "brake_overspeed_straight_ms", 8.0) or 8.0),
@@ -727,6 +732,7 @@ def run(args: argparse.Namespace) -> int:
         "origin": "experimental" if experiment else "main",
         "experiment": experiment or None,
         "ramp": ramp.to_dict() if ramp is not None else None,
+        "k_heading": teacher.config.k_heading,
     })
 
     if ramp is not None:

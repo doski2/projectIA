@@ -734,6 +734,19 @@ def _sugo_spot_before_a_bend():
     raise AssertionError("no hay un punto así en Sugo")
 
 
+def test_heading_gain_scales_only_the_heading_term():
+    ref, d = _sugo_spot_before_a_bend()
+    telem = _on_line(80.0 / 3.6)
+    base = TeachingController(ref, TeacherConfig(speed_target_kmh=80.0, steer_smooth=1.0))
+    alta = TeachingController(ref, TeacherConfig(speed_target_kmh=80.0, steer_smooth=1.0, k_heading=0.7))
+    assert base.config.k_heading == 0.55  # producción
+    # sin error de rumbo, el volante es el mismo
+    assert base.compute_steering(telem, d, 0.0, 0.0)[0] == alta.compute_steering(telem, d, 0.0, 0.0)[0]
+    # con 0,05 rad de error de rumbo, la diferencia es (0,7 − 0,55) · 0,05
+    diff = alta.compute_steering(telem, d, 0.0, 0.05)[0] - base.compute_steering(telem, d, 0.0, 0.05)[0]
+    assert abs(diff - 0.15 * 0.05) < 1e-9
+
+
 def test_steer_preview_zero_keeps_the_30_m_lookahead():
     ref, d = _sugo_spot_before_a_bend()
     base = TeachingController(ref, TeacherConfig(speed_target_kmh=80.0, steer_smooth=1.0))
