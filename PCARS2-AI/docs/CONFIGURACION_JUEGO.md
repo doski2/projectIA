@@ -92,10 +92,19 @@ compensación; no se puede separar su efecto del de `damp_bc_steering` porque am
 disponibles en la prueba. Las etiquetas del teacher (la orden que da el teacher en cada estado)
 siguen siendo válidas con la compensación: lo que cambia es cómo las realiza el coche.
 
-## Reglajes del coche (capturas 2026-10-25)
+## Reglajes del coche (capturas 2026-10-25, revisadas el 2026-11-11)
 
 Coche de fórmula de 4 marchas (`num_gears = 4` en el log) en Sugo. Reglaje **simétrico**
 (izquierda = derecha). Solo se anotan los valores visibles en las capturas.
+
+> **Estado vigente (capturas del 2026-11-11, pista 16 °C, ambiente 12 °C):** suspensión,
+> amortiguadores y marchas **idénticos** a las tablas de abajo. Cambios desde el 2026-10-25:
+> **diferencial: punto muerto 60°** (antes 30°, V95), **equilibrio de frenos 55 / 45** (antes
+> 60 / 40, V99) y, en ECU, **control de tracción 10 %** y **potencia del ABS 75 %** (las ayudas
+> del juego están en «auténticas»: el coche lleva las del real y se regulan aquí). El ABS no actúa
+> nunca en las sesiones del teacher; el control de tracción probablemente topa el patinazo trasero
+> en el 6 % a la salida de las curvas lentas en 2.ª (V112 de `circuito_virtual/docs/DECISIONES.md`).
+> Comprobar estos valores en el garaje antes de cada sesión.
 
 ### Neumáticos, frenos y chasis
 
@@ -150,6 +159,8 @@ Coche de fórmula de 4 marchas (`num_gears = 4` en el log) en Sugo. Reglaje **si
 | Transmisión final     | 3,444                 |
 | 1.ª / 2.ª marcha      | 2,846 / 1,875         |
 | 3.ª / 4.ª marcha      | 1,421 / 1,125         |
+| Control de tracción   | 10 % (2026-11-11)     |
+| Potencia del ABS      | 75 % (2026-11-11)     |
 
 > El marcador superior seguía mostrando 18 L mientras el reglaje decía 33 L: comprobar cuál se
 > aplicó en la sesión.
@@ -185,6 +196,15 @@ embrague»
   señala una causa clara del zigzag; no hay forma de deducirlo de las capturas. Barra trasera de
   2 N/mm frente a 20 N/mm delante y reparto 45/55 son valores poco habituales, anotados por si
   hay que revisarlos.
+
+- **Lectura de 2026-11-11 (banda 150, `k_heading` 1,0, log `20261110T232504Z`):** las gomas se
+  estabilizan en ≈ 57 / 54 °C delante y 45 / 42 °C detrás (12-15 °C menos atrás) y el lado
+  interior de las delanteras va 2-4 °C más caliente. Encaja con la barra trasera casi nula
+  (2 N/mm frente a 20): casi toda la rigidez al balanceo está delante, así que el eje delantero
+  carga la transferencia lateral y trabaja más. **No se ha tocado.** Candidatos, cada uno con su
+  sesión de una variable y reaprendiendo los mapas (un cambio de suspensión cambia el agarre por
+  curva): presiones (tarea 6 de `circuito_virtual/docs/PENDIENTE.md`), barra trasera más dura y,
+  solo con las temperaturas izquierda / centro / derecha leídas por nosotros (tarea 8a), la caída.
 
 ## Controles → Esquema de controles (captura 2026-10-25)
 
@@ -251,3 +271,4 @@ una captura de cada una.
 | 2026-10-25 | Reglajes del coche documentados (capturas); notas sobre marchas 70-80 y presiones          | Referencia para volver a ajustar                              |
 | 2026-10-25 | Compensación del volante verificada en L1 a 55 km/h (pendiente 1,00; CTE máx. 8,3 → 2,0 m) | Resultado de la prueba                                        |
 | 2026-10-25 | Medida la curva de respuesta del volante; compensación opcional                            | El volante aplicado es la mitad del pedido por debajo de ~0,3 |
+| 2026-11-11 | Revisión con capturas: suspensión y amortiguadores sin cambios; anotados diferencial 60°, frenos 55/45, TC 10 % y ABS 75 % | Documentar el reglaje vigente (V112)                          |
