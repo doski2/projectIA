@@ -206,6 +206,16 @@ def test_max_gear_3_upshifts_second_to_third_and_stops_there():
     assert ctrl.pressed == ["rb"]
 
 
+def test_max_gear_4_upshifts_third_to_fourth_and_stops_at_top_gear():
+    """Coche de 4 marchas (V112): con tope 4 sube de 3ª a 4ª al 0,87 del régimen y en 4ª no pulsa nada, ni RB ni LB."""
+    ctrl = FakeController()
+    shifter = AutoShifter(cooldown_s=0.0, max_gear=4)
+    assert auto_shift(ctrl, _telem(gear=3, rpm=6700, max_rpm=7700, speed=39.2, num_gears=4), 1.0, 0.0, shifter) == "up"
+    assert auto_shift(ctrl, _telem(gear=4, rpm=7000, max_rpm=7700, speed=50.0, num_gears=4), 1.0, 0.0, shifter) is None
+    assert auto_shift(ctrl, _telem(gear=4, rpm=5200, max_rpm=7700, speed=39.2, num_gears=4), 1.0, 0.0, shifter) is None
+    assert ctrl.pressed == ["rb"]
+
+
 def test_third_gear_is_not_sent_back_to_first_when_allowed():
     """Con tope 2 una 3ª a 40 km/h se baja con LB (H50); con tope 3 se deja."""
     low = FakeController()
