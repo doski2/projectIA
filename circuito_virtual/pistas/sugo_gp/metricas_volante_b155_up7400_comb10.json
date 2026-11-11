@@ -1,0 +1,5459 @@
+{
+ "sesiones": [
+  {
+   "meta": {
+    "log": "20261111T225002Z_sugo_gp_l1_linea.jsonl",
+    "linea": "sugo_optima_a1mu9c12d11.json",
+    "experimento": "a2_optA1mu9c12_155_g4_up7400_lat95_slip8_v70_ff0_cap100_pv03_kh10_gas1_fr11_perfil_c10_slip_exit18_cap14_c121314_fijo_t21_dif60_frenos55_comb10_refd11_l6",
+    "git": "c57ca1a",
+    "pista": "sugo_gp",
+    "vueltas": [
+     4,
+     5,
+     6
+    ]
+   },
+   "fichas": {
+    "4": {
+     "tiempo_s": 106.981,
+     "cte_curvas": 0.454,
+     "cte_vuelta": 0.343,
+     "fuera": 80,
+     "fuera_pista": 0,
+     "gomas": {
+      "DI": 57.9,
+      "DD": 54.6,
+      "TI": 46.4,
+      "TD": 43.6
+     },
+     "gomas_zonas": {},
+     "curvas": {
+      "C1": {
+       "pico_dentro": 1.156,
+       "pico_dentro_m": 47.0,
+       "pico_fuera": 0.022,
+       "pico_fuera_m": 11.0,
+       "cte_media": 0.563,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": 0.686,
+        "n_linea": 0.277,
+        "frac_coche": 0.856,
+        "frac_linea": 0.887,
+        "dentro": 0.409,
+        "v": 98.0,
+        "volante": 0.107,
+        "gas": 0.0,
+        "freno": 0.29,
+        "deriva": 0.13,
+        "lateral": 5.52
+       },
+       "vertice": {
+        "n_coche": 1.056,
+        "n_linea": 0.687,
+        "frac_coche": 0.397,
+        "frac_linea": 0.424,
+        "dentro": 0.369,
+        "v": 89.3,
+        "volante": 0.254,
+        "gas": 0.51,
+        "freno": 0.0,
+        "deriva": 1.4,
+        "lateral": 11.4
+       },
+       "v20": {
+        "n_coche": 1.036,
+        "n_linea": 0.66,
+        "frac_coche": 0.121,
+        "frac_linea": 0.148,
+        "dentro": 0.376,
+        "v": 93.6,
+        "volante": 0.148,
+        "gas": 0.75,
+        "freno": 0.0,
+        "deriva": 2.77,
+        "lateral": 13.13
+       },
+       "salida": {
+        "n_coche": -0.387,
+        "n_linea": -1.465,
+        "frac_coche": 0.63,
+        "frac_linea": 0.714,
+        "dentro": 1.078,
+        "v": 102.6,
+        "volante": 0.147,
+        "gas": 0.43,
+        "freno": 0.0,
+        "deriva": 1.24,
+        "lateral": 8.34
+       }
+      },
+      "C2": {
+       "pico_dentro": 0.981,
+       "pico_dentro_m": 59.0,
+       "pico_fuera": 0.328,
+       "pico_fuera_m": 14.0,
+       "cte_media": 0.446,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.482,
+        "n_linea": -1.325,
+        "frac_coche": 0.75,
+        "frac_linea": 0.818,
+        "dentro": 0.843,
+        "v": 102.0,
+        "volante": 0.165,
+        "gas": 0.0,
+        "freno": 0.1,
+        "deriva": 1.28,
+        "lateral": 9.95
+       },
+       "vertice": {
+        "n_coche": 0.193,
+        "n_linea": 0.103,
+        "frac_coche": 0.203,
+        "frac_linea": 0.21,
+        "dentro": 0.091,
+        "v": 82.7,
+        "volante": 0.266,
+        "gas": 0.23,
+        "freno": 0.0,
+        "deriva": 0.64,
+        "lateral": 11.21
+       },
+       "v20": {
+        "n_coche": -0.414,
+        "n_linea": -0.15,
+        "frac_coche": 0.169,
+        "frac_linea": 0.148,
+        "dentro": -0.264,
+        "v": 89.0,
+        "volante": 0.176,
+        "gas": 0.88,
+        "freno": 0.0,
+        "deriva": 1.42,
+        "lateral": 10.79
+       },
+       "salida": {
+        "n_coche": 0.857,
+        "n_linea": -0.12,
+        "frac_coche": 0.577,
+        "frac_linea": 0.649,
+        "dentro": 0.977,
+        "v": 106.6,
+        "volante": 0.032,
+        "gas": 0.98,
+        "freno": 0.0,
+        "deriva": 0.46,
+        "lateral": 4.23
+       }
+      },
+      "C3": {
+       "pico_dentro": 0.654,
+       "pico_dentro_m": 70.0,
+       "pico_fuera": 1.055,
+       "pico_fuera_m": -5.0,
+       "cte_media": 0.569,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": 0.408,
+        "n_linea": 0.088,
+        "frac_coche": 0.608,
+        "frac_linea": 0.579,
+        "dentro": -0.32,
+        "v": 104.8,
+        "volante": 0.139,
+        "gas": 0.0,
+        "freno": 0.7,
+        "deriva": 0.72,
+        "lateral": 2.71
+       },
+       "vertice": {
+        "n_coche": 1.084,
+        "n_linea": 0.094,
+        "frac_coche": 0.605,
+        "frac_linea": 0.513,
+        "dentro": -0.99,
+        "v": 77.9,
+        "volante": 0.297,
+        "gas": 0.0,
+        "freno": 0.03,
+        "deriva": 1.16,
+        "lateral": 12.69
+       },
+       "v20": {
+        "n_coche": -0.218,
+        "n_linea": -0.052,
+        "frac_coche": 0.275,
+        "frac_linea": 0.289,
+        "dentro": 0.167,
+        "v": 84.7,
+        "volante": 0.054,
+        "gas": 0.98,
+        "freno": 0.0,
+        "deriva": 0.25,
+        "lateral": 4.39
+       },
+       "salida": {
+        "n_coche": -0.832,
+        "n_linea": -0.206,
+        "frac_coche": 0.684,
+        "frac_linea": 0.738,
+        "dentro": 0.627,
+        "v": 111.1,
+        "volante": 0.066,
+        "gas": 0.94,
+        "freno": 0.0,
+        "deriva": 1.05,
+        "lateral": 7.59
+       }
+      },
+      "C4": {
+       "pico_dentro": 1.008,
+       "pico_dentro_m": 35.0,
+       "pico_fuera": 0.438,
+       "pico_fuera_m": 13.0,
+       "cte_media": 0.301,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.128,
+        "n_linea": -0.167,
+        "frac_coche": 0.818,
+        "frac_linea": 0.814,
+        "dentro": -0.039,
+        "v": 92.9,
+        "volante": 0.166,
+        "gas": 0.0,
+        "freno": 0.5,
+        "deriva": 0.18,
+        "lateral": 5.36
+       },
+       "vertice": {
+        "n_coche": 0.057,
+        "n_linea": 0.16,
+        "frac_coche": 0.148,
+        "frac_linea": 0.157,
+        "dentro": 0.103,
+        "v": 74.5,
+        "volante": 0.348,
+        "gas": 0.2,
+        "freno": 0.0,
+        "deriva": 1.59,
+        "lateral": 13.25
+       },
+       "v20": {
+        "n_coche": -0.138,
+        "n_linea": -0.241,
+        "frac_coche": 0.32,
+        "frac_linea": 0.311,
+        "dentro": -0.104,
+        "v": 75.1,
+        "volante": 0.145,
+        "gas": 0.67,
+        "freno": 0.0,
+        "deriva": 2.15,
+        "lateral": 11.12
+       },
+       "salida": {
+        "n_coche": -1.379,
+        "n_linea": -0.525,
+        "frac_coche": 0.701,
+        "frac_linea": 0.773,
+        "dentro": 0.854,
+        "v": 84.6,
+        "volante": 0.028,
+        "gas": 0.93,
+        "freno": 0.0,
+        "deriva": 0.3,
+        "lateral": 3.29
+       }
+      },
+      "C5": {
+       "pico_dentro": 0.37,
+       "pico_dentro_m": 2.0,
+       "pico_fuera": 0.155,
+       "pico_fuera_m": 19.0,
+       "cte_media": 0.19,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.783,
+        "n_linea": -0.655,
+        "frac_coche": 0.803,
+        "frac_linea": 0.814,
+        "dentro": 0.128,
+        "v": 88.8,
+        "volante": 0.104,
+        "gas": 0.12,
+        "freno": 0.0,
+        "deriva": 0.05,
+        "lateral": 4.8
+       },
+       "vertice": {
+        "n_coche": -1.0,
+        "n_linea": -0.649,
+        "frac_coche": 0.16,
+        "frac_linea": 0.191,
+        "dentro": 0.351,
+        "v": 83.3,
+        "volante": 0.181,
+        "gas": 0.0,
+        "freno": 0.03,
+        "deriva": 0.78,
+        "lateral": 9.84
+       },
+       "v20": {
+        "n_coche": -0.36,
+        "n_linea": -0.504,
+        "frac_coche": 0.326,
+        "frac_linea": 0.313,
+        "dentro": -0.144,
+        "v": 85.7,
+        "volante": -0.023,
+        "gas": 0.98,
+        "freno": 0.0,
+        "deriva": 0.8,
+        "lateral": 2.44
+       },
+       "salida": {
+        "n_coche": -0.365,
+        "n_linea": -0.493,
+        "frac_coche": 0.237,
+        "frac_linea": 0.225,
+        "dentro": -0.129,
+        "v": 83.9,
+        "volante": 0.053,
+        "gas": 0.91,
+        "freno": 0.0,
+        "deriva": 0.93,
+        "lateral": 6.42
+       }
+      },
+      "C6": {
+       "pico_dentro": 1.006,
+       "pico_dentro_m": 29.0,
+       "pico_fuera": -0.034,
+       "pico_fuera_m": -15.0,
+       "cte_media": 0.39,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.04,
+        "n_linea": -0.077,
+        "frac_coche": 0.223,
+        "frac_linea": 0.226,
+        "dentro": 0.037,
+        "v": 92.9,
+        "volante": 0.121,
+        "gas": 0.93,
+        "freno": 0.0,
+        "deriva": 0.64,
+        "lateral": 7.34
+       },
+       "vertice": {
+        "n_coche": 0.909,
+        "n_linea": 0.584,
+        "frac_coche": 0.323,
+        "frac_linea": 0.353,
+        "dentro": 0.325,
+        "v": 97.3,
+        "volante": 0.14,
+        "gas": 0.92,
+        "freno": 0.0,
+        "deriva": 2.58,
+        "lateral": 9.76
+       },
+       "v20": {
+        "n_coche": 0.719,
+        "n_linea": -0.148,
+        "frac_coche": 0.606,
+        "frac_linea": 0.695,
+        "dentro": 0.867,
+        "v": 103.0,
+        "volante": 0.047,
+        "gas": 0.96,
+        "freno": 0.0,
+        "deriva": 0.85,
+        "lateral": 5.58
+       },
+       "salida": {
+        "n_coche": 0.718,
+        "n_linea": -0.118,
+        "frac_coche": 0.594,
+        "frac_linea": 0.679,
+        "dentro": 0.836,
+        "v": 102.7,
+        "volante": 0.051,
+        "gas": 0.95,
+        "freno": 0.0,
+        "deriva": 0.98,
+        "lateral": 6.3
+       }
+      },
+      "C7": {
+       "pico_dentro": 1.19,
+       "pico_dentro_m": 39.0,
+       "pico_fuera": 0.234,
+       "pico_fuera_m": 1.0,
+       "cte_media": 0.483,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": 0.161,
+        "n_linea": 0.121,
+        "frac_coche": 0.72,
+        "frac_linea": 0.724,
+        "dentro": 0.04,
+        "v": 92.2,
+        "volante": 0.151,
+        "gas": 0.0,
+        "freno": 0.45,
+        "deriva": 0.04,
+        "lateral": 3.65
+       },
+       "vertice": {
+        "n_coche": 0.073,
+        "n_linea": 0.307,
+        "frac_coche": 0.46,
+        "frac_linea": 0.438,
+        "dentro": -0.234,
+        "v": 82.4,
+        "volante": 0.268,
+        "gas": 0.38,
+        "freno": 0.0,
+        "deriva": 1.31,
+        "lateral": 12.68
+       },
+       "v20": {
+        "n_coche": 0.485,
+        "n_linea": 0.137,
+        "frac_coche": 0.173,
+        "frac_linea": 0.205,
+        "dentro": 0.348,
+        "v": 87.5,
+        "volante": 0.095,
+        "gas": 0.76,
+        "freno": 0.0,
+        "deriva": 2.13,
+        "lateral": 11.41
+       },
+       "salida": {
+        "n_coche": 1.008,
+        "n_linea": 0.121,
+        "frac_coche": 0.647,
+        "frac_linea": 0.727,
+        "dentro": 0.887,
+        "v": 101.7,
+        "volante": 0.067,
+        "gas": 0.91,
+        "freno": 0.0,
+        "deriva": 0.88,
+        "lateral": 7.09
+       }
+      },
+      "C8": {
+       "pico_dentro": 0.925,
+       "pico_dentro_m": 74.0,
+       "pico_fuera": 0.778,
+       "pico_fuera_m": -22.0,
+       "cte_media": 0.313,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": 1.024,
+        "n_linea": 0.509,
+        "frac_coche": 0.667,
+        "frac_linea": 0.715,
+        "dentro": 0.515,
+        "v": 115.4,
+        "volante": 0.099,
+        "gas": 0.0,
+        "freno": 0.61,
+        "deriva": 0.45,
+        "lateral": 5.31
+       },
+       "vertice": {
+        "n_coche": -0.092,
+        "n_linea": -0.238,
+        "frac_coche": 0.189,
+        "frac_linea": 0.201,
+        "dentro": 0.146,
+        "v": 79.4,
+        "volante": 0.282,
+        "gas": 0.0,
+        "freno": 0.02,
+        "deriva": 0.91,
+        "lateral": 11.4
+       },
+       "v20": {
+        "n_coche": -0.459,
+        "n_linea": -0.418,
+        "frac_coche": 0.161,
+        "frac_linea": 0.158,
+        "dentro": -0.041,
+        "v": 83.7,
+        "volante": 0.161,
+        "gas": 0.9,
+        "freno": 0.0,
+        "deriva": 0.76,
+        "lateral": 7.22
+       },
+       "salida": {
+        "n_coche": 1.102,
+        "n_linea": 0.372,
+        "frac_coche": 0.659,
+        "frac_linea": 0.744,
+        "dentro": 0.73,
+        "v": 101.6,
+        "volante": 0.047,
+        "gas": 0.91,
+        "freno": 0.0,
+        "deriva": 1.2,
+        "lateral": 7.23
+       }
+      },
+      "C9": {
+       "pico_dentro": 0.854,
+       "pico_dentro_m": 99.0,
+       "pico_fuera": 0.54,
+       "pico_fuera_m": -9.0,
+       "cte_media": 0.343,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.518,
+        "n_linea": -0.022,
+        "frac_coche": 0.803,
+        "frac_linea": 0.755,
+        "dentro": -0.496,
+        "v": 87.4,
+        "volante": 0.199,
+        "gas": 0.0,
+        "freno": 0.38,
+        "deriva": 0.24,
+        "lateral": 6.29
+       },
+       "vertice": {
+        "n_coche": -0.401,
+        "n_linea": 0.0,
+        "frac_coche": 0.526,
+        "frac_linea": 0.491,
+        "dentro": -0.401,
+        "v": 76.4,
+        "volante": 0.35,
+        "gas": 0.05,
+        "freno": 0.0,
+        "deriva": 1.27,
+        "lateral": 13.37
+       },
+       "v20": {
+        "n_coche": 0.319,
+        "n_linea": -0.005,
+        "frac_coche": 0.205,
+        "frac_linea": 0.233,
+        "dentro": 0.324,
+        "v": 82.2,
+        "volante": 0.174,
+        "gas": 0.29,
+        "freno": 0.0,
+        "deriva": 0.15,
+        "lateral": 7.32
+       },
+       "salida": {
+        "n_coche": 0.483,
+        "n_linea": 0.086,
+        "frac_coche": 0.534,
+        "frac_linea": 0.569,
+        "dentro": 0.397,
+        "v": 95.6,
+        "volante": 0.027,
+        "gas": 0.93,
+        "freno": 0.0,
+        "deriva": 0.77,
+        "lateral": 5.69
+       }
+      },
+      "C10": {
+       "pico_dentro": 0.764,
+       "pico_dentro_m": 28.0,
+       "pico_fuera": 0.877,
+       "pico_fuera_m": -25.0,
+       "cte_media": 0.488,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.559,
+        "n_linea": -0.395,
+        "frac_coche": 0.751,
+        "frac_linea": 0.767,
+        "dentro": 0.164,
+        "v": 126.6,
+        "volante": 0.069,
+        "gas": 0.0,
+        "freno": 0.79,
+        "deriva": 0.7,
+        "lateral": 4.1
+       },
+       "vertice": {
+        "n_coche": -0.325,
+        "n_linea": -0.552,
+        "frac_coche": 0.188,
+        "frac_linea": 0.169,
+        "dentro": -0.227,
+        "v": 103.9,
+        "volante": 0.168,
+        "gas": 0.26,
+        "freno": 0.0,
+        "deriva": 1.4,
+        "lateral": 12.01
+       },
+       "v20": {
+        "n_coche": -0.915,
+        "n_linea": -0.298,
+        "frac_coche": 0.553,
+        "frac_linea": 0.61,
+        "dentro": 0.617,
+        "v": 107.7,
+        "volante": 0.116,
+        "gas": 0.89,
+        "freno": 0.0,
+        "deriva": 0.55,
+        "lateral": 7.08
+       },
+       "salida": {
+        "n_coche": -0.864,
+        "n_linea": -0.184,
+        "frac_coche": 0.717,
+        "frac_linea": 0.781,
+        "dentro": 0.68,
+        "v": 112.3,
+        "volante": 0.013,
+        "gas": 0.96,
+        "freno": 0.0,
+        "deriva": 0.89,
+        "lateral": 5.3
+       }
+      },
+      "C11": {
+       "pico_dentro": 1.218,
+       "pico_dentro_m": 57.0,
+       "pico_fuera": 0.526,
+       "pico_fuera_m": 6.0,
+       "cte_media": 0.512,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.45,
+        "n_linea": -0.142,
+        "frac_coche": 0.81,
+        "frac_linea": 0.839,
+        "dentro": 0.308,
+        "v": 120.7,
+        "volante": 0.097,
+        "gas": 0.0,
+        "freno": 0.79,
+        "deriva": 0.61,
+        "lateral": 4.92
+       },
+       "vertice": {
+        "n_coche": -0.245,
+        "n_linea": -0.685,
+        "frac_coche": 0.519,
+        "frac_linea": 0.477,
+        "dentro": -0.44,
+        "v": 101.1,
+        "volante": 0.225,
+        "gas": 0.0,
+        "freno": 0.0,
+        "deriva": 2.11,
+        "lateral": 12.64
+       },
+       "v20": {
+        "n_coche": -0.071,
+        "n_linea": -0.233,
+        "frac_coche": 0.147,
+        "frac_linea": 0.134,
+        "dentro": -0.163,
+        "v": 102.1,
+        "volante": 0.157,
+        "gas": 0.75,
+        "freno": 0.0,
+        "deriva": 2.31,
+        "lateral": 11.81
+       },
+       "salida": {
+        "n_coche": -0.274,
+        "n_linea": 0.863,
+        "frac_coche": 0.526,
+        "frac_linea": 0.626,
+        "dentro": 1.136,
+        "v": 114.2,
+        "volante": 0.071,
+        "gas": 0.95,
+        "freno": 0.0,
+        "deriva": 0.51,
+        "lateral": 5.76
+       }
+      },
+      "C12": {
+       "pico_dentro": 0.453,
+       "pico_dentro_m": 71.0,
+       "pico_fuera": 1.113,
+       "pico_fuera_m": -47.0,
+       "cte_media": 0.797,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.249,
+        "n_linea": -0.21,
+        "frac_coche": 0.801,
+        "frac_linea": 0.798,
+        "dentro": -0.04,
+        "v": 137.6,
+        "volante": 0.104,
+        "gas": 0.0,
+        "freno": 0.73,
+        "deriva": 0.71,
+        "lateral": 3.5
+       },
+       "vertice": {
+        "n_coche": -0.152,
+        "n_linea": 0.754,
+        "frac_coche": 0.744,
+        "frac_linea": 0.66,
+        "dentro": -0.906,
+        "v": 127.6,
+        "volante": 0.19,
+        "gas": 0.36,
+        "freno": 0.0,
+        "deriva": 1.99,
+        "lateral": 13.04
+       },
+       "v20": {
+        "n_coche": -0.71,
+        "n_linea": 0.213,
+        "frac_coche": 0.625,
+        "frac_linea": 0.536,
+        "dentro": -0.923,
+        "v": 127.6,
+        "volante": 0.063,
+        "gas": 0.74,
+        "freno": 0.0,
+        "deriva": 3.53,
+        "lateral": 11.83
+       },
+       "salida": {
+        "n_coche": -0.279,
+        "n_linea": -0.292,
+        "frac_coche": 0.367,
+        "frac_linea": 0.368,
+        "dentro": 0.012,
+        "v": 131.6,
+        "volante": 0.084,
+        "gas": 0.85,
+        "freno": 0.0,
+        "deriva": 1.33,
+        "lateral": 9.2
+       }
+      },
+      "C13": {
+       "pico_dentro": 0.562,
+       "pico_dentro_m": -42.0,
+       "pico_fuera": 0.421,
+       "pico_fuera_m": 33.0,
+       "cte_media": 0.308,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.279,
+        "n_linea": -0.292,
+        "frac_coche": 0.367,
+        "frac_linea": 0.368,
+        "dentro": 0.012,
+        "v": 131.6,
+        "volante": 0.084,
+        "gas": 0.85,
+        "freno": 0.0,
+        "deriva": 1.33,
+        "lateral": 9.2
+       },
+       "vertice": {
+        "n_coche": 0.362,
+        "n_linea": 0.305,
+        "frac_coche": 0.231,
+        "frac_linea": 0.237,
+        "dentro": 0.057,
+        "v": 132.9,
+        "volante": 0.16,
+        "gas": 0.44,
+        "freno": 0.0,
+        "deriva": 1.94,
+        "lateral": 13.47
+       },
+       "v20": {
+        "n_coche": -0.297,
+        "n_linea": -0.044,
+        "frac_coche": 0.209,
+        "frac_linea": 0.183,
+        "dentro": -0.252,
+        "v": 132.2,
+        "volante": 0.162,
+        "gas": 0.65,
+        "freno": 0.0,
+        "deriva": 3.01,
+        "lateral": 14.28
+       },
+       "salida": {
+        "n_coche": -0.434,
+        "n_linea": -0.932,
+        "frac_coche": 0.259,
+        "frac_linea": 0.305,
+        "dentro": 0.498,
+        "v": 136.2,
+        "volante": 0.085,
+        "gas": 0.99,
+        "freno": 0.0,
+        "deriva": 1.22,
+        "lateral": 8.91
+       }
+      },
+      "C14": {
+       "pico_dentro": 0.968,
+       "pico_dentro_m": 79.0,
+       "pico_fuera": -0.217,
+       "pico_fuera_m": 117.0,
+       "cte_media": 0.597,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.434,
+        "n_linea": -0.932,
+        "frac_coche": 0.259,
+        "frac_linea": 0.305,
+        "dentro": 0.498,
+        "v": 136.2,
+        "volante": 0.085,
+        "gas": 0.99,
+        "freno": 0.0,
+        "deriva": 1.22,
+        "lateral": 8.91
+       },
+       "vertice": {
+        "n_coche": 0.825,
+        "n_linea": 0.056,
+        "frac_coche": 0.318,
+        "frac_linea": 0.392,
+        "dentro": 0.769,
+        "v": 140.0,
+        "volante": 0.061,
+        "gas": 1.0,
+        "freno": 0.0,
+        "deriva": 1.09,
+        "lateral": 8.39
+       },
+       "v20": {
+        "n_coche": 0.795,
+        "n_linea": 0.05,
+        "frac_coche": 0.344,
+        "frac_linea": 0.414,
+        "dentro": 0.744,
+        "v": 141.6,
+        "volante": 0.082,
+        "gas": 1.0,
+        "freno": 0.0,
+        "deriva": 1.39,
+        "lateral": 9.43
+       },
+       "salida": {
+        "n_coche": 0.238,
+        "n_linea": 0.015,
+        "frac_coche": 0.732,
+        "frac_linea": 0.752,
+        "dentro": 0.223,
+        "v": 147.5,
+        "volante": 0.03,
+        "gas": 1.0,
+        "freno": 0.0,
+        "deriva": 2.42,
+        "lateral": 10.43
+       }
+      }
+     }
+    },
+    "5": {
+     "tiempo_s": 107.081,
+     "cte_curvas": 0.457,
+     "cte_vuelta": 0.344,
+     "fuera": 68,
+     "fuera_pista": 0,
+     "gomas": {
+      "DI": 57.3,
+      "DD": 53.9,
+      "TI": 44.8,
+      "TD": 41.8
+     },
+     "gomas_zonas": {},
+     "curvas": {
+      "C1": {
+       "pico_dentro": 1.042,
+       "pico_dentro_m": 48.0,
+       "pico_fuera": 0.086,
+       "pico_fuera_m": 11.0,
+       "cte_media": 0.511,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": 0.696,
+        "n_linea": 0.277,
+        "frac_coche": 0.855,
+        "frac_linea": 0.887,
+        "dentro": 0.418,
+        "v": 97.8,
+        "volante": 0.106,
+        "gas": 0.0,
+        "freno": 0.29,
+        "deriva": 0.12,
+        "lateral": 5.4
+       },
+       "vertice": {
+        "n_coche": 1.008,
+        "n_linea": 0.687,
+        "frac_coche": 0.401,
+        "frac_linea": 0.424,
+        "dentro": 0.321,
+        "v": 89.2,
+        "volante": 0.261,
+        "gas": 0.51,
+        "freno": 0.0,
+        "deriva": 1.42,
+        "lateral": 11.5
+       },
+       "v20": {
+        "n_coche": 0.957,
+        "n_linea": 0.66,
+        "frac_coche": 0.126,
+        "frac_linea": 0.148,
+        "dentro": 0.297,
+        "v": 93.6,
+        "volante": 0.15,
+        "gas": 0.76,
+        "freno": 0.0,
+        "deriva": 2.71,
+        "lateral": 13.34
+       },
+       "salida": {
+        "n_coche": -0.462,
+        "n_linea": -1.465,
+        "frac_coche": 0.636,
+        "frac_linea": 0.714,
+        "dentro": 1.004,
+        "v": 102.5,
+        "volante": 0.145,
+        "gas": 0.47,
+        "freno": 0.0,
+        "deriva": 1.36,
+        "lateral": 8.39
+       }
+      },
+      "C2": {
+       "pico_dentro": 0.99,
+       "pico_dentro_m": 56.0,
+       "pico_fuera": 0.35,
+       "pico_fuera_m": 14.0,
+       "cte_media": 0.47,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.472,
+        "n_linea": -1.325,
+        "frac_coche": 0.749,
+        "frac_linea": 0.818,
+        "dentro": 0.852,
+        "v": 101.9,
+        "volante": 0.159,
+        "gas": 0.0,
+        "freno": 0.1,
+        "deriva": 1.22,
+        "lateral": 9.81
+       },
+       "vertice": {
+        "n_coche": 0.161,
+        "n_linea": 0.103,
+        "frac_coche": 0.206,
+        "frac_linea": 0.21,
+        "dentro": 0.058,
+        "v": 82.7,
+        "volante": 0.266,
+        "gas": 0.25,
+        "freno": 0.0,
+        "deriva": 0.68,
+        "lateral": 11.33
+       },
+       "v20": {
+        "n_coche": -0.43,
+        "n_linea": -0.15,
+        "frac_coche": 0.17,
+        "frac_linea": 0.148,
+        "dentro": -0.28,
+        "v": 89.2,
+        "volante": 0.175,
+        "gas": 0.88,
+        "freno": 0.0,
+        "deriva": 1.52,
+        "lateral": 10.69
+       },
+       "salida": {
+        "n_coche": 0.867,
+        "n_linea": -0.12,
+        "frac_coche": 0.576,
+        "frac_linea": 0.649,
+        "dentro": 0.987,
+        "v": 106.8,
+        "volante": 0.034,
+        "gas": 0.98,
+        "freno": 0.0,
+        "deriva": 0.46,
+        "lateral": 4.31
+       }
+      },
+      "C3": {
+       "pico_dentro": 0.66,
+       "pico_dentro_m": 70.0,
+       "pico_fuera": 1.034,
+       "pico_fuera_m": -4.0,
+       "cte_media": 0.56,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": 0.414,
+        "n_linea": 0.088,
+        "frac_coche": 0.608,
+        "frac_linea": 0.579,
+        "dentro": -0.326,
+        "v": 104.1,
+        "volante": 0.141,
+        "gas": 0.0,
+        "freno": 0.6,
+        "deriva": 0.71,
+        "lateral": 2.8
+       },
+       "vertice": {
+        "n_coche": 1.053,
+        "n_linea": 0.094,
+        "frac_coche": 0.602,
+        "frac_linea": 0.513,
+        "dentro": -0.959,
+        "v": 78.0,
+        "volante": 0.292,
+        "gas": 0.0,
+        "freno": 0.03,
+        "deriva": 1.15,
+        "lateral": 12.68
+       },
+       "v20": {
+        "n_coche": -0.229,
+        "n_linea": -0.052,
+        "frac_coche": 0.274,
+        "frac_linea": 0.289,
+        "dentro": 0.177,
+        "v": 84.8,
+        "volante": 0.056,
+        "gas": 0.98,
+        "freno": 0.0,
+        "deriva": 0.23,
+        "lateral": 4.43
+       },
+       "salida": {
+        "n_coche": -0.83,
+        "n_linea": -0.206,
+        "frac_coche": 0.684,
+        "frac_linea": 0.738,
+        "dentro": 0.624,
+        "v": 111.1,
+        "volante": 0.066,
+        "gas": 0.94,
+        "freno": 0.0,
+        "deriva": 1.03,
+        "lateral": 7.57
+       }
+      },
+      "C4": {
+       "pico_dentro": 0.823,
+       "pico_dentro_m": 48.0,
+       "pico_fuera": 1.104,
+       "pico_fuera_m": 13.0,
+       "cte_media": 0.357,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.131,
+        "n_linea": -0.167,
+        "frac_coche": 0.818,
+        "frac_linea": 0.814,
+        "dentro": -0.036,
+        "v": 93.1,
+        "volante": 0.166,
+        "gas": 0.0,
+        "freno": 0.51,
+        "deriva": 0.19,
+        "lateral": 5.49
+       },
+       "vertice": {
+        "n_coche": 0.425,
+        "n_linea": 0.16,
+        "frac_coche": 0.181,
+        "frac_linea": 0.157,
+        "dentro": -0.265,
+        "v": 74.4,
+        "volante": 0.396,
+        "gas": 0.24,
+        "freno": 0.0,
+        "deriva": 0.99,
+        "lateral": 12.64
+       },
+       "v20": {
+        "n_coche": 0.638,
+        "n_linea": -0.241,
+        "frac_coche": 0.388,
+        "frac_linea": 0.311,
+        "dentro": -0.879,
+        "v": 74.9,
+        "volante": 0.071,
+        "gas": 0.67,
+        "freno": 0.0,
+        "deriva": 3.83,
+        "lateral": 11.42
+       },
+       "salida": {
+        "n_coche": -1.285,
+        "n_linea": -0.525,
+        "frac_coche": 0.709,
+        "frac_linea": 0.773,
+        "dentro": 0.76,
+        "v": 83.6,
+        "volante": -0.022,
+        "gas": 0.95,
+        "freno": 0.0,
+        "deriva": 0.2,
+        "lateral": 0.48
+       }
+      },
+      "C5": {
+       "pico_dentro": 0.345,
+       "pico_dentro_m": 3.0,
+       "pico_fuera": 0.091,
+       "pico_fuera_m": 19.0,
+       "cte_media": 0.169,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.838,
+        "n_linea": -0.655,
+        "frac_coche": 0.798,
+        "frac_linea": 0.814,
+        "dentro": 0.183,
+        "v": 88.9,
+        "volante": 0.107,
+        "gas": 0.12,
+        "freno": 0.0,
+        "deriva": 0.05,
+        "lateral": 4.89
+       },
+       "vertice": {
+        "n_coche": -0.965,
+        "n_linea": -0.649,
+        "frac_coche": 0.163,
+        "frac_linea": 0.191,
+        "dentro": 0.316,
+        "v": 83.2,
+        "volante": 0.186,
+        "gas": 0.0,
+        "freno": 0.03,
+        "deriva": 0.82,
+        "lateral": 9.91
+       },
+       "v20": {
+        "n_coche": -0.42,
+        "n_linea": -0.504,
+        "frac_coche": 0.321,
+        "frac_linea": 0.313,
+        "dentro": -0.083,
+        "v": 85.6,
+        "volante": -0.025,
+        "gas": 0.99,
+        "freno": 0.0,
+        "deriva": 0.61,
+        "lateral": 1.62
+       },
+       "salida": {
+        "n_coche": -0.432,
+        "n_linea": -0.493,
+        "frac_coche": 0.231,
+        "frac_linea": 0.225,
+        "dentro": -0.061,
+        "v": 83.8,
+        "volante": 0.045,
+        "gas": 0.92,
+        "freno": 0.0,
+        "deriva": 0.75,
+        "lateral": 6.09
+       }
+      },
+      "C6": {
+       "pico_dentro": 0.959,
+       "pico_dentro_m": 28.0,
+       "pico_fuera": -0.079,
+       "pico_fuera_m": -15.0,
+       "cte_media": 0.405,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": 0.001,
+        "n_linea": -0.077,
+        "frac_coche": 0.219,
+        "frac_linea": 0.226,
+        "dentro": 0.078,
+        "v": 92.9,
+        "volante": 0.116,
+        "gas": 0.94,
+        "freno": 0.0,
+        "deriva": 0.55,
+        "lateral": 7.05
+       },
+       "vertice": {
+        "n_coche": 0.939,
+        "n_linea": 0.584,
+        "frac_coche": 0.32,
+        "frac_linea": 0.353,
+        "dentro": 0.355,
+        "v": 97.4,
+        "volante": 0.142,
+        "gas": 0.92,
+        "freno": 0.0,
+        "deriva": 2.47,
+        "lateral": 9.74
+       },
+       "v20": {
+        "n_coche": 0.687,
+        "n_linea": -0.148,
+        "frac_coche": 0.609,
+        "frac_linea": 0.695,
+        "dentro": 0.835,
+        "v": 103.1,
+        "volante": 0.051,
+        "gas": 0.96,
+        "freno": 0.0,
+        "deriva": 0.84,
+        "lateral": 5.67
+       },
+       "salida": {
+        "n_coche": 0.688,
+        "n_linea": -0.118,
+        "frac_coche": 0.597,
+        "frac_linea": 0.679,
+        "dentro": 0.806,
+        "v": 102.7,
+        "volante": 0.055,
+        "gas": 0.95,
+        "freno": 0.0,
+        "deriva": 0.99,
+        "lateral": 6.44
+       }
+      },
+      "C7": {
+       "pico_dentro": 1.289,
+       "pico_dentro_m": 39.0,
+       "pico_fuera": 0.285,
+       "pico_fuera_m": 1.0,
+       "cte_media": 0.521,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": 0.168,
+        "n_linea": 0.121,
+        "frac_coche": 0.72,
+        "frac_linea": 0.724,
+        "dentro": 0.047,
+        "v": 92.4,
+        "volante": 0.149,
+        "gas": 0.0,
+        "freno": 0.47,
+        "deriva": 0.05,
+        "lateral": 3.47
+       },
+       "vertice": {
+        "n_coche": 0.032,
+        "n_linea": 0.307,
+        "frac_coche": 0.464,
+        "frac_linea": 0.438,
+        "dentro": -0.275,
+        "v": 82.3,
+        "volante": 0.272,
+        "gas": 0.38,
+        "freno": 0.0,
+        "deriva": 1.3,
+        "lateral": 12.66
+       },
+       "v20": {
+        "n_coche": 0.447,
+        "n_linea": 0.137,
+        "frac_coche": 0.176,
+        "frac_linea": 0.205,
+        "dentro": 0.311,
+        "v": 87.2,
+        "volante": 0.093,
+        "gas": 0.75,
+        "freno": 0.0,
+        "deriva": 2.43,
+        "lateral": 11.75
+       },
+       "salida": {
+        "n_coche": 1.042,
+        "n_linea": 0.121,
+        "frac_coche": 0.643,
+        "frac_linea": 0.727,
+        "dentro": 0.921,
+        "v": 101.6,
+        "volante": 0.073,
+        "gas": 0.91,
+        "freno": 0.0,
+        "deriva": 0.81,
+        "lateral": 7.01
+       }
+      },
+      "C8": {
+       "pico_dentro": 0.919,
+       "pico_dentro_m": 75.0,
+       "pico_fuera": 0.821,
+       "pico_fuera_m": -22.0,
+       "cte_media": 0.321,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": 1.022,
+        "n_linea": 0.509,
+        "frac_coche": 0.667,
+        "frac_linea": 0.715,
+        "dentro": 0.513,
+        "v": 115.6,
+        "volante": 0.097,
+        "gas": 0.0,
+        "freno": 0.59,
+        "deriva": 0.45,
+        "lateral": 5.39
+       },
+       "vertice": {
+        "n_coche": -0.124,
+        "n_linea": -0.238,
+        "frac_coche": 0.191,
+        "frac_linea": 0.201,
+        "dentro": 0.114,
+        "v": 79.4,
+        "volante": 0.281,
+        "gas": 0.0,
+        "freno": 0.02,
+        "deriva": 0.89,
+        "lateral": 11.43
+       },
+       "v20": {
+        "n_coche": -0.464,
+        "n_linea": -0.418,
+        "frac_coche": 0.162,
+        "frac_linea": 0.158,
+        "dentro": -0.046,
+        "v": 83.8,
+        "volante": 0.163,
+        "gas": 0.89,
+        "freno": 0.0,
+        "deriva": 0.76,
+        "lateral": 7.61
+       },
+       "salida": {
+        "n_coche": 1.099,
+        "n_linea": 0.372,
+        "frac_coche": 0.659,
+        "frac_linea": 0.744,
+        "dentro": 0.728,
+        "v": 101.7,
+        "volante": 0.048,
+        "gas": 0.9,
+        "freno": 0.0,
+        "deriva": 1.2,
+        "lateral": 7.22
+       }
+      },
+      "C9": {
+       "pico_dentro": 0.843,
+       "pico_dentro_m": 99.0,
+       "pico_fuera": 0.518,
+       "pico_fuera_m": -7.0,
+       "cte_media": 0.333,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.483,
+        "n_linea": -0.022,
+        "frac_coche": 0.799,
+        "frac_linea": 0.755,
+        "dentro": -0.46,
+        "v": 87.2,
+        "volante": 0.199,
+        "gas": 0.0,
+        "freno": 0.38,
+        "deriva": 0.24,
+        "lateral": 6.26
+       },
+       "vertice": {
+        "n_coche": -0.397,
+        "n_linea": 0.0,
+        "frac_coche": 0.526,
+        "frac_linea": 0.491,
+        "dentro": -0.397,
+        "v": 76.5,
+        "volante": 0.351,
+        "gas": 0.07,
+        "freno": 0.0,
+        "deriva": 1.24,
+        "lateral": 13.45
+       },
+       "v20": {
+        "n_coche": 0.272,
+        "n_linea": -0.005,
+        "frac_coche": 0.209,
+        "frac_linea": 0.233,
+        "dentro": 0.277,
+        "v": 82.2,
+        "volante": 0.175,
+        "gas": 0.26,
+        "freno": 0.0,
+        "deriva": 0.15,
+        "lateral": 7.47
+       },
+       "salida": {
+        "n_coche": 0.524,
+        "n_linea": 0.086,
+        "frac_coche": 0.531,
+        "frac_linea": 0.569,
+        "dentro": 0.438,
+        "v": 95.6,
+        "volante": 0.029,
+        "gas": 0.94,
+        "freno": 0.0,
+        "deriva": 0.69,
+        "lateral": 5.45
+       }
+      },
+      "C10": {
+       "pico_dentro": 0.756,
+       "pico_dentro_m": 49.0,
+       "pico_fuera": 0.894,
+       "pico_fuera_m": -25.0,
+       "cte_media": 0.491,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.561,
+        "n_linea": -0.395,
+        "frac_coche": 0.75,
+        "frac_linea": 0.767,
+        "dentro": 0.166,
+        "v": 126.6,
+        "volante": 0.069,
+        "gas": 0.0,
+        "freno": 0.79,
+        "deriva": 0.68,
+        "lateral": 4.08
+       },
+       "vertice": {
+        "n_coche": -0.301,
+        "n_linea": -0.552,
+        "frac_coche": 0.19,
+        "frac_linea": 0.169,
+        "dentro": -0.251,
+        "v": 103.9,
+        "volante": 0.168,
+        "gas": 0.26,
+        "freno": 0.0,
+        "deriva": 1.39,
+        "lateral": 11.59
+       },
+       "v20": {
+        "n_coche": -0.883,
+        "n_linea": -0.298,
+        "frac_coche": 0.556,
+        "frac_linea": 0.61,
+        "dentro": 0.585,
+        "v": 107.4,
+        "volante": 0.116,
+        "gas": 0.89,
+        "freno": 0.0,
+        "deriva": 0.54,
+        "lateral": 7.05
+       },
+       "salida": {
+        "n_coche": -0.848,
+        "n_linea": -0.184,
+        "frac_coche": 0.719,
+        "frac_linea": 0.781,
+        "dentro": 0.664,
+        "v": 112.1,
+        "volante": 0.013,
+        "gas": 0.96,
+        "freno": 0.0,
+        "deriva": 0.87,
+        "lateral": 5.37
+       }
+      },
+      "C11": {
+       "pico_dentro": 1.146,
+       "pico_dentro_m": 58.0,
+       "pico_fuera": 0.519,
+       "pico_fuera_m": 7.0,
+       "cte_media": 0.488,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.454,
+        "n_linea": -0.142,
+        "frac_coche": 0.809,
+        "frac_linea": 0.839,
+        "dentro": 0.311,
+        "v": 120.6,
+        "volante": 0.097,
+        "gas": 0.0,
+        "freno": 0.78,
+        "deriva": 0.62,
+        "lateral": 4.95
+       },
+       "vertice": {
+        "n_coche": -0.254,
+        "n_linea": -0.685,
+        "frac_coche": 0.518,
+        "frac_linea": 0.477,
+        "dentro": -0.431,
+        "v": 101.1,
+        "volante": 0.225,
+        "gas": 0.0,
+        "freno": 0.0,
+        "deriva": 2.1,
+        "lateral": 12.52
+       },
+       "v20": {
+        "n_coche": -0.061,
+        "n_linea": -0.233,
+        "frac_coche": 0.148,
+        "frac_linea": 0.134,
+        "dentro": -0.172,
+        "v": 102.2,
+        "volante": 0.16,
+        "gas": 0.76,
+        "freno": 0.0,
+        "deriva": 2.17,
+        "lateral": 11.65
+       },
+       "salida": {
+        "n_coche": -0.215,
+        "n_linea": 0.863,
+        "frac_coche": 0.531,
+        "frac_linea": 0.626,
+        "dentro": 1.078,
+        "v": 113.7,
+        "volante": 0.07,
+        "gas": 0.95,
+        "freno": 0.0,
+        "deriva": 0.53,
+        "lateral": 5.77
+       }
+      },
+      "C12": {
+       "pico_dentro": 0.438,
+       "pico_dentro_m": 70.0,
+       "pico_fuera": 1.133,
+       "pico_fuera_m": -47.0,
+       "cte_media": 0.821,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.259,
+        "n_linea": -0.21,
+        "frac_coche": 0.802,
+        "frac_linea": 0.798,
+        "dentro": -0.049,
+        "v": 137.6,
+        "volante": 0.104,
+        "gas": 0.0,
+        "freno": 0.74,
+        "deriva": 0.7,
+        "lateral": 3.46
+       },
+       "vertice": {
+        "n_coche": -0.187,
+        "n_linea": 0.754,
+        "frac_coche": 0.747,
+        "frac_linea": 0.66,
+        "dentro": -0.941,
+        "v": 127.7,
+        "volante": 0.192,
+        "gas": 0.37,
+        "freno": 0.0,
+        "deriva": 1.96,
+        "lateral": 12.95
+       },
+       "v20": {
+        "n_coche": -0.757,
+        "n_linea": 0.213,
+        "frac_coche": 0.629,
+        "frac_linea": 0.536,
+        "dentro": -0.971,
+        "v": 127.6,
+        "volante": 0.06,
+        "gas": 0.75,
+        "freno": 0.0,
+        "deriva": 3.56,
+        "lateral": 11.71
+       },
+       "salida": {
+        "n_coche": -0.315,
+        "n_linea": -0.292,
+        "frac_coche": 0.37,
+        "frac_linea": 0.368,
+        "dentro": -0.024,
+        "v": 131.6,
+        "volante": 0.085,
+        "gas": 0.85,
+        "freno": 0.0,
+        "deriva": 1.34,
+        "lateral": 9.23
+       }
+      },
+      "C13": {
+       "pico_dentro": 0.558,
+       "pico_dentro_m": -39.0,
+       "pico_fuera": 0.449,
+       "pico_fuera_m": 33.0,
+       "cte_media": 0.308,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.315,
+        "n_linea": -0.292,
+        "frac_coche": 0.37,
+        "frac_linea": 0.368,
+        "dentro": -0.024,
+        "v": 131.6,
+        "volante": 0.085,
+        "gas": 0.85,
+        "freno": 0.0,
+        "deriva": 1.34,
+        "lateral": 9.23
+       },
+       "vertice": {
+        "n_coche": 0.337,
+        "n_linea": 0.305,
+        "frac_coche": 0.234,
+        "frac_linea": 0.237,
+        "dentro": 0.032,
+        "v": 132.9,
+        "volante": 0.162,
+        "gas": 0.44,
+        "freno": 0.0,
+        "deriva": 1.95,
+        "lateral": 13.47
+       },
+       "v20": {
+        "n_coche": -0.323,
+        "n_linea": -0.044,
+        "frac_coche": 0.212,
+        "frac_linea": 0.183,
+        "dentro": -0.279,
+        "v": 132.2,
+        "volante": 0.161,
+        "gas": 0.66,
+        "freno": 0.0,
+        "deriva": 3.04,
+        "lateral": 14.06
+       },
+       "salida": {
+        "n_coche": -0.437,
+        "n_linea": -0.932,
+        "frac_coche": 0.26,
+        "frac_linea": 0.305,
+        "dentro": 0.494,
+        "v": 136.2,
+        "volante": 0.086,
+        "gas": 0.99,
+        "freno": 0.0,
+        "deriva": 1.23,
+        "lateral": 9.33
+       }
+      },
+      "C14": {
+       "pico_dentro": 0.902,
+       "pico_dentro_m": 80.0,
+       "pico_fuera": -0.166,
+       "pico_fuera_m": 116.0,
+       "cte_media": 0.566,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.437,
+        "n_linea": -0.932,
+        "frac_coche": 0.26,
+        "frac_linea": 0.305,
+        "dentro": 0.494,
+        "v": 136.2,
+        "volante": 0.086,
+        "gas": 0.99,
+        "freno": 0.0,
+        "deriva": 1.23,
+        "lateral": 9.33
+       },
+       "vertice": {
+        "n_coche": 0.795,
+        "n_linea": 0.056,
+        "frac_coche": 0.321,
+        "frac_linea": 0.392,
+        "dentro": 0.739,
+        "v": 139.9,
+        "volante": 0.061,
+        "gas": 1.0,
+        "freno": 0.0,
+        "deriva": 1.16,
+        "lateral": 8.68
+       },
+       "v20": {
+        "n_coche": 0.796,
+        "n_linea": 0.05,
+        "frac_coche": 0.344,
+        "frac_linea": 0.414,
+        "dentro": 0.745,
+        "v": 141.6,
+        "volante": 0.082,
+        "gas": 1.0,
+        "freno": 0.0,
+        "deriva": 1.33,
+        "lateral": 9.22
+       },
+       "salida": {
+        "n_coche": 0.191,
+        "n_linea": 0.015,
+        "frac_coche": 0.736,
+        "frac_linea": 0.752,
+        "dentro": 0.176,
+        "v": 147.5,
+        "volante": 0.031,
+        "gas": 1.0,
+        "freno": 0.0,
+        "deriva": 2.43,
+        "lateral": 10.44
+       }
+      }
+     }
+    },
+    "6": {
+     "tiempo_s": 107.015,
+     "cte_curvas": 0.455,
+     "cte_vuelta": 0.342,
+     "fuera": 87,
+     "fuera_pista": 0,
+     "gomas": {
+      "DI": 57.0,
+      "DD": 53.5,
+      "TI": 43.8,
+      "TD": 40.7
+     },
+     "gomas_zonas": {},
+     "curvas": {
+      "C1": {
+       "pico_dentro": 1.125,
+       "pico_dentro_m": 47.0,
+       "pico_fuera": 0.063,
+       "pico_fuera_m": 10.0,
+       "cte_media": 0.535,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": 0.678,
+        "n_linea": 0.277,
+        "frac_coche": 0.856,
+        "frac_linea": 0.887,
+        "dentro": 0.401,
+        "v": 97.8,
+        "volante": 0.11,
+        "gas": 0.0,
+        "freno": 0.29,
+        "deriva": 0.11,
+        "lateral": 5.48
+       },
+       "vertice": {
+        "n_coche": 1.031,
+        "n_linea": 0.687,
+        "frac_coche": 0.399,
+        "frac_linea": 0.424,
+        "dentro": 0.345,
+        "v": 89.3,
+        "volante": 0.259,
+        "gas": 0.51,
+        "freno": 0.0,
+        "deriva": 1.35,
+        "lateral": 11.34
+       },
+       "v20": {
+        "n_coche": 0.988,
+        "n_linea": 0.66,
+        "frac_coche": 0.124,
+        "frac_linea": 0.148,
+        "dentro": 0.327,
+        "v": 93.6,
+        "volante": 0.148,
+        "gas": 0.76,
+        "freno": 0.0,
+        "deriva": 2.85,
+        "lateral": 13.31
+       },
+       "salida": {
+        "n_coche": -0.391,
+        "n_linea": -1.465,
+        "frac_coche": 0.63,
+        "frac_linea": 0.714,
+        "dentro": 1.074,
+        "v": 102.6,
+        "volante": 0.145,
+        "gas": 0.47,
+        "freno": 0.0,
+        "deriva": 1.2,
+        "lateral": 8.14
+       }
+      },
+      "C2": {
+       "pico_dentro": 0.996,
+       "pico_dentro_m": 56.0,
+       "pico_fuera": 0.368,
+       "pico_fuera_m": 14.0,
+       "cte_media": 0.453,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.462,
+        "n_linea": -1.325,
+        "frac_coche": 0.748,
+        "frac_linea": 0.818,
+        "dentro": 0.863,
+        "v": 101.9,
+        "volante": 0.163,
+        "gas": 0.0,
+        "freno": 0.11,
+        "deriva": 1.15,
+        "lateral": 9.74
+       },
+       "vertice": {
+        "n_coche": 0.154,
+        "n_linea": 0.103,
+        "frac_coche": 0.206,
+        "frac_linea": 0.21,
+        "dentro": 0.051,
+        "v": 82.8,
+        "volante": 0.266,
+        "gas": 0.25,
+        "freno": 0.0,
+        "deriva": 0.65,
+        "lateral": 11.29
+       },
+       "v20": {
+        "n_coche": -0.448,
+        "n_linea": -0.15,
+        "frac_coche": 0.171,
+        "frac_linea": 0.148,
+        "dentro": -0.298,
+        "v": 89.2,
+        "volante": 0.175,
+        "gas": 0.88,
+        "freno": 0.0,
+        "deriva": 1.52,
+        "lateral": 10.2
+       },
+       "salida": {
+        "n_coche": 0.875,
+        "n_linea": -0.12,
+        "frac_coche": 0.576,
+        "frac_linea": 0.649,
+        "dentro": 0.995,
+        "v": 106.8,
+        "volante": 0.034,
+        "gas": 0.98,
+        "freno": 0.0,
+        "deriva": 0.43,
+        "lateral": 4.18
+       }
+      },
+      "C3": {
+       "pico_dentro": 0.663,
+       "pico_dentro_m": 70.0,
+       "pico_fuera": 1.001,
+       "pico_fuera_m": -5.0,
+       "cte_media": 0.545,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": 0.392,
+        "n_linea": 0.088,
+        "frac_coche": 0.606,
+        "frac_linea": 0.579,
+        "dentro": -0.304,
+        "v": 103.9,
+        "volante": 0.142,
+        "gas": 0.0,
+        "freno": 0.58,
+        "deriva": 0.69,
+        "lateral": 2.82
+       },
+       "vertice": {
+        "n_coche": 1.026,
+        "n_linea": 0.094,
+        "frac_coche": 0.599,
+        "frac_linea": 0.513,
+        "dentro": -0.932,
+        "v": 78.0,
+        "volante": 0.283,
+        "gas": 0.0,
+        "freno": 0.03,
+        "deriva": 1.13,
+        "lateral": 12.62
+       },
+       "v20": {
+        "n_coche": -0.22,
+        "n_linea": -0.052,
+        "frac_coche": 0.274,
+        "frac_linea": 0.289,
+        "dentro": 0.169,
+        "v": 84.7,
+        "volante": 0.059,
+        "gas": 0.98,
+        "freno": 0.0,
+        "deriva": 0.23,
+        "lateral": 4.49
+       },
+       "salida": {
+        "n_coche": -0.834,
+        "n_linea": -0.206,
+        "frac_coche": 0.684,
+        "frac_linea": 0.738,
+        "dentro": 0.628,
+        "v": 111.1,
+        "volante": 0.067,
+        "gas": 0.94,
+        "freno": 0.0,
+        "deriva": 1.03,
+        "lateral": 7.46
+       }
+      },
+      "C4": {
+       "pico_dentro": 0.784,
+       "pico_dentro_m": 38.0,
+       "pico_fuera": 0.631,
+       "pico_fuera_m": 14.0,
+       "cte_media": 0.307,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.11,
+        "n_linea": -0.167,
+        "frac_coche": 0.82,
+        "frac_linea": 0.814,
+        "dentro": -0.057,
+        "v": 93.4,
+        "volante": 0.17,
+        "gas": 0.0,
+        "freno": 0.55,
+        "deriva": 0.19,
+        "lateral": 5.26
+       },
+       "vertice": {
+        "n_coche": 0.114,
+        "n_linea": 0.16,
+        "frac_coche": 0.153,
+        "frac_linea": 0.157,
+        "dentro": 0.046,
+        "v": 74.6,
+        "volante": 0.369,
+        "gas": 0.2,
+        "freno": 0.0,
+        "deriva": 1.56,
+        "lateral": 13.14
+       },
+       "v20": {
+        "n_coche": 0.14,
+        "n_linea": -0.241,
+        "frac_coche": 0.344,
+        "frac_linea": 0.311,
+        "dentro": -0.381,
+        "v": 75.3,
+        "volante": 0.186,
+        "gas": 0.67,
+        "freno": 0.0,
+        "deriva": 1.72,
+        "lateral": 11.16
+       },
+       "salida": {
+        "n_coche": -1.293,
+        "n_linea": -0.525,
+        "frac_coche": 0.708,
+        "frac_linea": 0.773,
+        "dentro": 0.768,
+        "v": 84.3,
+        "volante": 0.006,
+        "gas": 0.93,
+        "freno": 0.0,
+        "deriva": 0.29,
+        "lateral": 2.36
+       }
+      },
+      "C5": {
+       "pico_dentro": 0.336,
+       "pico_dentro_m": 3.0,
+       "pico_fuera": 0.084,
+       "pico_fuera_m": 19.0,
+       "cte_media": 0.17,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.832,
+        "n_linea": -0.655,
+        "frac_coche": 0.799,
+        "frac_linea": 0.814,
+        "dentro": 0.177,
+        "v": 88.8,
+        "volante": 0.106,
+        "gas": 0.12,
+        "freno": 0.0,
+        "deriva": 0.03,
+        "lateral": 4.81
+       },
+       "vertice": {
+        "n_coche": -0.957,
+        "n_linea": -0.649,
+        "frac_coche": 0.164,
+        "frac_linea": 0.191,
+        "dentro": 0.308,
+        "v": 83.2,
+        "volante": 0.183,
+        "gas": 0.0,
+        "freno": 0.03,
+        "deriva": 0.85,
+        "lateral": 10.08
+       },
+       "v20": {
+        "n_coche": -0.428,
+        "n_linea": -0.504,
+        "frac_coche": 0.32,
+        "frac_linea": 0.313,
+        "dentro": -0.076,
+        "v": 86.1,
+        "volante": -0.029,
+        "gas": 0.99,
+        "freno": 0.0,
+        "deriva": 0.67,
+        "lateral": 1.68
+       },
+       "salida": {
+        "n_coche": -0.434,
+        "n_linea": -0.493,
+        "frac_coche": 0.231,
+        "frac_linea": 0.225,
+        "dentro": -0.059,
+        "v": 84.4,
+        "volante": 0.043,
+        "gas": 0.91,
+        "freno": 0.0,
+        "deriva": 0.82,
+        "lateral": 6.54
+       }
+      },
+      "C6": {
+       "pico_dentro": 0.962,
+       "pico_dentro_m": 30.0,
+       "pico_fuera": -0.047,
+       "pico_fuera_m": -15.0,
+       "cte_media": 0.394,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.032,
+        "n_linea": -0.077,
+        "frac_coche": 0.222,
+        "frac_linea": 0.226,
+        "dentro": 0.045,
+        "v": 93.4,
+        "volante": 0.119,
+        "gas": 0.94,
+        "freno": 0.0,
+        "deriva": 0.59,
+        "lateral": 7.4
+       },
+       "vertice": {
+        "n_coche": 0.93,
+        "n_linea": 0.584,
+        "frac_coche": 0.321,
+        "frac_linea": 0.353,
+        "dentro": 0.346,
+        "v": 97.8,
+        "volante": 0.141,
+        "gas": 0.93,
+        "freno": 0.0,
+        "deriva": 2.49,
+        "lateral": 9.06
+       },
+       "v20": {
+        "n_coche": 0.683,
+        "n_linea": -0.148,
+        "frac_coche": 0.609,
+        "frac_linea": 0.695,
+        "dentro": 0.831,
+        "v": 103.4,
+        "volante": 0.049,
+        "gas": 0.96,
+        "freno": 0.0,
+        "deriva": 0.87,
+        "lateral": 5.84
+       },
+       "salida": {
+        "n_coche": 0.69,
+        "n_linea": -0.118,
+        "frac_coche": 0.597,
+        "frac_linea": 0.679,
+        "dentro": 0.808,
+        "v": 103.1,
+        "volante": 0.055,
+        "gas": 0.95,
+        "freno": 0.0,
+        "deriva": 1.03,
+        "lateral": 6.49
+       }
+      },
+      "C7": {
+       "pico_dentro": 1.419,
+       "pico_dentro_m": 40.0,
+       "pico_fuera": 0.314,
+       "pico_fuera_m": 3.0,
+       "cte_media": 0.56,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": 0.178,
+        "n_linea": 0.121,
+        "frac_coche": 0.719,
+        "frac_linea": 0.724,
+        "dentro": 0.057,
+        "v": 92.4,
+        "volante": 0.15,
+        "gas": 0.0,
+        "freno": 0.48,
+        "deriva": 0.06,
+        "lateral": 3.31
+       },
+       "vertice": {
+        "n_coche": 0.009,
+        "n_linea": 0.307,
+        "frac_coche": 0.466,
+        "frac_linea": 0.438,
+        "dentro": -0.298,
+        "v": 82.5,
+        "volante": 0.278,
+        "gas": 0.4,
+        "freno": 0.0,
+        "deriva": 1.22,
+        "lateral": 12.64
+       },
+       "v20": {
+        "n_coche": 0.344,
+        "n_linea": 0.137,
+        "frac_coche": 0.186,
+        "frac_linea": 0.205,
+        "dentro": 0.207,
+        "v": 87.2,
+        "volante": 0.102,
+        "gas": 0.72,
+        "freno": 0.0,
+        "deriva": 2.84,
+        "lateral": 12.33
+       },
+       "salida": {
+        "n_coche": 1.139,
+        "n_linea": 0.121,
+        "frac_coche": 0.635,
+        "frac_linea": 0.727,
+        "dentro": 1.018,
+        "v": 101.8,
+        "volante": 0.079,
+        "gas": 0.93,
+        "freno": 0.0,
+        "deriva": 0.6,
+        "lateral": 6.43
+       }
+      },
+      "C8": {
+       "pico_dentro": 0.921,
+       "pico_dentro_m": 74.0,
+       "pico_fuera": 0.821,
+       "pico_fuera_m": -21.0,
+       "cte_media": 0.328,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": 1.032,
+        "n_linea": 0.509,
+        "frac_coche": 0.666,
+        "frac_linea": 0.715,
+        "dentro": 0.522,
+        "v": 115.7,
+        "volante": 0.094,
+        "gas": 0.0,
+        "freno": 0.59,
+        "deriva": 0.4,
+        "lateral": 5.17
+       },
+       "vertice": {
+        "n_coche": -0.188,
+        "n_linea": -0.238,
+        "frac_coche": 0.197,
+        "frac_linea": 0.201,
+        "dentro": 0.051,
+        "v": 79.4,
+        "volante": 0.29,
+        "gas": 0.0,
+        "freno": 0.02,
+        "deriva": 0.95,
+        "lateral": 11.6
+       },
+       "v20": {
+        "n_coche": -0.506,
+        "n_linea": -0.418,
+        "frac_coche": 0.165,
+        "frac_linea": 0.158,
+        "dentro": -0.088,
+        "v": 83.8,
+        "volante": 0.159,
+        "gas": 0.91,
+        "freno": 0.0,
+        "deriva": 0.8,
+        "lateral": 6.73
+       },
+       "salida": {
+        "n_coche": 1.087,
+        "n_linea": 0.372,
+        "frac_coche": 0.66,
+        "frac_linea": 0.744,
+        "dentro": 0.715,
+        "v": 101.7,
+        "volante": 0.05,
+        "gas": 0.9,
+        "freno": 0.0,
+        "deriva": 1.24,
+        "lateral": 7.46
+       }
+      },
+      "C9": {
+       "pico_dentro": 0.853,
+       "pico_dentro_m": 99.0,
+       "pico_fuera": 0.485,
+       "pico_fuera_m": 60.0,
+       "cte_media": 0.307,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.466,
+        "n_linea": -0.022,
+        "frac_coche": 0.798,
+        "frac_linea": 0.755,
+        "dentro": -0.443,
+        "v": 87.4,
+        "volante": 0.192,
+        "gas": 0.0,
+        "freno": 0.36,
+        "deriva": 0.24,
+        "lateral": 6.33
+       },
+       "vertice": {
+        "n_coche": -0.291,
+        "n_linea": 0.0,
+        "frac_coche": 0.516,
+        "frac_linea": 0.491,
+        "dentro": -0.291,
+        "v": 76.6,
+        "volante": 0.336,
+        "gas": 0.04,
+        "freno": 0.0,
+        "deriva": 1.15,
+        "lateral": 13.26
+       },
+       "v20": {
+        "n_coche": 0.279,
+        "n_linea": -0.005,
+        "frac_coche": 0.208,
+        "frac_linea": 0.233,
+        "dentro": 0.284,
+        "v": 82.2,
+        "volante": 0.189,
+        "gas": 0.25,
+        "freno": 0.0,
+        "deriva": 0.15,
+        "lateral": 7.85
+       },
+       "salida": {
+        "n_coche": 0.502,
+        "n_linea": 0.086,
+        "frac_coche": 0.532,
+        "frac_linea": 0.569,
+        "dentro": 0.416,
+        "v": 95.7,
+        "volante": 0.03,
+        "gas": 0.93,
+        "freno": 0.0,
+        "deriva": 0.78,
+        "lateral": 5.83
+       }
+      },
+      "C10": {
+       "pico_dentro": 0.762,
+       "pico_dentro_m": 48.0,
+       "pico_fuera": 0.904,
+       "pico_fuera_m": -24.0,
+       "cte_media": 0.489,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.559,
+        "n_linea": -0.395,
+        "frac_coche": 0.751,
+        "frac_linea": 0.767,
+        "dentro": 0.164,
+        "v": 126.3,
+        "volante": 0.071,
+        "gas": 0.0,
+        "freno": 0.8,
+        "deriva": 0.66,
+        "lateral": 3.92
+       },
+       "vertice": {
+        "n_coche": -0.255,
+        "n_linea": -0.552,
+        "frac_coche": 0.194,
+        "frac_linea": 0.169,
+        "dentro": -0.297,
+        "v": 104.0,
+        "volante": 0.17,
+        "gas": 0.26,
+        "freno": 0.0,
+        "deriva": 1.41,
+        "lateral": 11.99
+       },
+       "v20": {
+        "n_coche": -0.83,
+        "n_linea": -0.298,
+        "frac_coche": 0.561,
+        "frac_linea": 0.61,
+        "dentro": 0.532,
+        "v": 107.2,
+        "volante": 0.118,
+        "gas": 0.88,
+        "freno": 0.0,
+        "deriva": 0.59,
+        "lateral": 7.34
+       },
+       "salida": {
+        "n_coche": -0.844,
+        "n_linea": -0.184,
+        "frac_coche": 0.719,
+        "frac_linea": 0.781,
+        "dentro": 0.66,
+        "v": 111.9,
+        "volante": 0.008,
+        "gas": 0.96,
+        "freno": 0.0,
+        "deriva": 0.83,
+        "lateral": 5.08
+       }
+      },
+      "C11": {
+       "pico_dentro": 1.362,
+       "pico_dentro_m": 57.0,
+       "pico_fuera": 0.568,
+       "pico_fuera_m": 8.0,
+       "cte_media": 0.556,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.439,
+        "n_linea": -0.142,
+        "frac_coche": 0.811,
+        "frac_linea": 0.839,
+        "dentro": 0.297,
+        "v": 121.1,
+        "volante": 0.096,
+        "gas": 0.0,
+        "freno": 0.78,
+        "deriva": 0.61,
+        "lateral": 5.1
+       },
+       "vertice": {
+        "n_coche": -0.214,
+        "n_linea": -0.685,
+        "frac_coche": 0.522,
+        "frac_linea": 0.477,
+        "dentro": -0.471,
+        "v": 100.8,
+        "volante": 0.229,
+        "gas": 0.0,
+        "freno": 0.0,
+        "deriva": 2.08,
+        "lateral": 12.56
+       },
+       "v20": {
+        "n_coche": -0.026,
+        "n_linea": -0.233,
+        "frac_coche": 0.151,
+        "frac_linea": 0.134,
+        "dentro": -0.207,
+        "v": 101.8,
+        "volante": 0.159,
+        "gas": 0.76,
+        "freno": 0.0,
+        "deriva": 2.38,
+        "lateral": 11.86
+       },
+       "salida": {
+        "n_coche": -0.4,
+        "n_linea": 0.863,
+        "frac_coche": 0.515,
+        "frac_linea": 0.626,
+        "dentro": 1.263,
+        "v": 113.9,
+        "volante": 0.068,
+        "gas": 0.96,
+        "freno": 0.0,
+        "deriva": 0.41,
+        "lateral": 5.25
+       }
+      },
+      "C12": {
+       "pico_dentro": 0.415,
+       "pico_dentro_m": 71.0,
+       "pico_fuera": 1.146,
+       "pico_fuera_m": -47.0,
+       "cte_media": 0.831,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.267,
+        "n_linea": -0.21,
+        "frac_coche": 0.803,
+        "frac_linea": 0.798,
+        "dentro": -0.057,
+        "v": 137.5,
+        "volante": 0.104,
+        "gas": 0.0,
+        "freno": 0.72,
+        "deriva": 0.69,
+        "lateral": 3.52
+       },
+       "vertice": {
+        "n_coche": -0.187,
+        "n_linea": 0.754,
+        "frac_coche": 0.747,
+        "frac_linea": 0.66,
+        "dentro": -0.941,
+        "v": 127.6,
+        "volante": 0.192,
+        "gas": 0.37,
+        "freno": 0.0,
+        "deriva": 1.95,
+        "lateral": 12.59
+       },
+       "v20": {
+        "n_coche": -0.752,
+        "n_linea": 0.213,
+        "frac_coche": 0.629,
+        "frac_linea": 0.536,
+        "dentro": -0.966,
+        "v": 127.7,
+        "volante": 0.059,
+        "gas": 0.74,
+        "freno": 0.0,
+        "deriva": 3.58,
+        "lateral": 11.8
+       },
+       "salida": {
+        "n_coche": -0.349,
+        "n_linea": -0.292,
+        "frac_coche": 0.373,
+        "frac_linea": 0.368,
+        "dentro": -0.058,
+        "v": 131.7,
+        "volante": 0.088,
+        "gas": 0.85,
+        "freno": 0.0,
+        "deriva": 1.37,
+        "lateral": 9.31
+       }
+      },
+      "C13": {
+       "pico_dentro": 0.528,
+       "pico_dentro_m": -40.0,
+       "pico_fuera": 0.468,
+       "pico_fuera_m": 33.0,
+       "cte_media": 0.3,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.349,
+        "n_linea": -0.292,
+        "frac_coche": 0.373,
+        "frac_linea": 0.368,
+        "dentro": -0.058,
+        "v": 131.7,
+        "volante": 0.088,
+        "gas": 0.85,
+        "freno": 0.0,
+        "deriva": 1.37,
+        "lateral": 9.31
+       },
+       "vertice": {
+        "n_coche": 0.341,
+        "n_linea": 0.305,
+        "frac_coche": 0.233,
+        "frac_linea": 0.237,
+        "dentro": 0.036,
+        "v": 133.0,
+        "volante": 0.163,
+        "gas": 0.41,
+        "freno": 0.0,
+        "deriva": 1.91,
+        "lateral": 14.06
+       },
+       "v20": {
+        "n_coche": -0.328,
+        "n_linea": -0.044,
+        "frac_coche": 0.212,
+        "frac_linea": 0.183,
+        "dentro": -0.283,
+        "v": 132.2,
+        "volante": 0.165,
+        "gas": 0.66,
+        "freno": 0.0,
+        "deriva": 2.95,
+        "lateral": 14.48
+       },
+       "salida": {
+        "n_coche": -0.453,
+        "n_linea": -0.932,
+        "frac_coche": 0.261,
+        "frac_linea": 0.305,
+        "dentro": 0.478,
+        "v": 136.2,
+        "volante": 0.087,
+        "gas": 1.0,
+        "freno": 0.0,
+        "deriva": 1.18,
+        "lateral": 9.48
+       }
+      },
+      "C14": {
+       "pico_dentro": 0.882,
+       "pico_dentro_m": 79.0,
+       "pico_fuera": -0.16,
+       "pico_fuera_m": 117.0,
+       "cte_media": 0.557,
+       "fuera_pista": 0,
+       "entrada": {
+        "n_coche": -0.453,
+        "n_linea": -0.932,
+        "frac_coche": 0.261,
+        "frac_linea": 0.305,
+        "dentro": 0.478,
+        "v": 136.2,
+        "volante": 0.087,
+        "gas": 1.0,
+        "freno": 0.0,
+        "deriva": 1.18,
+        "lateral": 9.48
+       },
+       "vertice": {
+        "n_coche": 0.789,
+        "n_linea": 0.056,
+        "frac_coche": 0.322,
+        "frac_linea": 0.392,
+        "dentro": 0.732,
+        "v": 140.0,
+        "volante": 0.06,
+        "gas": 1.0,
+        "freno": 0.0,
+        "deriva": 1.18,
+        "lateral": 8.65
+       },
+       "v20": {
+        "n_coche": 0.806,
+        "n_linea": 0.05,
+        "frac_coche": 0.343,
+        "frac_linea": 0.414,
+        "dentro": 0.756,
+        "v": 141.6,
+        "volante": 0.082,
+        "gas": 1.0,
+        "freno": 0.0,
+        "deriva": 1.28,
+        "lateral": 9.14
+       },
+       "salida": {
+        "n_coche": 0.185,
+        "n_linea": 0.015,
+        "frac_coche": 0.737,
+        "frac_linea": 0.752,
+        "dentro": 0.17,
+        "v": 147.5,
+        "volante": 0.03,
+        "gas": 1.0,
+        "freno": 0.0,
+        "deriva": 2.42,
+        "lateral": 10.42
+       }
+      }
+     }
+    }
+   }
+  }
+ ],
+ "agregado": {
+  "vueltas": 3,
+  "vuelta": {
+   "tiempo_s": [
+    107.02566666666667,
+    0.05084617324178626
+   ],
+   "cte_curvas": [
+    0.45533333333333337,
+    0.0015275252316519481
+   ],
+   "cte_vuelta": [
+    0.343,
+    0.0009999999999999731
+   ],
+   "fuera": [
+    78.33333333333333,
+    9.60902353693305
+   ],
+   "fuera_pista": [
+    0.0,
+    0.0
+   ],
+   "goma_DI": [
+    57.4,
+    0.45825756949558355
+   ],
+   "goma_DD": [
+    54.0,
+    0.5567764362830031
+   ],
+   "goma_TI": [
+    45.0,
+    1.3114877048604008
+   ],
+   "goma_TD": [
+    42.03333333333334,
+    1.4640127503998495
+   ]
+  },
+  "curvas": {
+   "C1": {
+    "pico_dentro": [
+     1.1076666666666666,
+     0.05894347574866388
+    ],
+    "pico_dentro_m": [
+     47.333333333333336,
+     0.5773502691896258
+    ],
+    "pico_fuera": [
+     0.056999999999999995,
+     0.03241913015489466
+    ],
+    "pico_fuera_m": [
+     10.666666666666666,
+     0.5773502691896257
+    ],
+    "cte_media": [
+     0.5363333333333333,
+     0.026025628394590813
+    ],
+    "fuera_pista": [
+     0.0,
+     0.0
+    ],
+    "entrada.n_coche": [
+     0.6866666666666666,
+     0.00901849950564574
+    ],
+    "entrada.n_linea": [
+     0.277,
+     0.0
+    ],
+    "entrada.frac_coche": [
+     0.8556666666666666,
+     0.0005773502691896263
+    ],
+    "entrada.frac_linea": [
+     0.887,
+     0.0
+    ],
+    "entrada.dentro": [
+     0.4093333333333333,
+     0.008504900548115363
+    ],
+    "entrada.v": [
+     97.86666666666667,
+     0.11547005383792679
+    ],
+    "entrada.volante": [
+     0.10766666666666667,
+     0.0020816659994661343
+    ],
+    "entrada.gas": [
+     0.0,
+     0.0
+    ],
+    "entrada.freno": [
+     0.29,
+     0.0
+    ],
+    "entrada.deriva": [
+     0.12,
+     0.010000000000000002
+    ],
+    "entrada.lateral": [
+     5.466666666666666,
+     0.06110100926607753
+    ],
+    "vertice.n_coche": [
+     1.0316666666666665,
+     0.024006943440041145
+    ],
+    "vertice.n_linea": [
+     0.6869999999999999,
+     1.3597399555105182e-16
+    ],
+    "vertice.frac_coche": [
+     0.399,
+     0.0020000000000000018
+    ],
+    "vertice.frac_linea": [
+     0.424,
+     0.0
+    ],
+    "vertice.dentro": [
+     0.345,
+     0.023999999999999994
+    ],
+    "vertice.v": [
+     89.26666666666667,
+     0.05773502691895929
+    ],
+    "vertice.volante": [
+     0.258,
+     0.0036055512754639926
+    ],
+    "vertice.gas": [
+     0.51,
+     0.0
+    ],
+    "vertice.freno": [
+     0.0,
+     0.0
+    ],
+    "vertice.deriva": [
+     1.39,
+     0.0360555127546398
+    ],
+    "vertice.lateral": [
+     11.413333333333332,
+     0.08082903768654764
+    ],
+    "v20.n_coche": [
+     0.9936666666666666,
+     0.03980368492154132
+    ],
+    "v20.n_linea": [
+     0.66,
+     0.0
+    ],
+    "v20.frac_coche": [
+     0.12366666666666666,
+     0.0025166114784235852
+    ],
+    "v20.frac_linea": [
+     0.148,
+     0.0
+    ],
+    "v20.dentro": [
+     0.3333333333333333,
+     0.039878983604567125
+    ],
+    "v20.v": [
+     93.59999999999998,
+     1.7404671430534633e-14
+    ],
+    "v20.volante": [
+     0.14866666666666664,
+     0.0011547005383792527
+    ],
+    "v20.gas": [
+     0.7566666666666667,
+     0.005773502691896262
+    ],
+    "v20.freno": [
+     0.0,
+     0.0
+    ],
+    "v20.deriva": [
+     2.776666666666667,
+     0.07023769168568499
+    ],
+    "v20.lateral": [
+     13.26,
+     0.11357816691600509
+    ],
+    "salida.n_coche": [
+     -0.41333333333333333,
+     0.042193996413391964
+    ],
+    "salida.n_linea": [
+     -1.465,
+     0.0
+    ],
+    "salida.frac_coche": [
+     0.632,
+     0.0034641016151377583
+    ],
+    "salida.frac_linea": [
+     0.714,
+     0.0
+    ],
+    "salida.dentro": [
+     1.0519999999999998,
+     0.04161730409336966
+    ],
+    "salida.v": [
+     102.56666666666666,
+     0.05773502691895929
+    ],
+    "salida.volante": [
+     0.14566666666666664,
+     0.0011547005383792527
+    ],
+    "salida.gas": [
+     0.4566666666666666,
+     0.023094010767585018
+    ],
+    "salida.freno": [
+     0.0,
+     0.0
+    ],
+    "salida.deriva": [
+     1.2666666666666666,
+     0.08326663997864538
+    ],
+    "salida.lateral": [
+     8.290000000000001,
+     0.1322875655532294
+    ]
+   },
+   "C2": {
+    "pico_dentro": [
+     0.989,
+     0.007549834435270756
+    ],
+    "pico_dentro_m": [
+     57.0,
+     1.7320508075688772
+    ],
+    "pico_fuera": [
+     0.3486666666666666,
+     0.020033305601755615
+    ],
+    "pico_fuera_m": [
+     14.0,
+     0.0
+    ],
+    "cte_media": [
+     0.4563333333333333,
+     0.012342339054382392
+    ],
+    "fuera_pista": [
+     0.0,
+     0.0
+    ],
+    "entrada.n_coche": [
+     -0.472,
+     0.009999999999999981
+    ],
+    "entrada.n_linea": [
+     -1.325,
+     0.0
+    ],
+    "entrada.frac_coche": [
+     0.749,
+     0.0010000000000000009
+    ],
+    "entrada.frac_linea": [
+     0.818,
+     0.0
+    ],
+    "entrada.dentro": [
+     0.8526666666666666,
+     0.010016652800877822
+    ],
+    "entrada.v": [
+     101.93333333333334,
+     0.05773502691895929
+    ],
+    "entrada.volante": [
+     0.16233333333333333,
+     0.003055050463303896
+    ],
+    "entrada.gas": [
+     0.0,
+     0.0
+    ],
+    "entrada.freno": [
+     0.10333333333333333,
+     0.0057735026918962545
+    ],
+    "entrada.deriva": [
+     1.2166666666666666,
+     0.06506407098647718
+    ],
+    "entrada.lateral": [
+     9.833333333333334,
+     0.10692676621563574
+    ],
+    "vertice.n_coche": [
+     0.16933333333333334,
+     0.020792626898334263
+    ],
+    "vertice.n_linea": [
+     0.103,
+     0.0
+    ],
+    "vertice.frac_coche": [
+     0.205,
+     0.0017320508075688629
+    ],
+    "vertice.frac_linea": [
+     0.21,
+     0.0
+    ],
+    "vertice.dentro": [
+     0.06666666666666667,
+     0.021361959960016153
+    ],
+    "vertice.v": [
+     82.73333333333333,
+     0.05773502691895929
+    ],
+    "vertice.volante": [
+     0.266,
+     0.0
+    ],
+    "vertice.gas": [
+     0.24333333333333332,
+     0.011547005383792509
+    ],
+    "vertice.freno": [
+     0.0,
+     0.0
+    ],
+    "vertice.deriva": [
+     0.6566666666666667,
+     0.020816659994661344
+    ],
+    "vertice.lateral": [
+     11.276666666666666,
+     0.061101009266077345
+    ],
+    "v20.n_coche": [
+     -0.4306666666666667,
+     0.01700980109623078
+    ],
+    "v20.n_linea": [
+     -0.15,
+     0.0
+    ],
+    "v20.frac_coche": [
+     0.17,
+     0.0010000000000000009
+    ],
+    "v20.frac_linea": [
+     0.148,
+     0.0
+    ],
+    "v20.dentro": [
+     -0.2806666666666667,
+     0.01700980109623075
+    ],
+    "v20.v": [
+     89.13333333333333,
+     0.11547005383792679
+    ],
+    "v20.volante": [
+     0.17533333333333334,
+     0.0005773502691896263
+    ],
+    "v20.gas": [
+     0.88,
+     0.0
+    ],
+    "v20.freno": [
+     0.0,
+     0.0
+    ],
+    "v20.deriva": [
+     1.4866666666666666,
+     0.05773502691896263
+    ],
+    "v20.lateral": [
+     10.559999999999999,
+     0.3157530680769389
+    ],
+    "salida.n_coche": [
+     0.8663333333333334,
+     0.009018499505645797
+    ],
+    "salida.n_linea": [
+     -0.12,
+     0.0
+    ],
+    "salida.frac_coche": [
+     0.5763333333333334,
+     0.0005773502691896263
+    ],
+    "salida.frac_linea": [
+     0.649,
+     0.0
+    ],
+    "salida.dentro": [
+     0.9863333333333334,
+     0.009018499505645797
+    ],
+    "salida.v": [
+     106.73333333333333,
+     0.1154700538379268
+    ],
+    "salida.volante": [
+     0.03333333333333333,
+     0.0011547005383792525
+    ],
+    "salida.gas": [
+     0.98,
+     0.0
+    ],
+    "salida.freno": [
+     0.0,
+     0.0
+    ],
+    "salida.deriva": [
+     0.45,
+     0.01732050807568879
+    ],
+    "salida.lateral": [
+     4.239999999999999,
+     0.0655743852430199
+    ]
+   },
+   "C3": {
+    "pico_dentro": [
+     0.659,
+     0.004582575694955844
+    ],
+    "pico_dentro_m": [
+     70.0,
+     0.0
+    ],
+    "pico_fuera": [
+     1.03,
+     0.027221315177632432
+    ],
+    "pico_fuera_m": [
+     -4.666666666666667,
+     0.5773502691896258
+    ],
+    "cte_media": [
+     0.5579999999999999,
+     0.012124355652982102
+    ],
+    "fuera_pista": [
+     0.0,
+     0.0
+    ],
+    "entrada.n_coche": [
+     0.4046666666666667,
+     0.011372481406154633
+    ],
+    "entrada.n_linea": [
+     0.08800000000000001,
+     1.6996749443881478e-17
+    ],
+    "entrada.frac_coche": [
+     0.6073333333333334,
+     0.0011547005383792527
+    ],
+    "entrada.frac_linea": [
+     0.579,
+     0.0
+    ],
+    "entrada.dentro": [
+     -0.31666666666666665,
+     0.011372481406154664
+    ],
+    "entrada.v": [
+     104.26666666666665,
+     0.472581562625258
+    ],
+    "entrada.volante": [
+     0.1406666666666667,
+     0.001527525231651933
+    ],
+    "entrada.gas": [
+     0.0,
+     0.0
+    ],
+    "entrada.freno": [
+     0.6266666666666666,
+     0.06429100507328636
+    ],
+    "entrada.deriva": [
+     0.7066666666666667,
+     0.01527525231651948
+    ],
+    "entrada.lateral": [
+     2.776666666666667,
+     0.058594652770823076
+    ],
+    "vertice.n_coche": [
+     1.0543333333333333,
+     0.029022979401387015
+    ],
+    "vertice.n_linea": [
+     0.09400000000000001,
+     1.6996749443881478e-17
+    ],
+    "vertice.frac_coche": [
+     0.602,
+     0.0030000000000000027
+    ],
+    "vertice.frac_linea": [
+     0.513,
+     0.0
+    ],
+    "vertice.dentro": [
+     -0.9603333333333333,
+     0.02902297940138696
+    ],
+    "vertice.v": [
+     77.96666666666667,
+     0.05773502691895929
+    ],
+    "vertice.volante": [
+     0.29066666666666663,
+     0.007094598884597594
+    ],
+    "vertice.gas": [
+     0.0,
+     0.0
+    ],
+    "vertice.freno": [
+     0.03,
+     0.0
+    ],
+    "vertice.deriva": [
+     1.1466666666666665,
+     0.01527525231651948
+    ],
+    "vertice.lateral": [
+     12.663333333333332,
+     0.037859388972002035
+    ],
+    "v20.n_coche": [
+     -0.22233333333333336,
+     0.00585946527708232
+    ],
+    "v20.n_linea": [
+     -0.052,
+     0.0
+    ],
+    "v20.frac_coche": [
+     0.2743333333333334,
+     0.0005773502691896263
+    ],
+    "v20.frac_linea": [
+     0.289,
+     0.0
+    ],
+    "v20.dentro": [
+     0.171,
+     0.00529150262212917
+    ],
+    "v20.v": [
+     84.73333333333333,
+     0.05773502691895929
+    ],
+    "v20.volante": [
+     0.056333333333333326,
+     0.0025166114784235818
+    ],
+    "v20.gas": [
+     0.98,
+     0.0
+    ],
+    "v20.freno": [
+     0.0,
+     0.0
+    ],
+    "v20.deriva": [
+     0.23666666666666666,
+     0.011547005383792509
+    ],
+    "v20.lateral": [
+     4.4366666666666665,
+     0.05033222956847194
+    ],
+    "salida.n_coche": [
+     -0.832,
+     0.0020000000000000018
+    ],
+    "salida.n_linea": [
+     -0.206,
+     0.0
+    ],
+    "salida.frac_coche": [
+     0.684,
+     0.0
+    ],
+    "salida.frac_linea": [
+     0.738,
+     0.0
+    ],
+    "salida.dentro": [
+     0.6263333333333333,
+     0.0020816659994661343
+    ],
+    "salida.v": [
+     111.09999999999998,
+     1.7404671430534633e-14
+    ],
+    "salida.volante": [
+     0.06633333333333334,
+     0.0005773502691896263
+    ],
+    "salida.gas": [
+     0.94,
+     0.0
+    ],
+    "salida.freno": [
+     0.0,
+     0.0
+    ],
+    "salida.deriva": [
+     1.0366666666666668,
+     0.011547005383792526
+    ],
+    "salida.lateral": [
+     7.54,
+     0.07000000000000003
+    ]
+   },
+   "C4": {
+    "pico_dentro": [
+     0.8716666666666667,
+     0.1196675951681713
+    ],
+    "pico_dentro_m": [
+     40.333333333333336,
+     6.8068592855540455
+    ],
+    "pico_fuera": [
+     0.7243333333333334,
+     0.34266942281641266
+    ],
+    "pico_fuera_m": [
+     13.333333333333334,
+     0.5773502691896257
+    ],
+    "cte_media": [
+     0.3216666666666666,
+     0.030746273486933876
+    ],
+    "fuera_pista": [
+     0.0,
+     0.0
+    ],
+    "entrada.n_coche": [
+     -0.123,
+     0.01135781669160055
+    ],
+    "entrada.n_linea": [
+     -0.167,
+     0.0
+    ],
+    "entrada.frac_coche": [
+     0.8186666666666667,
+     0.0011547005383792527
+    ],
+    "entrada.frac_linea": [
+     0.814,
+     0.0
+    ],
+    "entrada.dentro": [
+     -0.044000000000000004,
+     0.01135781669160055
+    ],
+    "entrada.v": [
+     93.13333333333333,
+     0.2516611478423591
+    ],
+    "entrada.volante": [
+     0.16733333333333333,
+     0.0023094010767585054
+    ],
+    "entrada.gas": [
+     0.0,
+     0.0
+    ],
+    "entrada.freno": [
+     0.52,
+     0.02645751311064593
+    ],
+    "entrada.deriva": [
+     0.18666666666666668,
+     0.005773502691896263
+    ],
+    "entrada.lateral": [
+     5.37,
+     0.11532562594670816
+    ],
+    "vertice.n_coche": [
+     0.19866666666666666,
+     0.19807153589885984
+    ],
+    "vertice.n_linea": [
+     0.16,
+     0.0
+    ],
+    "vertice.frac_coche": [
+     0.16066666666666665,
+     0.0177857620959388
+    ],
+    "vertice.frac_linea": [
+     0.157,
+     0.0
+    ],
+    "vertice.dentro": [
+     -0.038666666666666676,
+     0.19807153589885987
+    ],
+    "vertice.v": [
+     74.5,
+     0.09999999999999432
+    ],
+    "vertice.volante": [
+     0.371,
+     0.02406241883103195
+    ],
+    "vertice.gas": [
+     0.21333333333333335,
+     0.023094010767585018
+    ],
+    "vertice.freno": [
+     0.0,
+     0.0
+    ],
+    "vertice.deriva": [
+     1.3800000000000001,
+     0.3380828300875394
+    ],
+    "vertice.lateral": [
+     13.01,
+     0.32511536414017694
+    ],
+    "v20.n_coche": [
+     0.21333333333333335,
+     0.3931632400585453
+    ],
+    "v20.n_linea": [
+     -0.241,
+     0.0
+    ],
+    "v20.frac_coche": [
+     0.3506666666666667,
+     0.03448671241700684
+    ],
+    "v20.frac_linea": [
+     0.311,
+     0.0
+    ],
+    "v20.dentro": [
+     -0.4546666666666666,
+     0.3927166068978155
+    ],
+    "v20.v": [
+     75.10000000000001,
+     0.19999999999999576
+    ],
+    "v20.volante": [
+     0.13399999999999998,
+     0.05828378848359122
+    ],
+    "v20.gas": [
+     0.67,
+     0.0
+    ],
+    "v20.freno": [
+     0.0,
+     0.0
+    ],
+    "v20.deriva": [
+     2.566666666666667,
+     1.1150037369145152
+    ],
+    "v20.lateral": [
+     11.233333333333334,
+     0.16289055630494176
+    ],
+    "salida.n_coche": [
+     -1.319,
+     0.052115256883181575
+    ],
+    "salida.n_linea": [
+     -0.525,
+     0.0
+    ],
+    "salida.frac_coche": [
+     0.706,
+     0.004358898943540678
+    ],
+    "salida.frac_linea": [
+     0.773,
+     0.0
+    ],
+    "salida.dentro": [
+     0.7939999999999999,
+     0.05211525688318151
+    ],
+    "salida.v": [
+     84.16666666666667,
+     0.5131601439446888
+    ],
+    "salida.volante": [
+     0.004000000000000001,
+     0.025059928172283336
+    ],
+    "salida.gas": [
+     0.9366666666666666,
+     0.011547005383792462
+    ],
+    "salida.freno": [
+     0.0,
+     0.0
+    ],
+    "salida.deriva": [
+     0.26333333333333336,
+     0.05507570547286101
+    ],
+    "salida.lateral": [
+     2.0433333333333334,
+     1.4315143496777576
+    ]
+   },
+   "C5": {
+    "pico_dentro": [
+     0.35033333333333333,
+     0.017616280348965077
+    ],
+    "pico_dentro_m": [
+     2.6666666666666665,
+     0.5773502691896258
+    ],
+    "pico_fuera": [
+     0.11,
+     0.0391279950930277
+    ],
+    "pico_fuera_m": [
+     19.0,
+     0.0
+    ],
+    "cte_media": [
+     0.17633333333333334,
+     0.011846237095944567
+    ],
+    "fuera_pista": [
+     0.0,
+     0.0
+    ],
+    "entrada.n_coche": [
+     -0.8176666666666667,
+     0.030171730698342964
+    ],
+    "entrada.n_linea": [
+     -0.655,
+     0.0
+    ],
+    "entrada.frac_coche": [
+     0.7999999999999999,
+     0.002645751311064593
+    ],
+    "entrada.frac_linea": [
+     0.814,
+     0.0
+    ],
+    "entrada.dentro": [
+     0.16266666666666665,
+     0.030171730698342992
+    ],
+    "entrada.v": [
+     88.83333333333333,
+     0.0577350269189675
+    ],
+    "entrada.volante": [
+     0.10566666666666667,
+     0.001527525231651948
+    ],
+    "entrada.gas": [
+     0.12,
+     0.0
+    ],
+    "entrada.freno": [
+     0.0,
+     0.0
+    ],
+    "entrada.deriva": [
+     0.043333333333333335,
+     0.011547005383792518
+    ],
+    "entrada.lateral": [
+     4.833333333333333,
+     0.04932882862316244
+    ],
+    "vertice.n_coche": [
+     -0.9739999999999999,
+     0.02286919325205856
+    ],
+    "vertice.n_linea": [
+     -0.649,
+     0.0
+    ],
+    "vertice.frac_coche": [
+     0.16233333333333333,
+     0.0020816659994661348
+    ],
+    "vertice.frac_linea": [
+     0.19099999999999998,
+     3.3993498887762956e-17
+    ],
+    "vertice.dentro": [
+     0.325,
+     0.022869193252058533
+    ],
+    "vertice.v": [
+     83.23333333333333,
+     0.05773502691895929
+    ],
+    "vertice.volante": [
+     0.18333333333333335,
+     0.0025166114784235857
+    ],
+    "vertice.gas": [
+     0.0,
+     0.0
+    ],
+    "vertice.freno": [
+     0.03,
+     0.0
+    ],
+    "vertice.deriva": [
+     0.8166666666666668,
+     0.03511884584284244
+    ],
+    "vertice.lateral": [
+     9.943333333333333,
+     0.1234233905438242
+    ],
+    "v20.n_coche": [
+     -0.4026666666666667,
+     0.037166292972710284
+    ],
+    "v20.n_linea": [
+     -0.504,
+     0.0
+    ],
+    "v20.frac_coche": [
+     0.32233333333333336,
+     0.0032145502536643214
+    ],
+    "v20.frac_linea": [
+     0.313,
+     0.0
+    ],
+    "v20.dentro": [
+     -0.10099999999999999,
+     0.03740320841853008
+    ],
+    "v20.v": [
+     85.8,
+     0.2645751311064575
+    ],
+    "v20.volante": [
+     -0.025666666666666667,
+     0.003055050463303894
+    ],
+    "v20.gas": [
+     0.9866666666666667,
+     0.005773502691896262
+    ],
+    "v20.freno": [
+     0.0,
+     0.0
+    ],
+    "v20.deriva": [
+     0.6933333333333334,
+     0.09712534856222313
+    ],
+    "v20.lateral": [
+     1.9133333333333333,
+     0.45709225910458523
+    ],
+    "salida.n_coche": [
+     -0.41033333333333327,
+     0.039272551907577044
+    ],
+    "salida.n_linea": [
+     -0.49300000000000005,
+     6.798699777552591e-17
+    ],
+    "salida.frac_coche": [
+     0.23299999999999998,
+     0.0034641016151377418
+    ],
+    "salida.frac_linea": [
+     0.225,
+     0.0
+    ],
+    "salida.dentro": [
+     -0.083,
+     0.039849717690342554
+    ],
+    "salida.v": [
+     84.03333333333333,
+     0.32145502536643494
+    ],
+    "salida.volante": [
+     0.04700000000000001,
+     0.005291502622129182
+    ],
+    "salida.gas": [
+     0.9133333333333334,
+     0.005773502691896263
+    ],
+    "salida.freno": [
+     0.0,
+     0.0
+    ],
+    "salida.deriva": [
+     0.8333333333333334,
+     0.09073771725877469
+    ],
+    "salida.lateral": [
+     6.3500000000000005,
+     0.23302360395462096
+    ]
+   },
+   "C6": {
+    "pico_dentro": [
+     0.9756666666666666,
+     0.02631222782915454
+    ],
+    "pico_dentro_m": [
+     29.0,
+     1.0
+    ],
+    "pico_fuera": [
+     -0.05333333333333334,
+     0.02315887159024233
+    ],
+    "pico_fuera_m": [
+     -15.0,
+     0.0
+    ],
+    "cte_media": [
+     0.39633333333333337,
+     0.0077674534651540365
+    ],
+    "fuera_pista": [
+     0.0,
+     0.0
+    ],
+    "entrada.n_coche": [
+     -0.02366666666666667,
+     0.021733231083604053
+    ],
+    "entrada.n_linea": [
+     -0.077,
+     0.0
+    ],
+    "entrada.frac_coche": [
+     0.22133333333333335,
+     0.0020816659994661348
+    ],
+    "entrada.frac_linea": [
+     0.226,
+     0.0
+    ],
+    "entrada.dentro": [
+     0.05333333333333332,
+     0.021733231083604053
+    ],
+    "entrada.v": [
+     93.06666666666668,
+     0.2886751345948129
+    ],
+    "entrada.volante": [
+     0.11866666666666666,
+     0.0025166114784235783
+    ],
+    "entrada.gas": [
+     0.9366666666666666,
+     0.005773502691896198
+    ],
+    "entrada.freno": [
+     0.0,
+     0.0
+    ],
+    "entrada.deriva": [
+     0.5933333333333333,
+     0.045092497528228935
+    ],
+    "entrada.lateral": [
+     7.263333333333333,
+     0.18717193521821965
+    ],
+    "vertice.n_coche": [
+     0.926,
+     0.01539480431834062
+    ],
+    "vertice.n_linea": [
+     0.584,
+     0.0
+    ],
+    "vertice.frac_coche": [
+     0.3213333333333333,
+     0.001527525231651948
+    ],
+    "vertice.frac_linea": [
+     0.353,
+     0.0
+    ],
+    "vertice.dentro": [
+     0.3419999999999999,
+     0.015394804318340635
+    ],
+    "vertice.v": [
+     97.5,
+     0.2645751311064575
+    ],
+    "vertice.volante": [
+     0.14100000000000001,
+     0.000999999999999987
+    ],
+    "vertice.gas": [
+     0.9233333333333333,
+     0.005773502691896262
+    ],
+    "vertice.freno": [
+     0.0,
+     0.0
+    ],
+    "vertice.deriva": [
+     2.5133333333333336,
+     0.058594652770823076
+    ],
+    "vertice.lateral": [
+     9.520000000000001,
+     0.39849717690342523
+    ],
+    "v20.n_coche": [
+     0.6963333333333335,
+     0.019731531449264945
+    ],
+    "v20.n_linea": [
+     -0.148,
+     0.0
+    ],
+    "v20.frac_coche": [
+     0.608,
+     0.0017320508075688791
+    ],
+    "v20.frac_linea": [
+     0.695,
+     0.0
+    ],
+    "v20.dentro": [
+     0.8443333333333333,
+     0.019731531449265007
+    ],
+    "v20.v": [
+     103.16666666666667,
+     0.20816659994661738
+    ],
+    "v20.volante": [
+     0.04900000000000001,
+     0.0019999999999999983
+    ],
+    "v20.gas": [
+     0.96,
+     0.0
+    ],
+    "v20.freno": [
+     0.0,
+     0.0
+    ],
+    "v20.deriva": [
+     0.8533333333333334,
+     0.01527525231651948
+    ],
+    "v20.lateral": [
+     5.696666666666666,
+     0.13203534880225562
+    ],
+    "salida.n_coche": [
+     0.6986666666666667,
+     0.01677299416721218
+    ],
+    "salida.n_linea": [
+     -0.118,
+     0.0
+    ],
+    "salida.frac_coche": [
+     0.596,
+     0.0017320508075688791
+    ],
+    "salida.frac_linea": [
+     0.6789999999999999,
+     1.3597399555105182e-16
+    ],
+    "salida.dentro": [
+     0.8166666666666668,
+     0.016772994167212115
+    ],
+    "salida.v": [
+     102.83333333333333,
+     0.23094010767584539
+    ],
+    "salida.volante": [
+     0.05366666666666667,
+     0.002309401076758505
+    ],
+    "salida.gas": [
+     0.9499999999999998,
+     1.3597399555105182e-16
+    ],
+    "salida.freno": [
+     0.0,
+     0.0
+    ],
+    "salida.deriva": [
+     1.0,
+     0.02645751311064593
+    ],
+    "salida.lateral": [
+     6.41,
+     0.09848857801796129
+    ]
+   },
+   "C7": {
+    "pico_dentro": [
+     1.2993333333333335,
+     0.11484917645909937
+    ],
+    "pico_dentro_m": [
+     39.333333333333336,
+     0.5773502691896258
+    ],
+    "pico_fuera": [
+     0.2776666666666667,
+     0.04050102879351749
+    ],
+    "pico_fuera_m": [
+     1.6666666666666667,
+     1.1547005383792517
+    ],
+    "cte_media": [
+     0.5213333333333333,
+     0.038501082235871446
+    ],
+    "fuera_pista": [
+     0.0,
+     0.0
+    ],
+    "entrada.n_coche": [
+     0.169,
+     0.008544003745317524
+    ],
+    "entrada.n_linea": [
+     0.121,
+     0.0
+    ],
+    "entrada.frac_coche": [
+     0.7196666666666666,
+     0.0005773502691896263
+    ],
+    "entrada.frac_linea": [
+     0.7239999999999999,
+     1.3597399555105182e-16
+    ],
+    "entrada.dentro": [
+     0.047999999999999994,
+     0.008544003745317531
+    ],
+    "entrada.v": [
+     92.33333333333333,
+     0.11547005383792679
+    ],
+    "entrada.volante": [
+     0.15,
+     0.0010000000000000009
+    ],
+    "entrada.gas": [
+     0.0,
+     0.0
+    ],
+    "entrada.freno": [
+     0.4666666666666666,
+     0.01527525231651945
+    ],
+    "entrada.deriva": [
+     0.049999999999999996,
+     0.009999999999999998
+    ],
+    "entrada.lateral": [
+     3.4766666666666666,
+     0.17009801096230756
+    ],
+    "vertice.n_coche": [
+     0.038,
+     0.03241913015489466
+    ],
+    "vertice.n_linea": [
+     0.307,
+     0.0
+    ],
+    "vertice.frac_coche": [
+     0.4633333333333334,
+     0.003055050463303896
+    ],
+    "vertice.frac_linea": [
+     0.438,
+     0.0
+    ],
+    "vertice.dentro": [
+     -0.26899999999999996,
+     0.03241913015489464
+    ],
+    "vertice.v": [
+     82.39999999999999,
+     0.10000000000000142
+    ],
+    "vertice.volante": [
+     0.27266666666666667,
+     0.0050332229568471705
+    ],
+    "vertice.gas": [
+     0.3866666666666667,
+     0.011547005383792525
+    ],
+    "vertice.freno": [
+     0.0,
+     0.0
+    ],
+    "vertice.deriva": [
+     1.2766666666666666,
+     0.04932882862316252
+    ],
+    "vertice.lateral": [
+     12.660000000000002,
+     0.019999999999999574
+    ],
+    "v20.n_coche": [
+     0.4253333333333333,
+     0.0729543236095938
+    ],
+    "v20.n_linea": [
+     0.137,
+     0.0
+    ],
+    "v20.frac_coche": [
+     0.17833333333333332,
+     0.006806859285554052
+    ],
+    "v20.frac_linea": [
+     0.205,
+     0.0
+    ],
+    "v20.dentro": [
+     0.2886666666666667,
+     0.07310494739300025
+    ],
+    "v20.v": [
+     87.3,
+     0.1732050807568861
+    ],
+    "v20.volante": [
+     0.09666666666666666,
+     0.004725815626252605
+    ],
+    "v20.gas": [
+     0.7433333333333333,
+     0.020816659994661344
+    ],
+    "v20.freno": [
+     0.0,
+     0.0
+    ],
+    "v20.deriva": [
+     2.466666666666667,
+     0.3564173583501978
+    ],
+    "v20.lateral": [
+     11.83,
+     0.46518813398452025
+    ],
+    "salida.n_coche": [
+     1.063,
+     0.06797793759742936
+    ],
+    "salida.n_linea": [
+     0.121,
+     0.0
+    ],
+    "salida.frac_coche": [
+     0.6416666666666667,
+     0.006110100926607792
+    ],
+    "salida.frac_linea": [
+     0.727,
+     0.0
+    ],
+    "salida.dentro": [
+     0.9420000000000001,
+     0.06797793759742936
+    ],
+    "salida.v": [
+     101.7,
+     0.10000000000000142
+    ],
+    "salida.volante": [
+     0.07300000000000001,
+     0.005999999999999998
+    ],
+    "salida.gas": [
+     0.9166666666666666,
+     0.011547005383792525
+    ],
+    "salida.freno": [
+     0.0,
+     0.0
+    ],
+    "salida.deriva": [
+     0.7633333333333333,
+     0.1457166199626293
+    ],
+    "salida.lateral": [
+     6.843333333333334,
+     0.360185137579736
+    ]
+   },
+   "C8": {
+    "pico_dentro": [
+     0.9216666666666667,
+     0.0030550504633038962
+    ],
+    "pico_dentro_m": [
+     74.33333333333333,
+     0.5773502691896257
+    ],
+    "pico_fuera": [
+     0.8066666666666666,
+     0.02482606157515387
+    ],
+    "pico_fuera_m": [
+     -21.666666666666668,
+     0.5773502691896258
+    ],
+    "cte_media": [
+     0.32066666666666666,
+     0.007505553499465142
+    ],
+    "fuera_pista": [
+     0.0,
+     0.0
+    ],
+    "entrada.n_coche": [
+     1.026,
+     0.005291502622129186
+    ],
+    "entrada.n_linea": [
+     0.509,
+     0.0
+    ],
+    "entrada.frac_coche": [
+     0.6666666666666666,
+     0.0005773502691896263
+    ],
+    "entrada.frac_linea": [
+     0.715,
+     0.0
+    ],
+    "entrada.dentro": [
+     0.5166666666666667,
+     0.004725815626252613
+    ],
+    "entrada.v": [
+     115.56666666666666,
+     0.1527525231651922
+    ],
+    "entrada.volante": [
+     0.09666666666666668,
+     0.0025166114784235852
+    ],
+    "entrada.gas": [
+     0.0,
+     0.0
+    ],
+    "entrada.freno": [
+     0.5966666666666667,
+     0.011547005383792525
+    ],
+    "entrada.deriva": [
+     0.43333333333333335,
+     0.028867513459481284
+    ],
+    "entrada.lateral": [
+     5.29,
+     0.11135528725660031
+    ],
+    "vertice.n_coche": [
+     -0.13466666666666668,
+     0.0488808074128623
+    ],
+    "vertice.n_linea": [
+     -0.238,
+     0.0
+    ],
+    "vertice.frac_coche": [
+     0.19233333333333333,
+     0.0041633319989322695
+    ],
+    "vertice.frac_linea": [
+     0.20099999999999998,
+     3.3993498887762956e-17
+    ],
+    "vertice.dentro": [
+     0.10366666666666667,
+     0.04833563212924119
+    ],
+    "vertice.v": [
+     79.4,
+     0.0
+    ],
+    "vertice.volante": [
+     0.2843333333333333,
+     0.004932882862316233
+    ],
+    "vertice.gas": [
+     0.0,
+     0.0
+    ],
+    "vertice.freno": [
+     0.02,
+     0.0
+    ],
+    "vertice.deriva": [
+     0.9166666666666666,
+     0.0305505046330389
+    ],
+    "vertice.lateral": [
+     11.476666666666667,
+     0.10785793124908931
+    ],
+    "v20.n_coche": [
+     -0.47633333333333333,
+     0.02581343319539911
+    ],
+    "v20.n_linea": [
+     -0.418,
+     0.0
+    ],
+    "v20.frac_coche": [
+     0.16266666666666665,
+     0.0020816659994661348
+    ],
+    "v20.frac_linea": [
+     0.158,
+     0.0
+    ],
+    "v20.dentro": [
+     -0.05833333333333333,
+     0.025813433195399117
+    ],
+    "v20.v": [
+     83.76666666666667,
+     0.05773502691895929
+    ],
+    "v20.volante": [
+     0.161,
+     0.0020000000000000018
+    ],
+    "v20.gas": [
+     0.9,
+     0.010000000000000009
+    ],
+    "v20.freno": [
+     0.0,
+     0.0
+    ],
+    "v20.deriva": [
+     0.7733333333333334,
+     0.02309401076758505
+    ],
+    "v20.lateral": [
+     7.186666666666667,
+     0.44094595284834315
+    ],
+    "salida.n_coche": [
+     1.096,
+     0.00793725393319382
+    ],
+    "salida.n_linea": [
+     0.37200000000000005,
+     6.798699777552591e-17
+    ],
+    "salida.frac_coche": [
+     0.6593333333333334,
+     0.0005773502691896263
+    ],
+    "salida.frac_linea": [
+     0.7440000000000001,
+     1.3597399555105182e-16
+    ],
+    "salida.dentro": [
+     0.7243333333333334,
+     0.008144527815247084
+    ],
+    "salida.v": [
+     101.66666666666667,
+     0.0577350269189675
+    ],
+    "salida.volante": [
+     0.04833333333333334,
+     0.001527525231651948
+    ],
+    "salida.gas": [
+     0.9033333333333333,
+     0.005773502691896262
+    ],
+    "salida.freno": [
+     0.0,
+     0.0
+    ],
+    "salida.deriva": [
+     1.2133333333333332,
+     0.02309401076758505
+    ],
+    "salida.lateral": [
+     7.303333333333334,
+     0.1357694123627753
+    ]
+   },
+   "C9": {
+    "pico_dentro": [
+     0.85,
+     0.006082762530298225
+    ],
+    "pico_dentro_m": [
+     99.0,
+     0.0
+    ],
+    "pico_fuera": [
+     0.5143333333333334,
+     0.02768272626265944
+    ],
+    "pico_fuera_m": [
+     14.666666666666666,
+     39.272551907577046
+    ],
+    "cte_media": [
+     0.3276666666666667,
+     0.018583146486355156
+    ],
+    "fuera_pista": [
+     0.0,
+     0.0
+    ],
+    "entrada.n_coche": [
+     -0.48899999999999993,
+     0.026514147167125704
+    ],
+    "entrada.n_linea": [
+     -0.022000000000000002,
+     4.2491873609703695e-18
+    ],
+    "entrada.frac_coche": [
+     0.8000000000000002,
+     0.002645751311064593
+    ],
+    "entrada.frac_linea": [
+     0.755,
+     0.0
+    ],
+    "entrada.dentro": [
+     -0.4663333333333333,
+     0.027061657993059717
+    ],
+    "entrada.v": [
+     87.33333333333333,
+     0.11547005383792679
+    ],
+    "entrada.volante": [
+     0.19666666666666668,
+     0.004041451884327384
+    ],
+    "entrada.gas": [
+     0.0,
+     0.0
+    ],
+    "entrada.freno": [
+     0.37333333333333335,
+     0.011547005383792526
+    ],
+    "entrada.deriva": [
+     0.24,
+     0.0
+    ],
+    "entrada.lateral": [
+     6.293333333333334,
+     0.0351188458428426
+    ],
+    "vertice.n_coche": [
+     -0.363,
+     0.06238589584192891
+    ],
+    "vertice.n_linea": [
+     0.0,
+     0.0
+    ],
+    "vertice.frac_coche": [
+     0.5226666666666667,
+     0.005773502691896262
+    ],
+    "vertice.frac_linea": [
+     0.49099999999999994,
+     6.798699777552591e-17
+    ],
+    "vertice.dentro": [
+     -0.363,
+     0.06238589584192891
+    ],
+    "vertice.v": [
+     76.5,
+     0.09999999999999432
+    ],
+    "vertice.volante": [
+     0.3456666666666666,
+     0.008386497083606058
+    ],
+    "vertice.gas": [
+     0.05333333333333334,
+     0.01527525231651947
+    ],
+    "vertice.freno": [
+     0.0,
+     0.0
+    ],
+    "vertice.deriva": [
+     1.22,
+     0.062449979983984036
+    ],
+    "vertice.lateral": [
+     13.36,
+     0.0953939201416943
+    ],
+    "v20.n_coche": [
+     0.29,
+     0.025357444666211922
+    ],
+    "v20.n_linea": [
+     -0.005,
+     0.0
+    ],
+    "v20.frac_coche": [
+     0.20733333333333334,
+     0.0020816659994661348
+    ],
+    "v20.frac_linea": [
+     0.233,
+     0.0
+    ],
+    "v20.dentro": [
+     0.295,
+     0.025357444666211936
+    ],
+    "v20.v": [
+     82.2,
+     0.0
+    ],
+    "v20.volante": [
+     0.17933333333333334,
+     0.00838649708360609
+    ],
+    "v20.gas": [
+     0.26666666666666666,
+     0.020816659994661313
+    ],
+    "v20.freno": [
+     0.0,
+     0.0
+    ],
+    "v20.deriva": [
+     0.15,
+     0.0
+    ],
+    "v20.lateral": [
+     7.546666666666667,
+     0.27319101986217115
+    ],
+    "salida.n_coche": [
+     0.503,
+     0.02051828452868321
+    ],
+    "salida.n_linea": [
+     0.08600000000000001,
+     1.6996749443881478e-17
+    ],
+    "salida.frac_coche": [
+     0.5323333333333333,
+     0.001527525231651948
+    ],
+    "salida.frac_linea": [
+     0.569,
+     0.0
+    ],
+    "salida.dentro": [
+     0.417,
+     0.020518284528683182
+    ],
+    "salida.v": [
+     95.63333333333333,
+     0.0577350269189675
+    ],
+    "salida.volante": [
+     0.028666666666666663,
+     0.0015275252316519464
+    ],
+    "salida.gas": [
+     0.9333333333333335,
+     0.005773502691896198
+    ],
+    "salida.freno": [
+     0.0,
+     0.0
+    ],
+    "salida.deriva": [
+     0.7466666666666667,
+     0.04932882862316252
+    ],
+    "salida.lateral": [
+     5.656666666666666,
+     0.19218047073866096
+    ]
+   },
+   "C10": {
+    "pico_dentro": [
+     0.7606666666666667,
+     0.0041633319989322695
+    ],
+    "pico_dentro_m": [
+     41.666666666666664,
+     11.846237095944574
+    ],
+    "pico_fuera": [
+     0.8916666666666666,
+     0.013650396819628858
+    ],
+    "pico_fuera_m": [
+     -24.666666666666668,
+     0.5773502691896258
+    ],
+    "cte_media": [
+     0.48933333333333334,
+     0.0015275252316519481
+    ],
+    "fuera_pista": [
+     0.0,
+     0.0
+    ],
+    "entrada.n_coche": [
+     -0.5596666666666668,
+     0.0011547005383792527
+    ],
+    "entrada.n_linea": [
+     -0.395,
+     0.0
+    ],
+    "entrada.frac_coche": [
+     0.7506666666666666,
+     0.0005773502691896263
+    ],
+    "entrada.frac_linea": [
+     0.767,
+     0.0
+    ],
+    "entrada.dentro": [
+     0.16466666666666666,
+     0.0011547005383792527
+    ],
+    "entrada.v": [
+     126.5,
+     0.1732050807568861
+    ],
+    "entrada.volante": [
+     0.06966666666666667,
+     0.0011547005383792447
+    ],
+    "entrada.gas": [
+     0.0,
+     0.0
+    ],
+    "entrada.freno": [
+     0.7933333333333333,
+     0.005773502691896262
+    ],
+    "entrada.deriva": [
+     0.68,
+     0.019999999999999962
+    ],
+    "entrada.lateral": [
+     4.033333333333333,
+     0.09865765724632489
+    ],
+    "vertice.n_coche": [
+     -0.2936666666666667,
+     0.035571524191877604
+    ],
+    "vertice.n_linea": [
+     -0.552,
+     0.0
+    ],
+    "vertice.frac_coche": [
+     0.19066666666666668,
+     0.003055050463303896
+    ],
+    "vertice.frac_linea": [
+     0.169,
+     0.0
+    ],
+    "vertice.dentro": [
+     -0.2583333333333333,
+     0.03557152419187759
+    ],
+    "vertice.v": [
+     103.93333333333334,
+     0.05773502691895929
+    ],
+    "vertice.volante": [
+     0.16866666666666666,
+     0.0011547005383792527
+    ],
+    "vertice.gas": [
+     0.26,
+     0.0
+    ],
+    "vertice.freno": [
+     0.0,
+     0.0
+    ],
+    "vertice.deriva": [
+     1.4000000000000001,
+     0.010000000000000009
+    ],
+    "vertice.lateral": [
+     11.863333333333335,
+     0.23692474191889154
+    ],
+    "v20.n_coche": [
+     -0.876,
+     0.042930175867331395
+    ],
+    "v20.n_linea": [
+     -0.298,
+     0.0
+    ],
+    "v20.frac_coche": [
+     0.5566666666666666,
+     0.004041451884327384
+    ],
+    "v20.frac_linea": [
+     0.61,
+     0.0
+    ],
+    "v20.dentro": [
+     0.578,
+     0.04293017586733134
+    ],
+    "v20.v": [
+     107.43333333333334,
+     0.25166114784235816
+    ],
+    "v20.volante": [
+     0.11666666666666665,
+     0.0011547005383792444
+    ],
+    "v20.gas": [
+     0.8866666666666667,
+     0.005773502691896262
+    ],
+    "v20.freno": [
+     0.0,
+     0.0
+    ],
+    "v20.deriva": [
+     0.56,
+     0.026457513110645866
+    ],
+    "v20.lateral": [
+     7.156666666666666,
+     0.1594783161854091
+    ],
+    "salida.n_coche": [
+     -0.852,
+     0.010583005244258372
+    ],
+    "salida.n_linea": [
+     -0.18400000000000002,
+     3.3993498887762956e-17
+    ],
+    "salida.frac_coche": [
+     0.7183333333333333,
+     0.0011547005383792527
+    ],
+    "salida.frac_linea": [
+     0.781,
+     0.0
+    ],
+    "salida.dentro": [
+     0.668,
+     0.010583005244258372
+    ],
+    "salida.v": [
+     112.09999999999998,
+     0.19999999999999574
+    ],
+    "salida.volante": [
+     0.011333333333333334,
+     0.002886751345948128
+    ],
+    "salida.gas": [
+     0.96,
+     0.0
+    ],
+    "salida.freno": [
+     0.0,
+     0.0
+    ],
+    "salida.deriva": [
+     0.8633333333333333,
+     0.03055050463303896
+    ],
+    "salida.lateral": [
+     5.25,
+     0.15132745950421553
+    ]
+   },
+   "C11": {
+    "pico_dentro": [
+     1.242,
+     0.10998181667894025
+    ],
+    "pico_dentro_m": [
+     57.333333333333336,
+     0.5773502691896258
+    ],
+    "pico_fuera": [
+     0.5376666666666666,
+     0.026501572280401234
+    ],
+    "pico_fuera_m": [
+     7.0,
+     1.0
+    ],
+    "cte_media": [
+     0.5186666666666667,
+     0.03448671241700686
+    ],
+    "fuera_pista": [
+     0.0,
+     0.0
+    ],
+    "entrada.n_coche": [
+     -0.44766666666666666,
+     0.007767453465154036
+    ],
+    "entrada.n_linea": [
+     -0.142,
+     0.0
+    ],
+    "entrada.frac_coche": [
+     0.81,
+     0.0010000000000000009
+    ],
+    "entrada.frac_linea": [
+     0.839,
+     0.0
+    ],
+    "entrada.dentro": [
+     0.3053333333333333,
+     0.007371114795832
+    ],
+    "entrada.v": [
+     120.8,
+     0.2645751311064575
+    ],
+    "entrada.volante": [
+     0.09666666666666668,
+     0.0005773502691896263
+    ],
+    "entrada.gas": [
+     0.0,
+     0.0
+    ],
+    "entrada.freno": [
+     0.7833333333333333,
+     0.005773502691896262
+    ],
+    "entrada.deriva": [
+     0.6133333333333333,
+     0.005773502691896262
+    ],
+    "entrada.lateral": [
+     4.99,
+     0.09643650760992933
+    ],
+    "vertice.n_coche": [
+     -0.23766666666666666,
+     0.02098412098071619
+    ],
+    "vertice.n_linea": [
+     -0.685,
+     0.0
+    ],
+    "vertice.frac_coche": [
+     0.5196666666666666,
+     0.0020816659994661348
+    ],
+    "vertice.frac_linea": [
+     0.47700000000000004,
+     6.798699777552591e-17
+    ],
+    "vertice.dentro": [
+     -0.44733333333333336,
+     0.020984120980716177
+    ],
+    "vertice.v": [
+     101.0,
+     0.1732050807568861
+    ],
+    "vertice.volante": [
+     0.22633333333333336,
+     0.0023094010767585054
+    ],
+    "vertice.gas": [
+     0.0,
+     0.0
+    ],
+    "vertice.freno": [
+     0.0,
+     0.0
+    ],
+    "vertice.deriva": [
+     2.0966666666666667,
+     0.015275252316519383
+    ],
+    "vertice.lateral": [
+     12.573333333333332,
+     0.06110100926607831
+    ],
+    "v20.n_coche": [
+     -0.05266666666666667,
+     0.02362907813126304
+    ],
+    "v20.n_linea": [
+     -0.233,
+     0.0
+    ],
+    "v20.frac_coche": [
+     0.14866666666666664,
+     0.0020816659994661348
+    ],
+    "v20.frac_linea": [
+     0.134,
+     0.0
+    ],
+    "v20.dentro": [
+     -0.18066666666666664,
+     0.023245071162148183
+    ],
+    "v20.v": [
+     102.03333333333335,
+     0.2081665999466151
+    ],
+    "v20.volante": [
+     0.15866666666666665,
+     0.0015275252316519481
+    ],
+    "v20.gas": [
+     0.7566666666666667,
+     0.005773502691896262
+    ],
+    "v20.freno": [
+     0.0,
+     0.0
+    ],
+    "v20.deriva": [
+     2.2866666666666666,
+     0.10692676621563627
+    ],
+    "v20.lateral": [
+     11.773333333333333,
+     0.10969655114602855
+    ],
+    "salida.n_coche": [
+     -0.29633333333333334,
+     0.09450044091607898
+    ],
+    "salida.n_linea": [
+     0.863,
+     0.0
+    ],
+    "salida.frac_coche": [
+     0.524,
+     0.008185352771872456
+    ],
+    "salida.frac_linea": [
+     0.626,
+     0.0
+    ],
+    "salida.dentro": [
+     1.159,
+     0.09462029380634995
+    ],
+    "salida.v": [
+     113.93333333333334,
+     0.25166114784235816
+    ],
+    "salida.volante": [
+     0.06966666666666667,
+     0.001527525231651942
+    ],
+    "salida.gas": [
+     0.9533333333333333,
+     0.005773502691896262
+    ],
+    "salida.freno": [
+     0.0,
+     0.0
+    ],
+    "salida.deriva": [
+     0.48333333333333334,
+     0.06429100507328639
+    ],
+    "salida.lateral": [
+     5.593333333333334,
+     0.2973774257292124
+    ]
+   },
+   "C12": {
+    "pico_dentro": [
+     0.43533333333333335,
+     0.01913983629327414
+    ],
+    "pico_dentro_m": [
+     70.66666666666667,
+     0.5773502691896257
+    ],
+    "pico_fuera": [
+     1.1306666666666667,
+     0.01662327685305554
+    ],
+    "pico_fuera_m": [
+     -47.0,
+     0.0
+    ],
+    "cte_media": [
+     0.8163333333333332,
+     0.017473789896108163
+    ],
+    "fuera_pista": [
+     0.0,
+     0.0
+    ],
+    "entrada.n_coche": [
+     -0.25833333333333336,
+     0.009018499505645797
+    ],
+    "entrada.n_linea": [
+     -0.21,
+     0.0
+    ],
+    "entrada.frac_coche": [
+     0.802,
+     0.0010000000000000009
+    ],
+    "entrada.frac_linea": [
+     0.798,
+     0.0
+    ],
+    "entrada.dentro": [
+     -0.048666666666666664,
+     0.008504900548115384
+    ],
+    "entrada.v": [
+     137.56666666666666,
+     0.05773502691895929
+    ],
+    "entrada.volante": [
+     0.104,
+     0.0
+    ],
+    "entrada.gas": [
+     0.0,
+     0.0
+    ],
+    "entrada.freno": [
+     0.73,
+     0.010000000000000009
+    ],
+    "entrada.deriva": [
+     0.6999999999999998,
+     0.010000000000000009
+    ],
+    "entrada.lateral": [
+     3.4933333333333336,
+     0.03055050463303896
+    ],
+    "vertice.n_coche": [
+     -0.17533333333333334,
+     0.020207259421636904
+    ],
+    "vertice.n_linea": [
+     0.754,
+     0.0
+    ],
+    "vertice.frac_coche": [
+     0.746,
+     0.0017320508075688791
+    ],
+    "vertice.frac_linea": [
+     0.66,
+     0.0
+    ],
+    "vertice.dentro": [
+     -0.9293333333333332,
+     0.020207259421636856
+    ],
+    "vertice.v": [
+     127.63333333333333,
+     0.0577350269189675
+    ],
+    "vertice.volante": [
+     0.19133333333333336,
+     0.0011547005383792527
+    ],
+    "vertice.gas": [
+     0.3666666666666667,
+     0.005773502691896262
+    ],
+    "vertice.freno": [
+     0.0,
+     0.0
+    ],
+    "vertice.deriva": [
+     1.9666666666666668,
+     0.020816659994661344
+    ],
+    "vertice.lateral": [
+     12.86,
+     0.23811761799581277
+    ],
+    "v20.n_coche": [
+     -0.7396666666666668,
+     0.02581343319539914
+    ],
+    "v20.n_linea": [
+     0.213,
+     0.0
+    ],
+    "v20.frac_coche": [
+     0.6276666666666667,
+     0.0023094010767585054
+    ],
+    "v20.frac_linea": [
+     0.536,
+     0.0
+    ],
+    "v20.dentro": [
+     -0.9533333333333335,
+     0.026388128644019664
+    ],
+    "v20.v": [
+     127.63333333333333,
+     0.0577350269189675
+    ],
+    "v20.volante": [
+     0.06066666666666667,
+     0.0020816659994661348
+    ],
+    "v20.gas": [
+     0.7433333333333333,
+     0.005773502691896262
+    ],
+    "v20.freno": [
+     0.0,
+     0.0
+    ],
+    "v20.deriva": [
+     3.5566666666666666,
+     0.02516611478423597
+    ],
+    "v20.lateral": [
+     11.780000000000001,
+     0.06244997998398365
+    ],
+    "salida.n_coche": [
+     -0.31433333333333335,
+     0.03500476158086684
+    ],
+    "salida.n_linea": [
+     -0.292,
+     0.0
+    ],
+    "salida.frac_coche": [
+     0.36999999999999994,
+     0.0030000000000000027
+    ],
+    "salida.frac_linea": [
+     0.36800000000000005,
+     6.798699777552591e-17
+    ],
+    "salida.dentro": [
+     -0.023333333333333334,
+     0.03500476158086687
+    ],
+    "salida.v": [
+     131.63333333333333,
+     0.05773502691895929
+    ],
+    "salida.volante": [
+     0.08566666666666667,
+     0.002081665999466127
+    ],
+    "salida.gas": [
+     0.85,
+     0.0
+    ],
+    "salida.freno": [
+     0.0,
+     0.0
+    ],
+    "salida.deriva": [
+     1.3466666666666667,
+     0.020816659994661344
+    ],
+    "salida.lateral": [
+     9.246666666666668,
+     0.056862407030773776
+    ]
+   },
+   "C13": {
+    "pico_dentro": [
+     0.5493333333333333,
+     0.018583146486355156
+    ],
+    "pico_dentro_m": [
+     -40.333333333333336,
+     1.5275252316519465
+    ],
+    "pico_fuera": [
+     0.446,
+     0.023643180835073798
+    ],
+    "pico_fuera_m": [
+     33.0,
+     0.0
+    ],
+    "cte_media": [
+     0.3053333333333333,
+     0.004618802153517011
+    ],
+    "fuera_pista": [
+     0.0,
+     0.0
+    ],
+    "entrada.n_coche": [
+     -0.31433333333333335,
+     0.03500476158086684
+    ],
+    "entrada.n_linea": [
+     -0.292,
+     0.0
+    ],
+    "entrada.frac_coche": [
+     0.36999999999999994,
+     0.0030000000000000027
+    ],
+    "entrada.frac_linea": [
+     0.36800000000000005,
+     6.798699777552591e-17
+    ],
+    "entrada.dentro": [
+     -0.023333333333333334,
+     0.03500476158086687
+    ],
+    "entrada.v": [
+     131.63333333333333,
+     0.05773502691895929
+    ],
+    "entrada.volante": [
+     0.08566666666666667,
+     0.002081665999466127
+    ],
+    "entrada.gas": [
+     0.85,
+     0.0
+    ],
+    "entrada.freno": [
+     0.0,
+     0.0
+    ],
+    "entrada.deriva": [
+     1.3466666666666667,
+     0.020816659994661344
+    ],
+    "entrada.lateral": [
+     9.246666666666668,
+     0.056862407030773776
+    ],
+    "vertice.n_coche": [
+     0.3466666666666667,
+     0.013428824718989105
+    ],
+    "vertice.n_linea": [
+     0.305,
+     0.0
+    ],
+    "vertice.frac_coche": [
+     0.2326666666666667,
+     0.001527525231651948
+    ],
+    "vertice.frac_linea": [
+     0.237,
+     0.0
+    ],
+    "vertice.dentro": [
+     0.041666666666666664,
+     0.013428824718989126
+    ],
+    "vertice.v": [
+     132.93333333333334,
+     0.05773502691895929
+    ],
+    "vertice.volante": [
+     0.16166666666666665,
+     0.0015275252316519481
+    ],
+    "vertice.gas": [
+     0.43,
+     0.01732050807568879
+    ],
+    "vertice.freno": [
+     0.0,
+     0.0
+    ],
+    "vertice.deriva": [
+     1.9333333333333333,
+     0.020816659994661344
+    ],
+    "vertice.lateral": [
+     13.666666666666666,
+     0.3406366588218791
+    ],
+    "v20.n_coche": [
+     -0.316,
+     0.016643316977093252
+    ],
+    "v20.n_linea": [
+     -0.044000000000000004,
+     8.498374721940739e-18
+    ],
+    "v20.frac_coche": [
+     0.211,
+     0.0017320508075688791
+    ],
+    "v20.frac_linea": [
+     0.18299999999999997,
+     3.3993498887762956e-17
+    ],
+    "v20.dentro": [
+     -0.27133333333333337,
+     0.016862186493255646
+    ],
+    "v20.v": [
+     132.2,
+     0.0
+    ],
+    "v20.volante": [
+     0.16266666666666665,
+     0.0020816659994661348
+    ],
+    "v20.gas": [
+     0.6566666666666667,
+     0.005773502691896262
+    ],
+    "v20.freno": [
+     0.0,
+     0.0
+    ],
+    "v20.deriva": [
+     3.0,
+     0.045825756949558295
+    ],
+    "v20.lateral": [
+     14.273333333333333,
+     0.2100793500878497
+    ],
+    "salida.n_coche": [
+     -0.44133333333333336,
+     0.010214368964029717
+    ],
+    "salida.n_linea": [
+     -0.932,
+     0.0
+    ],
+    "salida.frac_coche": [
+     0.26,
+     0.0010000000000000009
+    ],
+    "salida.frac_linea": [
+     0.305,
+     0.0
+    ],
+    "salida.dentro": [
+     0.49,
+     0.010583005244258372
+    ],
+    "salida.v": [
+     136.2,
+     0.0
+    ],
+    "salida.volante": [
+     0.08600000000000001,
+     0.000999999999999994
+    ],
+    "salida.gas": [
+     0.9933333333333333,
+     0.005773502691896262
+    ],
+    "salida.freno": [
+     0.0,
+     0.0
+    ],
+    "salida.deriva": [
+     1.21,
+     0.02645751311064593
+    ],
+    "salida.lateral": [
+     9.24,
+     0.29546573405388327
+    ]
+   },
+   "C14": {
+    "pico_dentro": [
+     0.9173333333333334,
+     0.045003703551300435
+    ],
+    "pico_dentro_m": [
+     79.33333333333333,
+     0.5773502691896257
+    ],
+    "pico_fuera": [
+     -0.18100000000000002,
+     0.03132091952673165
+    ],
+    "pico_fuera_m": [
+     116.66666666666667,
+     0.5773502691896257
+    ],
+    "cte_media": [
+     0.5733333333333333,
+     0.020984120980716163
+    ],
+    "fuera_pista": [
+     0.0,
+     0.0
+    ],
+    "entrada.n_coche": [
+     -0.44133333333333336,
+     0.010214368964029717
+    ],
+    "entrada.n_linea": [
+     -0.932,
+     0.0
+    ],
+    "entrada.frac_coche": [
+     0.26,
+     0.0010000000000000009
+    ],
+    "entrada.frac_linea": [
+     0.305,
+     0.0
+    ],
+    "entrada.dentro": [
+     0.49,
+     0.010583005244258372
+    ],
+    "entrada.v": [
+     136.2,
+     0.0
+    ],
+    "entrada.volante": [
+     0.08600000000000001,
+     0.000999999999999994
+    ],
+    "entrada.gas": [
+     0.9933333333333333,
+     0.005773502691896262
+    ],
+    "entrada.freno": [
+     0.0,
+     0.0
+    ],
+    "entrada.deriva": [
+     1.21,
+     0.02645751311064593
+    ],
+    "entrada.lateral": [
+     9.24,
+     0.29546573405388327
+    ],
+    "vertice.n_coche": [
+     0.803,
+     0.019287301521985864
+    ],
+    "vertice.n_linea": [
+     0.056,
+     0.0
+    ],
+    "vertice.frac_coche": [
+     0.32033333333333336,
+     0.0020816659994661348
+    ],
+    "vertice.frac_linea": [
+     0.39200000000000007,
+     6.798699777552591e-17
+    ],
+    "vertice.dentro": [
+     0.7466666666666667,
+     0.019655363983740775
+    ],
+    "vertice.v": [
+     139.96666666666667,
+     0.05773502691895929
+    ],
+    "vertice.volante": [
+     0.06066666666666667,
+     0.0005773502691896263
+    ],
+    "vertice.gas": [
+     1.0,
+     0.0
+    ],
+    "vertice.freno": [
+     0.0,
+     0.0
+    ],
+    "vertice.deriva": [
+     1.1433333333333333,
+     0.047258156262526003
+    ],
+    "vertice.lateral": [
+     8.573333333333332,
+     0.1594783161854088
+    ],
+    "v20.n_coche": [
+     0.799,
+     0.006082762530298225
+    ],
+    "v20.n_linea": [
+     0.05000000000000001,
+     8.498374721940739e-18
+    ],
+    "v20.frac_coche": [
+     0.3436666666666666,
+     0.0005773502691895942
+    ],
+    "v20.frac_linea": [
+     0.414,
+     0.0
+    ],
+    "v20.dentro": [
+     0.7483333333333334,
+     0.006658328118479399
+    ],
+    "v20.v": [
+     141.6,
+     0.0
+    ],
+    "v20.volante": [
+     0.082,
+     0.0
+    ],
+    "v20.gas": [
+     1.0,
+     0.0
+    ],
+    "v20.freno": [
+     0.0,
+     0.0
+    ],
+    "v20.deriva": [
+     1.3333333333333333,
+     0.055075705472860954
+    ],
+    "v20.lateral": [
+     9.263333333333334,
+     0.14977761292440597
+    ],
+    "salida.n_coche": [
+     0.20466666666666666,
+     0.029022979401386984
+    ],
+    "salida.n_linea": [
+     0.015,
+     0.0
+    ],
+    "salida.frac_coche": [
+     0.735,
+     0.002645751311064593
+    ],
+    "salida.frac_linea": [
+     0.7520000000000001,
+     1.3597399555105182e-16
+    ],
+    "salida.dentro": [
+     0.18966666666666668,
+     0.029022979401386987
+    ],
+    "salida.v": [
+     147.5,
+     0.0
+    ],
+    "salida.volante": [
+     0.030333333333333334,
+     0.0005773502691896262
+    ],
+    "salida.gas": [
+     1.0,
+     0.0
+    ],
+    "salida.freno": [
+     0.0,
+     0.0
+    ],
+    "salida.deriva": [
+     2.4233333333333333,
+     0.005773502691896391
+    ],
+    "salida.lateral": [
+     10.43,
+     0.009999999999999787
+    ]
+   }
+  }
+ }
+}
