@@ -66,6 +66,7 @@ class AutoShifter:
     neutral_retry_s: float = 0.0
     max_gear: int = TEACHING_MAX_GEAR  # tope de marcha que sube el cambio (A2.0-b, X24; 2 = producción)
     gear1_glitch: bool = False
+    upshift_rpm: float = 0.0  # rpm a las que sube (2b, opt-in); 0 = producción, el 0,87 de `max_rpm`
 
     def ready(self) -> bool:
         cooldown = self.cooldown_s
@@ -85,6 +86,12 @@ class AutoShifter:
             self.neutral_frames = 0
         elif telem.gear <= 0:
             self.neutral_frames += 1
+
+    def _upshift_due(self, telem: TelemetryFrame, ratio: float) -> bool:
+        """Toca subir: con `upshift_rpm` a esas rpm absolutas; sin ella, al 0,87 de `max_rpm` (producción, ≈ 6600 rpm)."""
+        if self.upshift_rpm > 0.0:
+            return telem.rpm >= self.upshift_rpm
+        return ratio > UPSHIFT_RPM_RATIO
 
     def _press(self, controller: ShiftController, button: str) -> None:
         controller.press_button(button)
@@ -178,7 +185,7 @@ class AutoShifter:
 
         if (
             shift_throttle > THROTTLE_ACTIVE
-            and ratio > UPSHIFT_RPM_RATIO
+            and self._upshift_due(telem, ratio)
             and gear < num_gears
             and gear < self.max_gear
         ):

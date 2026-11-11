@@ -480,3 +480,9 @@ def test_brake_adapt_goes_to_learn_driver_only_when_asked_with_its_map_options()
     assert "--brake-adapt-fixed" in argv and "--brake-adapt-save" not in argv
     sin = aislado.build_argv(Path("python"), "a2_x", 140.0, 3, brake_adapt_load="C:/m/fr.json", **kw)
     assert "--brake-adapt-load" not in sin
+
+
+def test_upshift_rpm_goes_to_learn_driver_only_when_set():
+    assert "--upshift-rpm" not in aislado.build_argv(Path("python"), "a2_x", 155.0, 3, teacher_only=True, max_gear=4)
+    argv = aislado.build_argv(Path("python"), "a2_x", 155.0, 3, teacher_only=True, max_gear=4, upshift_rpm=7400.0)
+    assert argv[argv.index("--upshift-rpm") + 1] == "7400"

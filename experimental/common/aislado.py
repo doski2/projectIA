@@ -34,6 +34,7 @@ LAT_ACCEL_LIMIT = 6.5
 DEFAULT_REFERENCE = "src/refs/sugo_ai.json"
 A2_PREFIX = "a2_"  # vueltas completas con límite lateral o marcha propios (A2.0): tampoco pueden llamarse como los buffers de entrenamiento
 MAX_LAT_ACCEL_LIMIT = 14.6  # cota inferior validada del límite lateral del coche (D21); por encima no hay datos
+UPSHIFT_RPM_MIN, UPSHIFT_RPM_MAX = 6000.0, 7600.0  # 2b: margen hasta el corte de encendido (≈ 7750 rpm en 2.ª, H50)
 IDENT_PREFIX = "a1_"  # los experimentos de identificación no pueden llamarse como los buffers de entrenamiento (`teacher_40`, ...)
 
 
@@ -100,6 +101,7 @@ def build_argv(
     ident_straights: str = "", ident_caps: str = "",
     ident_arc_speeds: str = "", ident_arc_window: str = "3200,600", ident_arc_cte: float = 2.5, steer_ff_gain: float = 0.0,
     max_gear: int = 2, reference: str = DEFAULT_REFERENCE, lat_accel_limit: float = LAT_ACCEL_LIMIT, steer_slip_gain: float = 0.0,
+    upshift_rpm: float = 0.0,
     lat_gain_v0_kmh: float = 0.0, steer_ff_v0_kmh: float = -1.0, steer_preview_s: float = 0.0, steer_heading_gain: float = 0.0,
     throttle_max: float = 0.85, brake_decel_straight: float = 0.0, brake_overspeed_straight_ms: float = 8.0,
     brake_slip_limit: float = 0.0, brake_slip_hold: float = 0.0, steer_ff_cap_kmh: float = 0.0,
@@ -155,6 +157,8 @@ def build_argv(
         argv += ["--lat-gain-v0-kmh", f"{lat_gain_v0_kmh:g}"]
     if max_gear != 2:  # X24: el cambio automático sube hasta esa marcha (producción: 2)
         argv += ["--max-gear", str(max_gear)]
+    if upshift_rpm:  # 2b: rpm de subida; 0 = producción (el 0,87 de max_rpm)
+        argv += ["--upshift-rpm", f"{upshift_rpm:g}"]
     if steer_ff_gain:  # H58: anticipación de volante escalada con la velocidad; 0 = la de producción
         argv += ["--steer-ff-gain", f"{steer_ff_gain:g}"]
     if steer_ff_cap_kmh:  # V57: tope de velocidad en el factor de la anticipación; 0 = sin tope
@@ -222,6 +226,7 @@ def run_isolated(
     ident_straights: str = "", ident_caps: str = "",
     ident_arc_speeds: str = "", ident_arc_window: str = "3200,600", ident_arc_cte: float = 2.5, steer_ff_gain: float = 0.0,
     max_gear: int = 2, reference: str = DEFAULT_REFERENCE, lat_accel_limit: float = LAT_ACCEL_LIMIT, steer_slip_gain: float = 0.0,
+    upshift_rpm: float = 0.0,
     lat_gain_v0_kmh: float = 0.0, steer_ff_v0_kmh: float = -1.0, steer_preview_s: float = 0.0, steer_heading_gain: float = 0.0,
     throttle_max: float = 0.85, brake_decel_straight: float = 0.0, brake_overspeed_straight_ms: float = 8.0,
     brake_slip_limit: float = 0.0, brake_slip_hold: float = 0.0, steer_ff_cap_kmh: float = 0.0,
@@ -259,7 +264,7 @@ def run_isolated(
                 ident=ident, ident_cap_kmh=ident_cap_kmh, ident_floor_kmh=ident_floor_kmh,
                 ident_end_margin_m=ident_end_margin_m, ident_straights=ident_straights, ident_caps=ident_caps,
                 ident_arc_speeds=ident_arc_speeds, ident_arc_window=ident_arc_window, ident_arc_cte=ident_arc_cte,
-                steer_ff_gain=steer_ff_gain, max_gear=max_gear, reference=reference, lat_accel_limit=lat_accel_limit,
+                steer_ff_gain=steer_ff_gain, max_gear=max_gear, upshift_rpm=upshift_rpm, reference=reference, lat_accel_limit=lat_accel_limit,
                 steer_slip_gain=steer_slip_gain, lat_gain_v0_kmh=lat_gain_v0_kmh,
                 steer_ff_v0_kmh=steer_ff_v0_kmh, steer_preview_s=steer_preview_s, steer_heading_gain=steer_heading_gain,
                 throttle_max=throttle_max, brake_decel_straight=brake_decel_straight,
@@ -326,6 +331,9 @@ if __name__ == "__main__":
     ap.add_argument("--max-gear", type=int, default=2,
                     help="Marcha más alta que sube el cambio automático (producción: 2). Con 3 o 4 sube el techo de las maniobras de A1 (X24); "
                          "con --ident, o con --teacher-only y un experimento a2_* (A2.0: vueltas completas, --speed-band hasta el techo de esa marcha)")
+    ap.add_argument("--upshift-rpm", type=float, default=0.0,
+                    help="Rpm a las que sube el cambio automático (punto 2b; 0 = producción, el 0,87 de max_rpm, ≈ 6600). "
+                         "Solo con --ident, o con --teacher-only y un experimento a2_*")
     ap.add_argument("--lat-accel-limit", type=float, default=LAT_ACCEL_LIMIT,
                     help=f"Aceleración lateral (m/s²) que el teacher supone en curva (por defecto {LAT_ACCEL_LIMIT:g}). Otro valor: solo con --teacher-only y un "
                          f"experimento a2_* (A2.0); máximo {MAX_LAT_ACCEL_LIMIT:g}, la cota validada (D21)")
@@ -430,7 +438,7 @@ if __name__ == "__main__":
         ap.error(str(exc))
     problem = a2_error(a.ident, a.max_gear, a.lat_accel_limit, a.teacher_only, a.experiment, a.speed_band, cap_limit,
                          bool(a.steer_ff_gain or a.steer_slip_gain or a.lat_gain_v0_kmh or a.steer_ff_v0_kmh >= 0.0 or a.steer_preview_s or a.steer_heading_gain
-                         or a.throttle_max != 0.85 or a.brake_decel_straight or a.brake_overspeed_straight_ms != 8.0 or a.brake_slip_limit or a.brake_slip_hold or a.steer_ff_cap_kmh or a.pedal_technique or a.brake_profile or a.exit_circle or a.profile_peak_min_m or a.profile_peak_min_kmh or a.lat_adapt or a.exit_adapt or a.brake_adapt))
+                         or a.throttle_max != 0.85 or a.brake_decel_straight or a.brake_overspeed_straight_ms != 8.0 or a.brake_slip_limit or a.brake_slip_hold or a.steer_ff_cap_kmh or a.pedal_technique or a.brake_profile or a.exit_circle or a.profile_peak_min_m or a.profile_peak_min_kmh or a.lat_adapt or a.exit_adapt or a.brake_adapt or a.upshift_rpm))
     if problem:
         ap.error(problem)
     if a.ident in ("acel", "acelrodar") and a.ident_cap_kmh <= a.speed_band:
@@ -471,6 +479,9 @@ if __name__ == "__main__":
         ap.error("--brake-slip-hold debe estar entre 0 (sin memoria) y 1; un valor típico es 0,85")
     if a.brake_slip_hold and not a.brake_slip_limit:
         ap.error("--brake-slip-hold necesita --brake-slip-limit (la memoria es del limitador)")
+    if a.upshift_rpm and not UPSHIFT_RPM_MIN <= a.upshift_rpm <= UPSHIFT_RPM_MAX:
+        ap.error(f"--upshift-rpm debe ser 0 (producción) o estar entre {UPSHIFT_RPM_MIN:g} y {UPSHIFT_RPM_MAX:g} rpm: "
+                 "el corte de encendido llega hacia 7750 rpm (H50) y por debajo de 6000 se sube antes que hoy")
     if not 0.0 < a.throttle_max <= 1.0:
         ap.error("--throttle-max debe estar entre 0 (sin incluir) y 1")
     if a.exit_circle < 0:
@@ -559,7 +570,7 @@ if __name__ == "__main__":
                        ident_floor_kmh=a.ident_floor_kmh, ident_end_margin_m=a.ident_end_margin_m,
                        ident_straights=a.ident_straights, ident_caps=a.ident_caps,
                        ident_arc_speeds=a.ident_arc_speeds, ident_arc_window=a.ident_arc_window, ident_arc_cte=a.ident_arc_cte,
-                       steer_ff_gain=a.steer_ff_gain, max_gear=a.max_gear, reference=a.reference, lat_accel_limit=a.lat_accel_limit, steer_slip_gain=a.steer_slip_gain,
+                       steer_ff_gain=a.steer_ff_gain, max_gear=a.max_gear, upshift_rpm=a.upshift_rpm, reference=a.reference, lat_accel_limit=a.lat_accel_limit, steer_slip_gain=a.steer_slip_gain,
                        lat_gain_v0_kmh=a.lat_gain_v0_kmh, steer_ff_v0_kmh=a.steer_ff_v0_kmh, steer_preview_s=a.steer_preview_s, steer_heading_gain=a.steer_heading_gain,
                        throttle_max=a.throttle_max, brake_decel_straight=a.brake_decel_straight,
                        brake_overspeed_straight_ms=a.brake_overspeed_straight_ms, brake_slip_limit=a.brake_slip_limit,

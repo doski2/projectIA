@@ -114,6 +114,10 @@ def parse_args() -> argparse.Namespace:
         help="Marcha más alta que sube el cambio automático (producción: 2). Más alta solo en sesiones de identificación A2.0 (X24).",
     )
     parser.add_argument(
+        "--upshift-rpm", type=float, default=0.0,
+        help="Rpm a las que sube el cambio automático (punto 2b del PENDIENTE). 0 = producción (el 0,87 de max_rpm, ≈ 6600).",
+    )
+    parser.add_argument(
         "--steer-ff-gain", type=float, default=0.0,
         help="Anticipación de volante del teacher escalada con la velocidad: factor 1 + G · (v² − 60²) por encima de 60 km/h (H58). 0 = producción.",
     )
@@ -757,7 +761,10 @@ def run(args: argparse.Namespace) -> int:
         return 1
 
     controller = DS4Controller(mode=args.gamepad, steer_comp=args.steer_comp)
-    shifter = AutoShifter(neutral_retry_s=NEUTRAL_RETRY_COOLDOWN_S, max_gear=teacher.config.max_gear)
+    shifter = AutoShifter(neutral_retry_s=NEUTRAL_RETRY_COOLDOWN_S, max_gear=teacher.config.max_gear,
+                          upshift_rpm=float(getattr(args, "upshift_rpm", 0.0) or 0.0))
+    if shifter.upshift_rpm:
+        print(f"[Learn] Cambio: sube a {shifter.upshift_rpm:g} rpm (--upshift-rpm)")
     start_lap = session.last_timings.current_lap if session.last_timings else 0
     lap_completion = LapCompletionTracker()
     laps_done = 0

@@ -240,3 +240,28 @@ def test_real_downshift_to_first_under_braking_is_not_taken_as_a_glitch():
     auto_shift(FakeController(), _telem(gear=2, rpm=3000, max_rpm=7700, speed=12.0), 0.0, 0.5, shifter)
     auto_shift(FakeController(), _telem(gear=1, rpm=3000, max_rpm=7700, speed=11.0), 0.0, 0.5, shifter)
     assert not shifter.gear1_glitch and shifter.last_forward_gear == 1
+
+
+def test_upshift_rpm_overrides_the_production_ratio():
+    """2b: con `upshift_rpm` sube a esas rpm absolutas y no al 0,87 de `max_rpm` (≈ 6600 con 7590)."""
+    ctrl = FakeController()
+    shifter = AutoShifter(cooldown_s=0.0, max_gear=4, upshift_rpm=7400.0)
+    assert auto_shift(ctrl, _telem(gear=2, rpm=6700, max_rpm=7590, speed=30.0, num_gears=4), 1.0, 0.0, shifter) is None
+    assert auto_shift(ctrl, _telem(gear=2, rpm=7399, max_rpm=7590, speed=33.0, num_gears=4), 1.0, 0.0, shifter) is None
+    assert auto_shift(ctrl, _telem(gear=2, rpm=7400, max_rpm=7590, speed=33.5, num_gears=4), 1.0, 0.0, shifter) == "up"
+    assert ctrl.pressed == ["rb"]
+
+
+def test_upshift_rpm_zero_keeps_production_behaviour():
+    ctrl = FakeController()
+    shifter = AutoShifter(cooldown_s=0.0, max_gear=4)
+    assert shifter.upshift_rpm == 0.0
+    assert auto_shift(ctrl, _telem(gear=2, rpm=6700, max_rpm=7590, speed=30.0, num_gears=4), 1.0, 0.0, shifter) == "up"
+
+
+def test_upshift_rpm_respects_max_gear_and_needs_throttle():
+    ctrl = FakeController()
+    shifter = AutoShifter(cooldown_s=0.0, max_gear=3, upshift_rpm=7400.0)
+    assert auto_shift(ctrl, _telem(gear=3, rpm=7500, max_rpm=7590, speed=44.0, num_gears=4), 1.0, 0.0, shifter) is None
+    assert auto_shift(ctrl, _telem(gear=2, rpm=7500, max_rpm=7590, speed=34.0, num_gears=4), 0.0, 0.0, shifter) is None
+    assert ctrl.pressed == []
