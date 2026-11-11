@@ -69,6 +69,8 @@ Sesión A (control, pista 16 °C, ambiente 12 °C) **1:49.33** y Sesión D (lín
 
 ### Próxima sesión (apuntado el 2026-11-11, de madrugada): subir la velocidad
 
+**AL RETOMAR (cierre del 2026-11-12, de madrugada):** receta vigente = banda 155, `--max-gear 4`, `--upshift-rpm 7400`, `k_heading` 1,0, mapas congelados; base **1:47.026** (V118, 10 L; mejor vuelta 1:46.981). Noche: 1:48.159 → 1:47.593 (banda 155, V114) → 1:47.287 (cambio a 7400, V116) → 1:47.026 (gasolina, V118); la caja del garaje se queda (V117). **Garaje: gasolina 12 L ya guardada por el usuario** (el depósito es de ≈ 47 L y gasta ≈ 1 L por vuelta), diferencial 60°, frenos 55/45, TC 10 %, ABS 75 %. **Sesión preparada: `--steer-preview-s` 0,4 con 12 L**; comando y cómo juzgarla en el punto 3 de abajo («Siguiente: preview 0,4»). Luego, el reaprendizaje de gas y frenada (punto 5) con la A/B del control de tracción.
+
 Hecho el 2026-11-10: herramienta de métricas y `k_heading` 0,55 → 1,0 en tres sesiones (V109-V111): de 1:48.449 a **1:48.159** de media (vueltas 4-6) y **1:48.131 la mejor vuelta**, \|desvío\| en curvas −32 %, sin zigzag. Receta vigente = la de abajo con `--steer-heading-gain 1.0`. Todo subido a GitHub.
 
 **Orden acordado con el usuario:**
