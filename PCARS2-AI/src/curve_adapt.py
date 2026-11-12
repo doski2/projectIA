@@ -575,7 +575,7 @@ class CurveAdapter:
                   if ref.get("tyre_start_c") is not None and now.get("tyre_start_c") is not None else 0.0)
         self._g_track = g_track
         self.mismatch = max(g_track, g_tyre)
-        setup_differs = bool(saved_setup) and bool(self.setup) and saved_setup != self.setup
+        setup_differs = bool(saved_setup) and bool(self.setup) and setup_key(saved_setup) != setup_key(self.setup)
         keep_memory = self.mismatch <= cfg.forget_mismatch and not setup_differs
         for z in self.zones:
             for ch, (v, last_bad) in vals.get(z.id, {}).items():
@@ -624,6 +624,19 @@ class CurveAdapter:
         }
 
 
+def setup_key(setup: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
+    """Reglaje para comparar: sin las claves que empiezan por «_» (nota, fecha), que no son reglaje."""
+    return {k: v for k, v in (setup or {}).items() if not str(k).startswith("_")}
+
+
+def load_setup(path: Path) -> dict:
+    """`reglaje_vigente.json` de la pista (lo escribe el usuario a mano)."""
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or not setup_key(data):
+        raise ValueError(f"{path} no es un reglaje (un objeto JSON con al menos una clave que no empiece por «_»)")
+    return data
+
+
 def save_map(path: Path, data: dict) -> None:
     """Escribe el mapa de una vez (archivo temporal y reemplazo), para que un Ctrl+C no lo deje a medias."""
     path = Path(path)
@@ -640,4 +653,4 @@ def load_map(path: Path) -> dict:
     return data
 
 
-__all__ = ["CHANNELS", "CurveAdaptConfig", "CurveAdapter", "FreeRatio", "Tick", "Zone", "drift_deg", "load_map", "save_map"]
+__all__ = ["CHANNELS", "CurveAdaptConfig", "CurveAdapter", "FreeRatio", "Tick", "Zone", "drift_deg", "load_map", "load_setup", "save_map", "setup_key"]

@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 
 import pytest
 
-from curve_adapt import CurveAdaptConfig, CurveAdapter, Tick, Zone, drift_deg, load_map, save_map
+from curve_adapt import CurveAdaptConfig, CurveAdapter, Tick, Zone, drift_deg, load_map, load_setup, save_map
 
 LARGO = 3500.0
 ZONAS = [Zone(1, 200.0, 300.0, 250.0), Zone(2, 400.0, 500.0, 450.0), Zone(3, 800.0, 900.0, 850.0)]
@@ -358,3 +358,17 @@ def test_one_wheel_brushing_the_grass_is_only_recorded_and_two_wheels_off_need_a
         ad2.observe(_tick(2, d, terreno=(8, 0, 8, 0) if d in (210, 212) else (0, 0, 0, 0)))
     r2 = ad2.observe(_tick(3, 0.0))
     assert r2 is not None and r2["curvas"]["1"]["lat"]["veredicto"] != "mala"
+
+
+def test_the_setup_comparison_ignores_notes_and_dates_and_the_track_setup_file_loads():
+    reglaje = {"_fecha": "2026-11-12", "diferencial": {"punto_muerto_deg": 60}, "motor": {"control_traccion_pct": 10}}
+    ad = _ad()
+    ad.state[1]["exit"].last_bad = 20.0
+    ad.start(AHORA, setup=reglaje)
+    datos = ad.snapshot()
+    otro = _ad()
+    otro.load_prior(datos)
+    info = otro.start(AHORA, setup={**reglaje, "_fecha": "2026-11-20", "_nota": "otra nota"})
+    assert info is not None and info["reglaje_distinto"] is False and otro.state[1]["exit"].last_bad == pytest.approx(20.0)
+    vigente = load_setup(Path(__file__).resolve().parents[2] / "circuito_virtual" / "pistas" / "sugo_gp" / "reglaje_vigente.json")
+    assert vigente["diferencial"]["punto_muerto_deg"] == 60 and vigente["motor"]["control_traccion_pct"] == 10
