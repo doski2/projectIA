@@ -75,6 +75,7 @@ class CurveAdaptConfig:
     exit_margin_m: float = 15.0
     min_coverage: float = 0.9
     learn: bool = True
+    fixed: Tuple[str, ...] = ()  # canales congelados (se miden y se registran, pero no cambian): `--lat-adapt-fixed` y compañía
     # canal lat
     lat_min_ticks: int = 5
     # canal exit
@@ -449,7 +450,7 @@ class CurveAdapter:
         cfg = self.cfg
         if verdict == "sin datos":
             return "sin datos"
-        if not cfg.learn:
+        if not cfg.learn or ch in cfg.fixed:
             return "fijo"
         hist = list(st.history)
         bad_count = sum(1 for h in hist[-cfg.bad_window:] if h == "mala")

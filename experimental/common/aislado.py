@@ -469,8 +469,8 @@ if __name__ == "__main__":
                  "a ≈ 120 km/h la 2ª llega al corte de encendido y el coche se descontrola (H50)")
     if a.reference != DEFAULT_REFERENCE and not Path(a.reference).is_file() and not (APP / a.reference).is_file():
         ap.error(f"--reference {a.reference}: no existe (¿falta ejecutar identificacion/linea_suave.py?)")
-    if a.brake_decel_straight < 0 or a.brake_decel_straight > 11.0:
-        ap.error("--brake-decel-straight debe estar entre 0 y 11 m/s² (G3: 11,5-11,8 a pedal 1,0)")
+    if a.brake_decel_straight < 0 or a.brake_decel_straight > 13.5:
+        ap.error("--brake-decel-straight debe estar entre 0 y 13,5 m/s² (V99: el coche frena a 13,2 con los frenos 55/45)")
     if a.brake_overspeed_straight_ms <= 0:
         ap.error("--brake-overspeed-straight-ms debe ser positivo")
     if not 0.0 <= a.brake_slip_limit < 1.0:

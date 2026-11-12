@@ -53,9 +53,9 @@ from ramp_gate import DROP, END_EVENTS, RISE, RampGate, bands_from
 from speed_perturbation import SpeedPerturber
 from ident_arc import ArcRamp, FREE_LATERAL_MS2
 from ident_maneuver import KINDS as IDENT_KINDS, IdentManeuver, find_straights, select_straights
-from brake_adapt import BrakeAdaptConfig, BrakeAdapter
-from exit_adapt import ExitAdaptConfig, ExitAdapter
-from lat_adapt import LatAdaptConfig, LatAdapter, load_map, save_map
+from curve_adapt_cli import add_arguments as add_curve_adapt_arguments
+from curve_adapt_cli import build as build_curve_adapt
+from curve_adapt_cli import tick_from as curve_tick_from
 from learn_guards import StuckOffTrackAbort, SustainedCteGuard, is_poor_demo
 from learn_progress import read_saved_speed_band, read_saved_stage, save_learn_progress
 from learning_curriculum import (
@@ -156,46 +156,7 @@ def parse_args() -> argparse.Namespace:
         "--profile-peak-min-kmh", type=float, default=0.0,
         help="Con --profile-peak-min-m (V81): solo se aplana un pico si el recorte lo baja al menos estos km/h (medido sobre el perfil lateral, antes del barrido hacia atrás); deja intactos los picos pequeños, p. ej. el de 1,4 km/h junto a C4. 0 = sin umbral.",
     )
-    parser.add_argument(
-        "--lat-adapt", action="store_true",
-        help="Límite lateral por curva que se ajusta solo vuelta a vuelta (lat_adapt.py): sube un 4 %% las curvas limpias con margen y baja un 8 %% las que salen fuera de V19. Necesita --lat-accel-limit. Sin esto, el mismo límite en toda la vuelta.",
-    )
-    parser.add_argument(
-        "--lat-adapt-max-scale", type=float, default=1.15,
-        help="Con --lat-adapt: multiplicador máximo de una curva sobre --lat-accel-limit (por defecto 1,15). Con un límite base prudente (p. ej. 6 en mojado) conviene subirlo.",
-    )
-    parser.add_argument(
-        "--lat-adapt-cap", type=float, default=10.0,
-        help="Con --lat-adapt: el límite lateral de ninguna curva pasa de este valor en m/s² (por defecto 10; con 10 en toda la vuelta se ganaba 1,9 s pero no cumplía V19).",
-    )
-    parser.add_argument(
-        "--lat-adapt-save", default="",
-        help="Con --lat-adapt: guarda en este JSON el mapa de multiplicadores por curva (con las condiciones: lluvia, pista, compuesto, gomas) al cerrar cada vuelta, solo si las dos últimas fueron limpias (ninguna curva baja). No sobrescribe con una sesión sucia.",
-    )
-    parser.add_argument(
-        "--lat-adapt-load", default="",
-        help="Con --lat-adapt: arranca con el mapa guardado en este JSON en vez de con 1,0 en todas las curvas. Solo se aplica si es compatible (seco con seco, mismo compuesto); con otras temperaturas de pista o de gomas el margen sobre 1,0 se recorta (más frío o más caliente) y la subida se frena. Nunca acelera respecto al ajuste normal.",
-    )
-    parser.add_argument(
-        "--lat-adapt-fixed", action="store_true",
-        help="Con --lat-adapt-load: usa el mapa cargado y no aprende más (se registra todo pero no cambia ningún multiplicador); para comparar una sola variable.",
-    )
-    parser.add_argument(
-        "--brake-adapt", action="store_true",
-        help="Deceleración de frenada por curva que se ajusta sola vuelta a vuelta (brake_adapt.py): mide con qué velocidad sobre el perfil se suelta el freno; baja un 8 %% la deceleración de una frenada que llega pasada (> 1 m/s) y sube un 4 %% la que llega por debajo con holgura (< −0,3 m/s) y sin forzar. Necesita --brake-profile, --pedal-technique y --brake-decel-straight.",
-    )
-    parser.add_argument("--brake-adapt-max-scale", type=float, default=1.15, help="Con --brake-adapt: multiplicador máximo de la deceleración de una frenada (por defecto 1,15).")
-    parser.add_argument("--brake-adapt-save", default="", help="Con --brake-adapt: guarda el mapa de multiplicadores de frenada (mismo formato y misma regla de cola limpia que --lat-adapt-save).")
-    parser.add_argument("--brake-adapt-load", default="", help="Con --brake-adapt: arranca con este mapa (mismas condiciones y recorte que --lat-adapt-load; nunca frena más tarde que el ajuste normal).")
-    parser.add_argument("--brake-adapt-fixed", action="store_true", help="Con --brake-adapt-load: usa el mapa cargado y no aprende más (se mide y se registra, pero no cambia nada).")
-    parser.add_argument(
-        "--exit-adapt", action="store_true",
-        help="Gas de salida por curva que se ajusta solo vuelta a vuelta (exit_adapt.py): el radio de --exit-circle de cada curva sube un 4 %% si su salida es limpia y el tope recortaba el gas, y baja un 8 %% si las traseras patinan, hay deriva > 5° o |CTE| > 2 m. Necesita --exit-circle y --pedal-technique.",
-    )
-    parser.add_argument("--exit-adapt-max-scale", type=float, default=1.3, help="Con --exit-adapt: multiplicador máximo del radio de una curva (por defecto 1,3).")
-    parser.add_argument("--exit-adapt-save", default="", help="Con --exit-adapt: guarda el mapa de multiplicadores del gas de salida (mismo formato y misma regla de cola limpia que --lat-adapt-save).")
-    parser.add_argument("--exit-adapt-load", default="", help="Con --exit-adapt: arranca con este mapa (mismas condiciones y recorte que --lat-adapt-load; nunca acelera más que el ajuste normal).")
-    parser.add_argument("--exit-adapt-fixed", action="store_true", help="Con --exit-adapt-load: usa el mapa cargado y no aprende más (se mide y se registra, pero no cambia nada).")
+    add_curve_adapt_arguments(parser)
     parser.add_argument(
         "--exit-circle", type=float, default=0.0,
         help="Con --pedal-technique (V72, F3): en la salida de curva el gas no pasa de gas_max · √(1 − (lateral medido / este radio)²) (p. ej. 14,6 = cota lateral de D21); con 11,7 m/s² laterales el tope es 0,60. 0 = sin tope.",
@@ -591,77 +552,7 @@ def run(args: argparse.Namespace) -> int:
         **({"ff_speed_v0_kmh": float(args.steer_ff_v0_kmh)} if getattr(args, "steer_ff_v0_kmh", -1.0) >= 0.0 else {}),
         max_gear=int(getattr(args, "max_gear", TEACHING_MAX_GEAR) or TEACHING_MAX_GEAR),
     ))
-    lat_adapter: Optional[LatAdapter] = None
-    if getattr(args, "lat_adapt", False):
-        if not args.lat_accel_limit:
-            raise SystemExit("--lat-adapt necesita --lat-accel-limit")
-        curvas_json = Path(args.reference).with_name("curvas.json")
-        if not curvas_json.is_file():
-            raise SystemExit(f"--lat-adapt necesita el catálogo de curvas junto a la referencia: {curvas_json}")
-        if getattr(args, "lat_adapt_fixed", False) and not getattr(args, "lat_adapt_load", ""):
-            raise SystemExit("--lat-adapt-fixed necesita --lat-adapt-load")
-        lat_adapter = LatAdapter.from_curvas_json(
-            curvas_json, base_limit=float(args.lat_accel_limit), track_length=float(ref.track_length),
-            config=LatAdaptConfig(max_scale=float(args.lat_adapt_max_scale), learn=not getattr(args, "lat_adapt_fixed", False)),
-            cap_limit=float(args.lat_adapt_cap),
-        )
-        if getattr(args, "lat_adapt_load", ""):
-            try:
-                lat_adapter.load_prior(load_map(Path(args.lat_adapt_load)))
-            except (OSError, ValueError) as exc:
-                raise SystemExit(f"--lat-adapt-load: no puedo leer el mapa {args.lat_adapt_load}: {exc}") from exc
-            print(f"[Learn] --lat-adapt-load: mapa {args.lat_adapt_load} (se aplica al llegar las condiciones de hoy; si no son compatibles se ignora)"
-                  + (" · mapa fijo: no aprende" if getattr(args, "lat_adapt_fixed", False) else ""))
-        print(f"[Learn] --lat-adapt: límite lateral por curva, base {args.lat_accel_limit:g} m/s², multiplicador {lat_adapter.cfg.min_scale:g}-{lat_adapter.max_scale:g}, "
-              f"tope {args.lat_adapt_cap:g} m/s² (el ajuste va en la vuelta siguiente)")
-    exit_adapter: Optional[ExitAdapter] = None
-    if getattr(args, "exit_adapt", False):
-        if not float(getattr(args, "exit_circle", 0.0) or 0.0) or not getattr(args, "pedal_technique", False):
-            raise SystemExit("--exit-adapt necesita --exit-circle y --pedal-technique")
-        curvas_json = Path(args.reference).with_name("curvas.json")
-        if not curvas_json.is_file():
-            raise SystemExit(f"--exit-adapt necesita el catálogo de curvas junto a la referencia: {curvas_json}")
-        if getattr(args, "exit_adapt_fixed", False) and not getattr(args, "exit_adapt_load", ""):
-            raise SystemExit("--exit-adapt-fixed necesita --exit-adapt-load")
-        exit_adapter = ExitAdapter.from_curvas_json(
-            curvas_json, base_limit=float(args.exit_circle), track_length=float(ref.track_length),
-            config=ExitAdaptConfig(max_scale=float(args.exit_adapt_max_scale), learn=not getattr(args, "exit_adapt_fixed", False)),
-        )
-        if getattr(args, "exit_adapt_load", ""):
-            try:
-                exit_adapter.load_prior(load_map(Path(args.exit_adapt_load)))
-            except (OSError, ValueError) as exc:
-                raise SystemExit(f"--exit-adapt-load: no puedo leer el mapa {args.exit_adapt_load}: {exc}") from exc
-            print(f"[Learn] --exit-adapt-load: mapa {args.exit_adapt_load} (se aplica al llegar las condiciones de hoy; si no son compatibles se ignora)"
-                  + (" · mapa fijo: no aprende" if getattr(args, "exit_adapt_fixed", False) else ""))
-        print(f"[Learn] --exit-adapt: radio del círculo de salida por curva, base {args.exit_circle:g}, multiplicador {exit_adapter.cfg.min_scale:g}-{exit_adapter.max_scale:g} (el ajuste va en la vuelta siguiente)")
-    exit_started = False
-    exit_save_path = str(getattr(args, "exit_adapt_save", "") or "")
-    brake_adapter: Optional[BrakeAdapter] = None
-    if getattr(args, "brake_adapt", False):
-        if not float(getattr(args, "brake_decel_straight", 0.0) or 0.0) or not getattr(args, "brake_profile", False) or not getattr(args, "pedal_technique", False):
-            raise SystemExit("--brake-adapt necesita --brake-decel-straight, --brake-profile y --pedal-technique")
-        curvas_json = Path(args.reference).with_name("curvas.json")
-        if not curvas_json.is_file():
-            raise SystemExit(f"--brake-adapt necesita el catálogo de curvas junto a la referencia: {curvas_json}")
-        if getattr(args, "brake_adapt_fixed", False) and not getattr(args, "brake_adapt_load", ""):
-            raise SystemExit("--brake-adapt-fixed necesita --brake-adapt-load")
-        brake_adapter = BrakeAdapter.from_curvas_json(
-            curvas_json, base_limit=float(args.brake_decel_straight), track_length=float(ref.track_length),
-            config=BrakeAdaptConfig(max_scale=float(args.brake_adapt_max_scale), learn=not getattr(args, "brake_adapt_fixed", False)),
-        )
-        if getattr(args, "brake_adapt_load", ""):
-            try:
-                brake_adapter.load_prior(load_map(Path(args.brake_adapt_load)))
-            except (OSError, ValueError) as exc:
-                raise SystemExit(f"--brake-adapt-load: no puedo leer el mapa {args.brake_adapt_load}: {exc}") from exc
-            print(f"[Learn] --brake-adapt-load: mapa {args.brake_adapt_load} (se aplica al llegar las condiciones de hoy; si no son compatibles se ignora)"
-                  + (" · mapa fijo: no aprende" if getattr(args, "brake_adapt_fixed", False) else ""))
-        print(f"[Learn] --brake-adapt: deceleración de frenada por curva, base {args.brake_decel_straight:g} m/s², multiplicador {brake_adapter.cfg.min_scale:g}-{brake_adapter.max_scale:g} (el ajuste va en la vuelta siguiente)")
-    brake_started = False
-    brake_save_path = str(getattr(args, "brake_adapt_save", "") or "")
-    adapt_started = False  # el mapa cargado y las condiciones de salida se fijan en el primer tick con las condiciones conocidas
-    adapt_save_path = str(getattr(args, "lat_adapt_save", "") or "")
+    curve_rt = build_curve_adapt(args, args.reference, float(ref.track_length))  # ajuste por curva (curve_adapt_cli.py); None si no se pidió
     safety = SafetyMonitor(ref=ref, surface_profile=ns_str(args, "safety_profile"))
     brake_slip_limit = float(getattr(args, "brake_slip_limit", 0.0) or 0.0)
     brake_slip_hold = float(getattr(args, "brake_slip_hold", 0.0) or 0.0)
@@ -1035,113 +926,18 @@ def run(args: argparse.Namespace) -> int:
                 timing=timing_diag(timings),
                 teacher=teacher_diag(teacher, telem.speed, timings.lap_distance),
             )
-            if lat_adapter is not None and not adapt_started:
-                game_state_now = session.game_state
-                if game_state_now is not None or session_rec.elapsed_s() >= 30.0:  # el paquete del tiempo llega cada ~10 s
-                    adapt_started = True
-                    cond = conditions_diag(game_state_now) or {}
-                    tyres_now = list(getattr(telem, "tyre_temp", None) or ())
-                    compound_now = compound_diag(telem)
-                    now_cond = {"rain": cond.get("rain", 0), "track_c": cond.get("track_c"), "ambient_c": cond.get("ambient_c"),
-                                "tyre_start_c": round(sum(tyres_now) / len(tyres_now), 1) if tyres_now else None,
-                                "compound": "/".join(compound_now) if compound_now else None}
-                    start_info = lat_adapter.start(now_cond)
-                    session_rec.record_event({"type": "lat_adapt_start", "conditions": now_cond, **(start_info or {"applied": False, "reason": "sin mapa cargado"})})
-                    if start_info is not None and start_info["applied"]:
-                        teacher.set_lat_scales(lat_adapter.scales_per_m(int(ref.track_length)))
-                        print(f"[Learn] --lat-adapt-load: mapa aplicado, desajuste de condiciones {start_info['mismatch']:g} (pista {start_info['mismatch_track']:g}, gomas {start_info['mismatch_tyre']:g}; 0 = iguales, 1 = recorta el margen entero) | límites m/s²: "
-                              + " ".join(f"C{k}={v:g}" for k, v in lat_adapter.limits().items()))
-                    elif start_info is not None:
-                        print(f"[Learn] --lat-adapt-load: mapa IGNORADO ({start_info['reason']}); sigo con el ajuste desde 1,0")
-            if brake_adapter is not None and not brake_started:
-                game_state_now = session.game_state
-                if game_state_now is not None or session_rec.elapsed_s() >= 30.0:
-                    brake_started = True
-                    cond = conditions_diag(game_state_now) or {}
-                    tyres_now = list(getattr(telem, "tyre_temp", None) or ())
-                    compound_now = compound_diag(telem)
-                    now_cond = {"rain": cond.get("rain", 0), "track_c": cond.get("track_c"), "ambient_c": cond.get("ambient_c"),
-                                "tyre_start_c": round(sum(tyres_now) / len(tyres_now), 1) if tyres_now else None,
-                                "compound": "/".join(compound_now) if compound_now else None}
-                    start_info = brake_adapter.start(now_cond)
-                    session_rec.record_event({"type": "brake_adapt_start", "conditions": now_cond, **(start_info or {"applied": False, "reason": "sin mapa cargado"})})
-                    if start_info is not None and start_info["applied"]:
-                        teacher.set_brake_scales(brake_adapter.scales_per_m(int(ref.track_length)))
-                        print(f"[Learn] --brake-adapt-load: mapa aplicado, desajuste de condiciones {start_info['mismatch']:g} | deceleraciones m/s²: "
-                              + " ".join(f"C{k}={v:g}" for k, v in brake_adapter.limits().items()))
-                    elif start_info is not None:
-                        print(f"[Learn] --brake-adapt-load: mapa IGNORADO ({start_info['reason']}); sigo con el ajuste desde 1,0")
-            if brake_adapter is not None:
-                tyres_tick = telem.tyre_temp
-                brake_upd = brake_adapter.observe(
-                    timings.current_lap, timings.lap_distance, decision.signed_cte,
-                    telem.local_velocity[0], telem.local_velocity[2], flags.off_surface,
-                    tyre_c=(sum(tyres_tick) / len(tyres_tick)) if tyres_tick else None,
-                    braking=teacher.entry_phase, pedal=final[1], limiter_scale=(brake_slip.scale if brake_slip is not None else 1.0),
-                    over_ms=telem.speed - teacher.profile_at(timings.lap_distance),
-                )
-                if brake_upd is not None:
-                    teacher.set_brake_scales(brake_adapter.scales_per_m(int(ref.track_length)))
-                    session_rec.record_event({"type": "brake_adapt", **brake_upd})
-                    if brake_save_path and brake_adapter.cfg.learn and brake_adapter.clean_tail():
-                        save_map(Path(brake_save_path), brake_adapter.snapshot({"experiment": str(getattr(args, "experiment", "") or ""), "lap": brake_upd["lap"]}))
-                        print(f"[Learn] --brake-adapt-save: mapa guardado en {brake_save_path} (vuelta {brake_upd['lap']}, dos últimas limpias)")
-                    cambios = {k: v for k, v in brake_upd["decisions"].items() if v in ("sube", "baja")}
-                    print(f"[Learn] --brake-adapt, vuelta {brake_upd['lap']}: " + (", ".join(f"C{k} {v}" for k, v in cambios.items()) or "sin cambios")
-                          + " | deceleraciones m/s²: " + " ".join(f"C{k}={v:g}" for k, v in brake_adapter.limits().items()))
-            if exit_adapter is not None and not exit_started:
-                game_state_now = session.game_state
-                if game_state_now is not None or session_rec.elapsed_s() >= 30.0:
-                    exit_started = True
-                    cond = conditions_diag(game_state_now) or {}
-                    tyres_now = list(getattr(telem, "tyre_temp", None) or ())
-                    compound_now = compound_diag(telem)
-                    now_cond = {"rain": cond.get("rain", 0), "track_c": cond.get("track_c"), "ambient_c": cond.get("ambient_c"),
-                                "tyre_start_c": round(sum(tyres_now) / len(tyres_now), 1) if tyres_now else None,
-                                "compound": "/".join(compound_now) if compound_now else None}
-                    start_info = exit_adapter.start(now_cond)
-                    session_rec.record_event({"type": "exit_adapt_start", "conditions": now_cond, **(start_info or {"applied": False, "reason": "sin mapa cargado"})})
-                    if start_info is not None and start_info["applied"]:
-                        teacher.set_exit_scales(exit_adapter.scales_per_m(int(ref.track_length)))
-                        print(f"[Learn] --exit-adapt-load: mapa aplicado, desajuste de condiciones {start_info['mismatch']:g} | radios: "
-                              + " ".join(f"C{k}={v:g}" for k, v in exit_adapter.limits().items()))
-                    elif start_info is not None:
-                        print(f"[Learn] --exit-adapt-load: mapa IGNORADO ({start_info['reason']}); sigo con el ajuste desde 1,0")
-            if exit_adapter is not None:
-                tyres_tick = telem.tyre_temp
-                rps_tick = telem.tyre_rps
-                exit_upd = exit_adapter.observe(
-                    timings.current_lap, timings.lap_distance, decision.signed_cte,
-                    telem.local_velocity[0], telem.local_velocity[2], flags.off_surface,
-                    tyre_c=(sum(tyres_tick) / len(tyres_tick)) if tyres_tick else None,
-                    exit_phase=teacher.exit_phase, cap_bound=teacher.exit_bound, throttle=final[0],
-                    rps_front=(abs(rps_tick[0]) + abs(rps_tick[1])) / 2.0, rps_rear=(abs(rps_tick[2]) + abs(rps_tick[3])) / 2.0,
-                )
-                if exit_upd is not None:
-                    teacher.set_exit_scales(exit_adapter.scales_per_m(int(ref.track_length)))
-                    session_rec.record_event({"type": "exit_adapt", **exit_upd})
-                    if exit_save_path and exit_adapter.cfg.learn and exit_adapter.clean_tail():
-                        save_map(Path(exit_save_path), exit_adapter.snapshot({"experiment": str(getattr(args, "experiment", "") or ""), "lap": exit_upd["lap"]}))
-                        print(f"[Learn] --exit-adapt-save: mapa guardado en {exit_save_path} (vuelta {exit_upd['lap']}, dos últimas limpias)")
-                    cambios = {k: v for k, v in exit_upd["decisions"].items() if v in ("sube", "baja")}
-                    print(f"[Learn] --exit-adapt, vuelta {exit_upd['lap']}: " + (", ".join(f"C{k} {v}" for k, v in cambios.items()) or "sin cambios")
-                          + " | radios: " + " ".join(f"C{k}={v:g}" for k, v in exit_adapter.limits().items()))
-            if lat_adapter is not None:
-                tyres_tick = telem.tyre_temp
-                adapt = lat_adapter.observe(
-                    timings.current_lap, timings.lap_distance, decision.signed_cte,
-                    telem.local_velocity[0], telem.local_velocity[2], flags.off_surface,
-                    tyre_c=(sum(tyres_tick) / len(tyres_tick)) if tyres_tick else None,
-                )
-                if adapt is not None:
-                    teacher.set_lat_scales(lat_adapter.scales_per_m(int(ref.track_length)))
-                    session_rec.record_event({"type": "lat_adapt", **adapt})
-                    if adapt_save_path and lat_adapter.cfg.learn and lat_adapter.clean_tail():
-                        save_map(Path(adapt_save_path), lat_adapter.snapshot({"experiment": str(getattr(args, "experiment", "") or ""), "lap": adapt["lap"]}))
-                        print(f"[Learn] --lat-adapt-save: mapa guardado en {adapt_save_path} (vuelta {adapt['lap']}, dos últimas limpias)")
-                    changed = {k: v for k, v in adapt["decisions"].items() if v in ("sube", "baja")}
-                    print(f"[Learn] --lat-adapt, vuelta {adapt['lap']}: " + (", ".join(f"C{k} {v}" for k, v in changed.items()) or "sin cambios")
-                          + " | límites m/s²: " + " ".join(f"C{k}={v:g}" for k, v in lat_adapter.limits().items()))
+            if curve_rt is not None:
+                if not curve_rt.started:
+                    game_state_now = session.game_state
+                    if game_state_now is not None or session_rec.elapsed_s() >= 30.0:  # el paquete del tiempo llega cada ~10 s
+                        cond = conditions_diag(game_state_now) or {}
+                        tyres_now = list(getattr(telem, "tyre_temp", None) or ())
+                        compound_now = compound_diag(telem)
+                        now_cond = {"rain": cond.get("rain", 0), "track_c": cond.get("track_c"), "ambient_c": cond.get("ambient_c"),
+                                    "tyre_start_c": round(sum(tyres_now) / len(tyres_now), 1) if tyres_now else None,
+                                    "compound": "/".join(compound_now) if compound_now else None}
+                        curve_rt.start(now_cond, read_setup(curve_rt.setup_path) if curve_rt.setup_path else None, teacher, session_rec.record_event)
+                curve_rt.tick(curve_tick_from(telem, timings, decision, final, teacher, brake_slip), teacher, session_rec.record_event)
             conditions = conditions_diag(session.game_state)
             if conditions is not None and conditions != last_conditions:
                 session_rec.record_event({"type": "conditions", **conditions})  # llega cada ~10 s; solo si cambia

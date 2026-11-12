@@ -77,9 +77,16 @@ def replay(path: Path, channels: Sequence[str], bases: Dict[str, float], curvas:
                 continue
     ad = CurveAdapter.from_curvas_json(curvas, bases, track_length, config or CurveAdaptConfig(), channels)
     started: Dict[str, Any] = {}
+    absolute: Dict[str, Dict[str, float]] = {}
     old: Dict[str, Dict[int, Dict[str, str]]] = {ch: {} for ch in CHANNELS}
     for r in rows:
         t = r.get("type")
+        if t == "curve_adapt_start" and isinstance(r.get("valores"), dict):  # logs con el ajuste unificado: valores absolutos
+            absolute = {ch: v for ch, v in r["valores"].items() if isinstance(v, dict)}
+        if t == "curve_adapt" and isinstance(r.get("curvas"), dict):
+            for c, row in r["curvas"].items():
+                for ch, cell in row.items():
+                    old.setdefault(ch, {}).setdefault(int(r["lap"]), {})[c] = cell.get("decision", "")
         for ch in CHANNELS:
             if t == f"{OLD_EVENT[ch]}_start" and r.get("applied") and r.get("scales"):
                 started[ch] = r["scales"]
@@ -90,6 +97,11 @@ def replay(path: Path, channels: Sequence[str], bases: Dict[str, float], curvas:
             for k, s in scales.items():
                 if int(k) in ad.state:
                     ad.state[int(k)][ch].value = ad._clip(ch, bases[ch] * float(s))
+    for ch, vals in absolute.items():
+        if ch in ad.channels:
+            for k, v in vals.items():
+                if int(k) in ad.state:
+                    ad.state[int(k)][ch].value = ad._clip(ch, float(v))
     initial = {ch: ad.values(ch) for ch in ad.channels}
     laps: List[dict] = []
     for r in rows:
