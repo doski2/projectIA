@@ -17,7 +17,8 @@ Al teacher se le sigue pasando un multiplicador por metro (valor / base), así q
 Los síntomas comunes (|CTE|, deriva, ruedas fuera) se acumulan por canal, así que una deriva en la salida baja el gas y no el lateral.
 
 **Reglas por curva y magnitud, al cerrar cada vuelta:**
-1. Baja si salió mala en 2 de sus 3 últimas vueltas evaluadas, o en la última si es grave (rueda en la hierba o deriva > `drift_severe_deg`). Paso `down`, y 2 vueltas congelada.
+1. Baja si salió mala en 2 de sus 3 últimas vueltas evaluadas, o en la última si es grave (2 ruedas en la hierba ≈ 5 m o deriva > `drift_severe_deg`).
+   «Fuera» es con 2 ruedas o más: una rueda rozando la hierba al borde del piano (C5 y C11 en los logs) solo se registra. Paso `down`, y 2 vueltas congelada.
 2. Al bajar, guarda `ultimo_malo` = el valor que tenía al salir mala.
 3. Sube si salió limpia con margen en las 2 últimas evaluadas: `min(up, mitad de la distancia a ultimo_malo)`. Si esa distancia es menor que `limit_gap` → «limite». Si choca con la cota máxima → «tope».
 4. En una curva sube como mucho una magnitud por vuelta, por turno (`lat` → `exit` → `brake`); las otras candidatas quedan en «turno».
@@ -54,6 +55,9 @@ class CurveAdaptConfig:
     cte_clean_m: float = 1.8
     drift_clean_deg: float = 4.5
     drift_severe_deg: float = 7.0
+    off_wheels: int = 2  # «fuera» = al menos 2 ruedas en hierba, grava, arena, tierra o escapatoria (una rueda rozando el borde del piano no cuenta)
+    off_min_ticks: int = 3
+    grass_severe_ticks: int = 10  # 2 ruedas en la hierba durante ≈ 5 m: grave, baja sin esperar
     # reglas
     up: float = 0.04
     down: float = 0.06
@@ -147,7 +151,7 @@ def drift_deg(local_vx: float, local_vz: float, min_speed_ms: float = 5.0) -> fl
 class _Acc:
     """Métricas de una curva y un canal en la vuelta en curso."""
 
-    __slots__ = ("n", "cte_max", "drift_max", "off", "grass", "bound", "spin_max", "spin_n", "pedal_max", "scale_min", "over", "over_max")
+    __slots__ = ("n", "cte_max", "drift_max", "off", "grass", "one_off", "bound", "spin_max", "spin_n", "pedal_max", "scale_min", "over", "over_max")
 
     def __init__(self) -> None:
         self.n = 0
@@ -155,6 +159,7 @@ class _Acc:
         self.drift_max = 0.0
         self.off = 0
         self.grass = 0
+        self.one_off = 0
         self.bound = 0
         self.spin_max = float("-inf")
         self.spin_n = 0
@@ -338,8 +343,10 @@ class CurveAdapter:
         a.n += 1
         a.cte_max = max(a.cte_max, abs(t.signed_cte))
         a.drift_max = max(a.drift_max, drift_deg(t.local_vx, t.local_vz))
-        a.off += 1 if any(x in OFF_TERRAIN for x in terrain) else 0
-        a.grass += 1 if any(x in GRASS_TERRAIN for x in terrain) else 0
+        n_off = sum(x in OFF_TERRAIN for x in terrain)
+        a.off += 1 if n_off >= self.cfg.off_wheels else 0
+        a.one_off += 1 if 0 < n_off < self.cfg.off_wheels else 0
+        a.grass += 1 if sum(x in GRASS_TERRAIN for x in terrain) >= self.cfg.off_wheels else 0
         if ch == "exit":
             a.bound += 1 if t.exit_bound else 0
             if t.gas > self.cfg.gas_min and t.clutch == 0 and not on_kerb:
@@ -362,8 +369,8 @@ class CurveAdapter:
         c = self.cfg
         if a.n < self._min_ticks(ch):
             return "sin datos", f"{a.n} ticks"
-        if a.grass > 0:
-            return "grave", "rueda en la hierba"
+        if a.grass >= c.grass_severe_ticks:
+            return "grave", f"{a.grass} ticks con 2 ruedas en la hierba"
         if a.drift_max > c.drift_severe_deg:
             return "grave", f"deriva {a.drift_max:.1f}° > {c.drift_severe_deg:g}"
         bad: List[str] = []
@@ -371,15 +378,15 @@ class CurveAdapter:
             bad.append(f"|CTE| {a.cte_max:.2f} > {c.cte_bad_m:g}")
         if a.drift_max > c.drift_bad_deg:
             bad.append(f"deriva {a.drift_max:.1f}° > {c.drift_bad_deg:g}")
-        if a.off > 0:
-            bad.append(f"{a.off} ticks fuera")
+        if a.off >= c.off_min_ticks:
+            bad.append(f"{a.off} ticks con 2 ruedas fuera")
         if ch == "exit" and a.spin_n and a.spin_max > c.spin_bad_pct:
             bad.append(f"patinazo {a.spin_max:.1f} % > {c.spin_bad_pct:g}")
         if ch == "brake" and self._release_over(a) > c.over_bad_ms:
             bad.append(f"suelta a {self._release_over(a):+.2f} m/s > {c.over_bad_ms:g}")
         if bad:
             return "mala", "; ".join(bad)
-        clean = a.cte_max <= c.cte_clean_m and a.drift_max <= c.drift_clean_deg and a.off == 0
+        clean = a.cte_max <= c.cte_clean_m and a.drift_max <= c.drift_clean_deg and a.off < c.off_min_ticks
         why = "" if clean else f"|CTE| {a.cte_max:.2f}, deriva {a.drift_max:.1f}°"
         if clean and ch == "exit":
             if a.spin_n and a.spin_max > c.spin_clean_pct:
@@ -479,7 +486,7 @@ class CurveAdapter:
         return "sube"
 
     def _metrics(self, ch: str, a: _Acc) -> Dict[str, Any]:
-        m: Dict[str, Any] = {"n": a.n, "cte_max": round(a.cte_max, 2), "drift_max": round(a.drift_max, 1), "off": a.off}
+        m: Dict[str, Any] = {"n": a.n, "cte_max": round(a.cte_max, 2), "drift_max": round(a.drift_max, 1), "off": a.off, "una_rueda_fuera": a.one_off, "hierba": a.grass}
         if ch == "exit":
             m.update({"bound_frac": round(a.bound / a.n, 2) if a.n else 0.0, "spin_max_pct": round(a.spin_max, 2) if a.spin_n else None})
         if ch == "brake":

@@ -125,7 +125,7 @@ def test_bad_laps_further_apart_than_the_window_never_go_down():
 
 
 def test_grass_or_a_big_slide_go_down_at_once():
-    for malo in ({"terreno": (0, 0, 7, 0)}, {"deriva": 8.0}):
+    for malo in ({"terreno": (7, 0, 7, 0)}, {"deriva": 8.0}):
         ad = _ad(channels=["lat"])
         _vuelta(ad, 1)
         r = _vuelta(ad, 2, lat={1: malo})
@@ -210,14 +210,14 @@ def test_own_cap_is_reported_as_tope_and_values_stay_inside_the_absolute_bounds(
     ad2 = _ad(channels=["lat"])
     _vuelta(ad2, 1)
     for lap in range(2, 40):
-        _vuelta(ad2, lap, lat={2: {"terreno": (7, 0, 0, 0)}})
+        _vuelta(ad2, lap, lat={2: {"terreno": (7, 0, 7, 0)}})
     assert ad2.state[2]["lat"].value == pytest.approx(8.0)
 
 
 def test_fixed_map_measures_but_never_changes_a_value_and_incomplete_laps_are_ignored():
     ad = _ad(learn=False)
     _vuelta(ad, 1)
-    r = _vuelta(ad, 2, lat={1: {"terreno": (7, 0, 0, 0)}})
+    r = _vuelta(ad, 2, lat={1: {"terreno": (7, 0, 7, 0)}})
     assert _dec(r, 1, "lat") == "fijo" and r["curvas"]["1"]["lat"]["veredicto"] == "grave" and ad.state[1]["lat"].value == 9.5
     ad2 = _ad()
     _vuelta(ad2, 1)
@@ -242,7 +242,7 @@ def test_clean_tail_needs_three_laps_and_no_going_down_in_the_last_two():
     for lap in (2, 3):
         _vuelta(ad, lap)
     assert not ad.clean_tail()
-    _vuelta(ad, 4, lat={2: {"terreno": (7, 0, 0, 0)}})
+    _vuelta(ad, 4, lat={2: {"terreno": (7, 0, 7, 0)}})
     assert not ad.clean_tail()
     _vuelta(ad, 5)
     assert not ad.clean_tail()
@@ -344,3 +344,17 @@ def test_load_map_rejects_a_file_that_is_not_a_map(tmp_path: Path):
     malo.write_text("{\"hola\": 1}", encoding="utf-8")
     with pytest.raises(ValueError):
         load_map(malo)
+
+
+def test_one_wheel_brushing_the_grass_is_only_recorded_and_two_wheels_off_need_a_few_ticks():
+    ad = _ad(channels=["lat"])
+    _vuelta(ad, 1)
+    r = _vuelta(ad, 2, lat={1: {"terreno": (7, 0, 10, 0)}, 2: {"terreno": (7, 0, 8, 0)}})
+    assert r["curvas"]["1"]["lat"]["veredicto"] == "limpia" and r["curvas"]["1"]["lat"]["metricas"]["una_rueda_fuera"] > 0
+    assert r["curvas"]["2"]["lat"]["veredicto"] == "mala" and "2 ruedas fuera" in r["curvas"]["2"]["lat"]["motivo"]
+    ad2 = _ad(channels=["lat"])
+    _vuelta(ad2, 1)
+    for d in range(0, int(LARGO), 2):  # dos ruedas en la grava solo 2 ticks: no basta
+        ad2.observe(_tick(2, d, terreno=(8, 0, 8, 0) if d in (210, 212) else (0, 0, 0, 0)))
+    r2 = ad2.observe(_tick(3, 0.0))
+    assert r2 is not None and r2["curvas"]["1"]["lat"]["veredicto"] != "mala"

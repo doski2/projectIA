@@ -118,6 +118,13 @@ La razón de rodar libre se mide en la propia sesión: embrague suelto, gas pedi
    - V120-V122 (mapa congelado): con `--curve-adapt` simulado, que C6 salga «tope» y C4 / C9 no suban `exit` por la deriva.
 3. ruff y basedpyright limpios.
 
+**Resultado de la repetición (2026-11-12, noche, canales `lat` y `exit`; `repetir_ajuste.py`):** se cumplen los casos obligatorios.
+- **Cambio de regla tras la primera pasada:** con «cualquier rueda fuera» y «rueda en la hierba = grave», C5 (V106) y C11 (`222926Z`) bajaban en todas las vueltas por **una** rueda rozando la hierba al borde del piano (1-10 ticks). Ahora «fuera» exige 2 ruedas durante ≥ 3 ticks y «grave» 2 ruedas en la hierba durante ≥ 10 ticks (≈ 5 m); una rueda solo se registra (`una_rueda_fuera`). El código antiguo solo contaba el coche entero fuera.
+- `222926Z`: no baja ninguna de C2-C7 (el antiguo bajaba cinco curvas solo en la vuelta 8); solo baja C11.lat en la vuelta 7 (2 ruedas en la hierba en las vueltas 5 y 7).
+- V106 (`20261109T221139Z`): ya no baja C5 (piano) ni C7 / C8 (una vuelta suelta); solo dos avisos de patinazo en C4 (6,9 y 6,6 %), separados.
+- `225939Z` y `000717Z` (mapas congelados entonces): bajaría el gas de C5 (patinazo 6,6-8,3 % repetido) y el de C2 en `000717Z` (6,7-7,0 % en casi todas las vueltas, como vio V106 con la línea A). Coherente.
+- Las **subidas** de una repetición no dicen nada (el coche grabado no cambia); solo valen las bajadas y los avisos. Con los umbrales de limpia provisionales (1,8 m / 4,5°) el canal `lat` sube casi todas las curvas: hay que mirarlo en la sesión «aprender» (paso 6), con el escalonado `--curve-adapt-only lat` si oscila.
+
 ### 2.9 Protocolo de sesión «aprender, congelar, medir»
 
 - **Aprender:** 10 vueltas con `--curve-adapt` desde los mapas actuales (formato 1); guarda al final si la cola está limpia.
