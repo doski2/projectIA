@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import io
 import sys
 from pathlib import Path
 
@@ -90,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--mapa", type=Path, default=MAPA)
     ap.add_argument("--lado", choices=("izq", "dcha", "ambos"), default="ambos")
     a = ap.parse_args(argv)
-    if hasattr(sys.stdout, "reconfigure"):
+    if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
     mapa = Mapa.cargar(a.mapa)
     lim = Mapa.cargar(a.bordes)

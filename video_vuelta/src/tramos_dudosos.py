@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import io
 import sys
 from pathlib import Path
 
@@ -69,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--video", type=Path)
     ap.add_argument("--fotogramas", type=Path)
     a = ap.parse_args(argv)
-    if hasattr(sys.stdout, "reconfigure"):
+    if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
     ruedas, signo = (LEFT_WHEELS, -1.0) if a.lado == "izq" else (RIGHT_WHEELS, 1.0)
     d = vl.leer(a.log)

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import io
 import sys
 from pathlib import Path
 
@@ -100,7 +101,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("manifiesto", type=Path)
     ap.add_argument("--escribir", action="store_true", help="guarda `camara_modelo` en el manifiesto")
     a = ap.parse_args(argv)
-    if hasattr(sys.stdout, "reconfigure"):
+    if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
     cam, info = calibrar(a.manifiesto)
     print(f"altura {cam.altura_m:.3f} m, cabeceo {np.degrees(cam.cabeceo_rad):.2f}°, cámara {cam.atras_m:.2f} m por detrás del punto del log; "

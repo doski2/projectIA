@@ -3,7 +3,9 @@
     "PCARS2-AI/src",
     "PCARS2-AI/tests",
     "PCARS2-AI/v2",
-    "circuito_virtual"
+    "circuito_virtual",
+    "experimental",
+    "video_vuelta"
   ],
   "extraPaths": [
     ".",
@@ -11,5 +13,6 @@
     "PCARS2-AI/src"
   ],
   "venvPath": ".",
-  "venv": ".venv"
+  "venv": ".venv",
+  "typeCheckingMode": "standard"
 }

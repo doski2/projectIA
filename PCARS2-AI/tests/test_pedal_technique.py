@@ -1,7 +1,7 @@
 """Técnica de pedales del teacher (V65): gas cortado antes de frenar, freno que se suelta hasta el vértice y gas que solo sube desde el vértice."""
 
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pytest
@@ -12,7 +12,7 @@ from teacher_intents import NUM_REASONS, REASON_TO_ID, normalize_reason
 from tests.test_teacher_controller import _base_telem
 
 SUGO = str(Path(__file__).resolve().parents[1] / "src" / "refs" / "sugo_ai.json")
-RECETA = dict(speed_target_kmh=110.0, lat_accel_limit=9.0, throttle_max=1.0, brake_decel_straight=8.0, brake_overspeed_straight_ms=2.5)
+RECETA: Dict[str, Any] = dict(speed_target_kmh=110.0, lat_accel_limit=9.0, throttle_max=1.0, brake_decel_straight=8.0, brake_overspeed_straight_ms=2.5)
 
 
 def _vuelta(technique: bool, acel: float = 1.0, **cfg) -> Tuple[List[Tuple[float, float, float, float, str, float]], float]:

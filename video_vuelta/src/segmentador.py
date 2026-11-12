@@ -9,6 +9,7 @@ porque validar con la otra vuelta del mismo tramo sería hacer trampa. Métrica:
 from __future__ import annotations
 
 import argparse
+import io
 import sys
 import time
 from pathlib import Path
@@ -120,7 +121,7 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("--s-val", type=float, default=2400.0)
     e.add_argument("--hilos", type=int, default=8)
     a = ap.parse_args(argv)
-    if hasattr(sys.stdout, "reconfigure"):
+    if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
     torch.set_num_threads(a.hilos)
     d = dict(np.load(a.datos))

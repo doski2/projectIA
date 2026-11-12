@@ -468,7 +468,7 @@ def test_exit_adapt_goes_to_learn_driver_only_when_asked_with_its_map_options():
 
 
 def test_brake_adapt_goes_to_learn_driver_only_when_asked_with_its_map_options():
-    kw = dict(teacher_only=True, pedal_technique=True, brake_profile=True, brake_decel_straight=11.0)
+    kw: Dict[str, Any] = dict(teacher_only=True, pedal_technique=True, brake_profile=True, brake_decel_straight=11.0)
     base = aislado.build_argv(Path("python"), "a2_x", 140.0, 3, **kw)
     assert not any(a.startswith("--brake-adapt") for a in base)
     argv = aislado.build_argv(Path("python"), "a2_x", 140.0, 3, brake_adapt=True, **kw)

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import io
 import sys
 from pathlib import Path
 
@@ -91,7 +92,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--hasta", type=float, default=200.0)
     ap.add_argument("--manifiesto", help="manifiesto.json donde escribir el bloque «sincronia»")
     a = ap.parse_args(argv)
-    if hasattr(sys.stdout, "reconfigure"):
+    if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
     tv, gv = velocidad_de_giro_video(a.video, a.desde, a.hasta)
     t, gl = velocidad_de_giro_log(a.log)

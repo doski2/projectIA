@@ -2,7 +2,7 @@
 
 import math
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pytest
@@ -12,7 +12,7 @@ from teacher_controller import PEDAL_DECEL_TABLE, TeacherConfig, TeachingControl
 from tests.test_teacher_controller import _base_telem
 
 SUGO = str(Path(__file__).resolve().parents[1] / "src" / "refs" / "sugo_ai.json")
-RECETA = dict(speed_target_kmh=110.0, lat_accel_limit=9.0, throttle_max=1.0, brake_decel_straight=8.0, brake_overspeed_straight_ms=2.5)
+RECETA: Dict[str, Any] = dict(speed_target_kmh=110.0, lat_accel_limit=9.0, throttle_max=1.0, brake_decel_straight=8.0, brake_overspeed_straight_ms=2.5)
 PEDALES = [p for _, p in PEDAL_DECEL_TABLE]
 DECELS = [d for d, _ in PEDAL_DECEL_TABLE]
 CAPACIDAD = 11.65  # m/s² con el pedal 0,85 (V55)

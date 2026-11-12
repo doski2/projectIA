@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import io
 import sys
 from pathlib import Path
 
@@ -217,7 +218,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--reglas", type=Path, help="reglas_limite.json de la pista (por defecto, junto al mapa de la pista si existe)")
     ap.add_argument("--salida", type=Path, help="por defecto, junto al mapa del vídeo como mapa_bordes_corregido.json")
     a = ap.parse_args(argv)
-    if hasattr(sys.stdout, "reconfigure"):
+    if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
     mapa = Mapa.cargar(a.mapa)
     video = Mapa.cargar(a.video)

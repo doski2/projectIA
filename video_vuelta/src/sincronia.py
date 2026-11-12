@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import io
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -155,7 +156,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--fotograma", type=float, metavar="S_M", help="guarda el fotograma de esa distancia de vuelta (m)")
     ap.add_argument("--salida", default="fotograma.jpg")
     a = ap.parse_args(argv)
-    if hasattr(sys.stdout, "reconfigure"):
+    if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
     log = leer_log(a.log)
     ts, en = energia_movimiento(a.video)

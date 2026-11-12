@@ -13,6 +13,7 @@ Sale con código 1 si algo no cumple.
 from __future__ import annotations
 
 import argparse
+import io
 import sys
 
 import cv2
@@ -65,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--esperado", default="1920x1080")
     ap.add_argument("--fps", type=float, default=60.0)
     a = ap.parse_args(argv)
-    if hasattr(sys.stdout, "reconfigure"):
+    if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
     ancho, alto = (int(x) for x in a.esperado.lower().split("x"))
     r = comprobar(a.video, (ancho, alto), a.fps)

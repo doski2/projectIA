@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import io
 import sys
 from pathlib import Path
 
@@ -58,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--prudente", type=float, default=0.0, help="m que se acercan a la pista los metros con incertidumbre ≥ 0,4 m")
     ap.add_argument("--salida", type=Path, required=True)
     a = ap.parse_args(argv)
-    if hasattr(sys.stdout, "reconfigure"):
+    if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(encoding="utf-8")
     base = Observaciones.de_dict(json.loads(a.base.read_text(encoding="utf-8")))
     datos = json.loads(a.corregido.read_text(encoding="utf-8"))

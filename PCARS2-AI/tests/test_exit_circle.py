@@ -1,6 +1,7 @@
 """Tope del gas en la salida de curva por el círculo de adherencia (V72, F3)."""
 
 from pathlib import Path
+from typing import Any, Dict
 
 import pytest
 
@@ -9,7 +10,7 @@ from teacher_controller import TeacherConfig, TeachingController, exit_gas_cap
 from tests.test_teacher_controller import _base_telem
 
 SUGO = str(Path(__file__).resolve().parents[1] / "src" / "refs" / "sugo_ai.json")
-RECETA = dict(speed_target_kmh=110.0, lat_accel_limit=9.0, throttle_max=1.0, brake_decel_straight=8.0, brake_overspeed_straight_ms=2.5, pedal_technique=True)
+RECETA: Dict[str, Any] = dict(speed_target_kmh=110.0, lat_accel_limit=9.0, throttle_max=1.0, brake_decel_straight=8.0, brake_overspeed_straight_ms=2.5, pedal_technique=True)
 
 
 def _gas_en_la_salida(lateral: float, ticks: int = 150, **cfg) -> float:
