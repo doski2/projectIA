@@ -149,6 +149,6 @@ La razón de rodar libre se mide en la propia sesión: embrague suelto, gas pedi
 1. `curve_adapt.py` con los tres canales y las reglas comunes, más los tests portados y los nuevos.
 2. `log_schema` 5: fase, `exit_bound`, `v*` y patinazo calibrado por tick, y el reglaje en la cabecera.
 3. `repetir_ajuste.py` y los casos de § 2.8.
-4. Integración en `learn_driver.py` (opciones nuevas y alias) y `aislado.py` (opciones y tope de `--brake-decel-straight`). **Hecho en `learn_driver.py` (`curve_adapt_cli.py`) y el tope de `aislado.py`; faltan las opciones `--curve-adapt*` en `aislado.py`.**
+4. Integración en `learn_driver.py` (opciones nuevas y alias) y `aislado.py` (opciones y tope de `--brake-decel-straight`). **Hecho** (2026-11-12): `learn_driver.py` con `curve_adapt_cli.py`, y `aislado.py` con las opciones `--curve-adapt*` y el tope de `--brake-decel-straight`.
 5. ruff, basedpyright y tests completos; comando de la sesión «aprender» validado sin ejecutar `aislado.py`.
 6. Con juego: la sesión «aprender» y después la de «medir».

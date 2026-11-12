@@ -486,3 +486,14 @@ def test_upshift_rpm_goes_to_learn_driver_only_when_set():
     assert "--upshift-rpm" not in aislado.build_argv(Path("python"), "a2_x", 155.0, 3, teacher_only=True, max_gear=4)
     argv = aislado.build_argv(Path("python"), "a2_x", 155.0, 3, teacher_only=True, max_gear=4, upshift_rpm=7400.0)
     assert argv[argv.index("--upshift-rpm") + 1] == "7400"
+
+
+def test_curve_adapt_options_go_to_learn_driver_only_when_asked():
+    base = aislado.build_argv(Path("python"), "a2_x", 140.0, 3, teacher_only=True)
+    assert not any(a.startswith("--curve-adapt") for a in base)
+    argv = aislado.build_argv(Path("python"), "a2_x", 140.0, 3, teacher_only=True, curve_adapt=True, curve_adapt_only="lat,exit",
+                              curve_adapt_load=["lat=C:/m/lat.json", "exit=C:/m/exit.json"], curve_adapt_save="C:/m/nuevo.json", curve_adapt_max="lat=14.6")
+    assert "--curve-adapt" in argv and argv[argv.index("--curve-adapt-only") + 1] == "lat,exit"
+    assert [argv[i + 1] for i, a in enumerate(argv) if a == "--curve-adapt-load"] == ["lat=C:/m/lat.json", "exit=C:/m/exit.json"]
+    assert argv[argv.index("--curve-adapt-save") + 1] == "C:/m/nuevo.json" and argv[argv.index("--curve-adapt-max") + 1] == "lat=14.6"
+    assert "--curve-adapt-fixed" not in argv

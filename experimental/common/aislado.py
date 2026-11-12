@@ -14,7 +14,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 REPO = Path(__file__).resolve().parents[2]
 APP = REPO / "PCARS2-AI"
@@ -110,6 +110,8 @@ def build_argv(
     lat_adapt_load: str = "", lat_adapt_save: str = "", lat_adapt_fixed: bool = False,
     exit_adapt: bool = False, exit_adapt_max_scale: float = 1.3, exit_adapt_load: str = "", exit_adapt_save: str = "", exit_adapt_fixed: bool = False,
     brake_adapt: bool = False, brake_adapt_max_scale: float = 1.15, brake_adapt_load: str = "", brake_adapt_save: str = "", brake_adapt_fixed: bool = False,
+    curve_adapt: bool = False, curve_adapt_only: str = "", curve_adapt_load: Sequence[str] = (), curve_adapt_save: str = "", curve_adapt_fixed: bool = False,
+    curve_adapt_max: str = "",
 ) -> List[str]:
     argv = [
         str(python), str(APP / "src" / "learn_driver.py"),
@@ -209,6 +211,18 @@ def build_argv(
             argv += ["--brake-adapt-save", brake_adapt_save]
         if brake_adapt_fixed:
             argv += ["--brake-adapt-fixed"]
+    if curve_adapt:  # ajuste unificado por curva (curve_adapt.py, DISENO_AJUSTE_UNIFICADO.md)
+        argv += ["--curve-adapt"]
+        if curve_adapt_only:
+            argv += ["--curve-adapt-only", curve_adapt_only]
+        for m in curve_adapt_load:
+            argv += ["--curve-adapt-load", m]
+        if curve_adapt_save:
+            argv += ["--curve-adapt-save", curve_adapt_save]
+        if curve_adapt_fixed:
+            argv += ["--curve-adapt-fixed"]
+        if curve_adapt_max:
+            argv += ["--curve-adapt-max", curve_adapt_max]
     if brake_profile:  # V68 (F1): perfil continuo de frenada con el círculo de adherencia
         argv += ["--brake-profile"]
         if brake_circle != 14.6:
@@ -235,6 +249,8 @@ def run_isolated(
     lat_adapt_load: str = "", lat_adapt_save: str = "", lat_adapt_fixed: bool = False,
     exit_adapt: bool = False, exit_adapt_max_scale: float = 1.3, exit_adapt_load: str = "", exit_adapt_save: str = "", exit_adapt_fixed: bool = False,
     brake_adapt: bool = False, brake_adapt_max_scale: float = 1.15, brake_adapt_load: str = "", brake_adapt_save: str = "", brake_adapt_fixed: bool = False,
+    curve_adapt: bool = False, curve_adapt_only: str = "", curve_adapt_load: Sequence[str] = (), curve_adapt_save: str = "", curve_adapt_fixed: bool = False,
+    curve_adapt_max: str = "",
 ) -> int:
     DATA.mkdir(parents=True, exist_ok=True)
     model = DATA / f"{experiment}_model.pt"
@@ -278,6 +294,8 @@ def run_isolated(
                 exit_adapt_fixed=exit_adapt_fixed,
                 brake_adapt=brake_adapt, brake_adapt_max_scale=brake_adapt_max_scale, brake_adapt_load=brake_adapt_load, brake_adapt_save=brake_adapt_save,
                 brake_adapt_fixed=brake_adapt_fixed,
+                curve_adapt=curve_adapt, curve_adapt_only=curve_adapt_only, curve_adapt_load=curve_adapt_load, curve_adapt_save=curve_adapt_save,
+                curve_adapt_fixed=curve_adapt_fixed, curve_adapt_max=curve_adapt_max,
             ),
             cwd=APP, env=env,
         ).returncode
@@ -402,6 +420,14 @@ if __name__ == "__main__":
                     help="Con --brake-adapt: arranca con el mapa guardado en este JSON (mismas condiciones y recorte que --lat-adapt-load)")
     ap.add_argument("--brake-adapt-fixed", action="store_true",
                     help="Con --brake-adapt-load: usa el mapa y no aprende (para comparar una sola variable)")
+    ap.add_argument("--curve-adapt", action="store_true",
+                    help="Ajuste unificado por curva (límite lateral, gas de salida y frenada; curve_adapt.py). No se mezcla con --lat/exit/brake-adapt, que son sus alias")
+    ap.add_argument("--curve-adapt-only", default="", help="Con --curve-adapt: solo estos canales, p. ej. «lat» o «lat,exit»")
+    ap.add_argument("--curve-adapt-load", action="append", default=[],
+                    help="Con --curve-adapt: mapa de partida, uno de formato 2 o «canal=ruta» para uno de formato 1; se puede repetir")
+    ap.add_argument("--curve-adapt-save", default="", help="Con --curve-adapt: guarda aquí el mapa (formato 2) con la cola limpia")
+    ap.add_argument("--curve-adapt-fixed", action="store_true", help="Con --curve-adapt-load: usa el mapa y no aprende")
+    ap.add_argument("--curve-adapt-max", default="", help="Con --curve-adapt: cotas absolutas, p. ej. «lat=14.6,exit=23.4,brake=13.2»")
     ap.add_argument("--brake-circle", type=float, default=14.6,
                     help="Con --brake-profile: radio del círculo de adherencia en m/s² (por defecto 14,6, D21)")
     ap.add_argument("--pedal-exit-slew", type=float, default=1.5,
@@ -524,6 +550,17 @@ if __name__ == "__main__":
         ap.error("--brake-adapt-max-scale debe ser ≥ 1")
     if a.brake_adapt_fixed and not a.brake_adapt_load:
         ap.error("--brake-adapt-fixed necesita --brake-adapt-load")
+    if a.curve_adapt and (a.lat_adapt or a.exit_adapt or a.brake_adapt):
+        ap.error("--curve-adapt no se mezcla con --lat-adapt / --exit-adapt / --brake-adapt (son sus alias)")
+    if (a.curve_adapt_only or a.curve_adapt_load or a.curve_adapt_save or a.curve_adapt_fixed or a.curve_adapt_max) and not a.curve_adapt:
+        ap.error("--curve-adapt-only, -load, -save, -fixed y -max necesitan --curve-adapt")
+    if a.curve_adapt_fixed and not a.curve_adapt_load:
+        ap.error("--curve-adapt-fixed necesita --curve-adapt-load")
+    if a.curve_adapt_fixed and a.curve_adapt_save:
+        ap.error("--curve-adapt-fixed no aprende, así que no hay nada que guardar con --curve-adapt-save")
+    a.curve_adapt_load = [(m.partition("=")[0] + "=" + str(Path(m.partition("=")[2]).resolve())) if m.partition("=")[0] in ("lat", "exit", "brake") and "=" in m
+                          else str(Path(m).resolve()) for m in a.curve_adapt_load]
+    a.curve_adapt_save = str(Path(a.curve_adapt_save).resolve()) if a.curve_adapt_save else ""
     if a.brake_adapt_fixed and a.brake_adapt_save:
         ap.error("--brake-adapt-fixed no aprende, así que no hay nada que guardar con --brake-adapt-save")
     a.brake_adapt_load = str(Path(a.brake_adapt_load).resolve()) if a.brake_adapt_load else ""
@@ -582,7 +619,9 @@ if __name__ == "__main__":
                        exit_adapt=a.exit_adapt, exit_adapt_max_scale=a.exit_adapt_max_scale, exit_adapt_load=a.exit_adapt_load, exit_adapt_save=a.exit_adapt_save,
                        exit_adapt_fixed=a.exit_adapt_fixed,
                        brake_adapt=a.brake_adapt, brake_adapt_max_scale=a.brake_adapt_max_scale, brake_adapt_load=a.brake_adapt_load, brake_adapt_save=a.brake_adapt_save,
-                       brake_adapt_fixed=a.brake_adapt_fixed)
+                       brake_adapt_fixed=a.brake_adapt_fixed,
+                       curve_adapt=a.curve_adapt, curve_adapt_only=a.curve_adapt_only, curve_adapt_load=a.curve_adapt_load, curve_adapt_save=a.curve_adapt_save,
+                       curve_adapt_fixed=a.curve_adapt_fixed, curve_adapt_max=a.curve_adapt_max)
     log = latest_log(experiment, t0)
     if log is None:
         print("[experimental] no se encontró el log de la prueba; sin informe")
