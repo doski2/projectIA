@@ -218,6 +218,24 @@ Back no repara.
 
 - C1 (paso 8) y A1 (paso 9). `universal_v2` con los ejes de aceleración corregidos, tras A1 (D16).
 
+- **Separar el teacher en módulos pensando en otro coche, pista y neumáticos (idea del usuario, 2026-11-10; sin fecha, después de lo ya apuntado).**
+  Cada pieza en su carpeta con sus tests y sus herramientas de prueba y análisis. Hoy casi todo está en `PCARS2-AI/src/teacher_controller.py`
+  (879 líneas, `TeacherConfig` de 46 parámetros); los tres ajustes por curva heredan de `LatAdapter`; los techos por marcha están fijos en
+  `ident_maneuver.py` (`MAX_CAP_BY_MAX_GEAR`) y la frenada del solver en `circuito_virtual/coches/formula_rookie/parametros_a1.json`.
+  **Separar por lo que cambia con el coche o la pista, no por pedal:** gas y freno salen de un solo eje longitudinal (`_pedals_from_axis`) y
+  el perfil de frenada depende del límite lateral; el agarre y los neumáticos no son mandos sino un modelo que consultan los tres. Propuesta:
+  - `control/direccion`: volante, contravolante y seguimiento de la línea.
+  - `control/longitudinal`: gas y freno juntos (técnica de pedales, perfil de frenada, limitador de deslizamiento).
+  - `modelo/agarre_neumaticos`: límite lateral y deceleración por curva, temperaturas de las gomas y mapas aprendidos (aquí el ajuste
+    unificado del punto 8 de «Siguiente» de `circuito_virtual/docs/PENDIENTE.md`).
+  - `coches/<coche>/`: parámetros en archivo (marchas, techos por marcha, frenada, reglaje), fuera del código.
+  - `pistas/<pista>/`: ya existe (curvas, pasillo, líneas, reglas del límite).
+  - Los logs, uno por sesión como hoy: los tres mandos se analizan juntos sobre la misma vuelta.
+
+  **Cuándo y cómo:** junto con el ajuste unificado y después de la Sesión D (los logs guardan el hash del commit y los comandos vigentes
+  tienen rutas fijas). Primero mover sin cambiar el comportamiento (los 601 tests de `PCARS2-AI` en verde y los logs `222926Z`, `225939Z`
+  y `000717Z` dando los mismos multiplicadores, como en V91), con los módulos antiguos como alias; después cambiar criterios.
+
 ## Cosas pequeñas que no hay que olvidar
 
 - **H11 / P17:** actualizar `PCARS2-AI/docs/CONFIGURACION_JUEGO.md` con el perfil RA y la ayuda de
