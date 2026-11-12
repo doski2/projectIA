@@ -45,8 +45,12 @@ def leer(ruta: Path) -> dict:
             veh = r.get("vehicle") or {}
             if not veh.get("position") or not veh.get("terrain"):
                 continue
-            t.append(r["t_s"]); s.append(r["lap_distance"]); v.append(r["speed_kmh"])
-            x.append(veh["position"][0]); z.append(veh["position"][2]); terr.append(veh["terrain"][:4])
+            t.append(r["t_s"])
+            s.append(r["lap_distance"])
+            v.append(r["speed_kmh"])
+            x.append(veh["position"][0])
+            z.append(veh["position"][2])
+            terr.append(veh["terrain"][:4])
     if not t:
         raise ValueError(f"{ruta}: sin ticks con posición y terreno")
     return {"t": np.array(t), "s": np.array(s), "x": np.array(x), "z": np.array(z), "v": np.array(v), "terreno": np.array(terr, dtype=int)}

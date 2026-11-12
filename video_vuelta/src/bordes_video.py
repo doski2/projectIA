@@ -71,8 +71,13 @@ def leer_pose(ruta: str | Path) -> LogPose:
             veh = r.get("vehicle") or {}
             if not veh.get("position") or not veh.get("orientation"):
                 continue
-            t.append(r["t_s"]); vu.append(r["lap"]); s.append(r["lap_distance"]); v.append(r["speed_kmh"])
-            x.append(veh["position"][0]); z.append(veh["position"][2]); yaw.append(veh["orientation"][1])
+            t.append(r["t_s"])
+            vu.append(r["lap"])
+            s.append(r["lap_distance"])
+            v.append(r["speed_kmh"])
+            x.append(veh["position"][0])
+            z.append(veh["position"][2])
+            yaw.append(veh["orientation"][1])
     if not t:
         raise ValueError(f"{ruta}: sin ticks con posición y orientación")
     # orientation[1] del log = rumbo del avance (atan2(dx, dz)) + π: medido el 2026-11-08 con el movimiento real (error medio 0,005 rad, desviación 0,03 rad)

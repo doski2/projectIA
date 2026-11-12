@@ -98,10 +98,14 @@ def entrenar(datos: dict, s_val: float, epocas: int, lote: int = 16, lr: float =
             x = x.astype(np.float32) * rng.uniform(0.7, 1.3, (len(idx), 1, 1, 1)) + rng.uniform(-20, 20, (len(idx), 1, 1, 1))  # brillo y contraste
             xt = a_tensor(np.clip(x, 0, 255).astype(np.uint8))
             loss = F.cross_entropy(modelo(xt), torch.from_numpy(y.astype(np.int64)), ignore_index=IGNORAR)
-            opt.zero_grad(); loss.backward(); opt.step(); sched.step()
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+            sched.step()
             perdida += float(loss.detach()) * len(idx)
         iou = iou_pasillo(predecir(modelo, xv), yv) if len(xv) else float("nan")
-        hist["iou_val"].append(iou); hist["perdida"].append(perdida / len(xi))
+        hist["iou_val"].append(iou)
+        hist["perdida"].append(perdida / len(xi))
         log(f"época {ep + 1:2d}/{epocas}  pérdida {perdida / len(xi):.4f}  IoU validación {iou:.4f}  ({time.time() - t0:.0f} s)")
     return modelo, hist
 

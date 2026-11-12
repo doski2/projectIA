@@ -62,7 +62,8 @@ def velocidad_de_giro_log(ruta_log: str | Path) -> tuple[np.ndarray, np.ndarray]
         r = json.loads(linea)
         o = (r.get("vehicle") or {}).get("orientation")
         if o:
-            t.append(r["t_s"]); yaw.append(o[1])
+            t.append(r["t_s"])
+            yaw.append(o[1])
     t = np.array(t)
     return t, np.gradient(np.unwrap(np.array(yaw)), t)
 

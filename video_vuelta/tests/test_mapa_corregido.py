@@ -55,7 +55,8 @@ def test_line_priority_zone_ignores_the_wheel_bounds():
 
 def test_combine_clips_the_video_to_the_bounds_that_matter_and_ignores_the_ones_that_do_not():
     video = np.full(N, 6.0)
-    dentro = np.full(N, np.nan); fuera = np.full(N, np.nan)
+    dentro = np.full(N, np.nan)
+    fuera = np.full(N, np.nan)
     dentro[10] = 7.0           # el piano llega más afuera que el vídeo: manda
     fuera[20] = 5.0            # una rueda en hierba por dentro del vídeo: manda
     dentro[30] = 2.0           # rueda legal muy por dentro: no dice nada
@@ -68,18 +69,21 @@ def test_combine_clips_the_video_to_the_bounds_that_matter_and_ignores_the_ones_
 
 def test_small_bound_changes_are_noise_and_do_not_move_the_video():
     video = np.full(N, 6.0)
-    dentro = np.full(N, np.nan); dentro[10] = 6.05
+    dentro = np.full(N, np.nan)
+    dentro[10] = 6.05
     lim, _, fuente = mc.combinar(video, dentro, np.full(N, np.nan))
     assert lim[10] == 6.0 and fuente[10] == mc.FUENTE_VIDEO
 
 
 def test_propagation_interpolates_between_anchors_and_fades_next_to_a_single_one():
-    delta = np.full(N, np.nan); ancla = np.zeros(N, dtype=bool)
+    delta = np.full(N, np.nan)
+    ancla = np.zeros(N, dtype=bool)
     delta[10], delta[30] = 1.0, -1.0
     ancla[10] = ancla[30] = True
     p = mc.propagar(delta, ancla)
     assert abs(p[20] - 0.0) < 1e-9 and 0.0 < p[15] < 1.0           # interpolada entre las dos
-    delta2 = np.full(N, np.nan); ancla2 = np.zeros(N, dtype=bool)
+    delta2 = np.full(N, np.nan)
+    ancla2 = np.zeros(N, dtype=bool)
     delta2[100], ancla2[100] = 1.2, True
     q = mc.propagar(delta2, ancla2)
     assert q[100 + mc.PLENO_M] == 1.2 and 0.0 < q[100 + mc.ALCANCE_M - 3] < 1.2 and np.isnan(q[100 + mc.ALCANCE_M + 5])
@@ -87,7 +91,8 @@ def test_propagation_interpolates_between_anchors_and_fades_next_to_a_single_one
 
 def test_cross_validation_beats_the_video_when_the_error_is_a_systematic_offset():
     video = np.full(N, 6.0)
-    dentro = np.full(N, np.nan); fuera = np.full(N, np.nan)
+    dentro = np.full(N, np.nan)
+    fuera = np.full(N, np.nan)
     for m in range(20, 60, 2):          # el vídeo se pasa 1 m en esta zona; las ruedas lo ven en cada dos metros
         dentro[m], fuera[m] = 4.95, 5.05
     v = mc.validacion_cruzada(video, dentro, fuera)

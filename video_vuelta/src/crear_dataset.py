@@ -63,7 +63,8 @@ def crear(manifiesto: Path, bordes: Path, cada: int, mapa: Mapa, cam: Camara | N
         m = mascara_pasillo(cam, mb, p[:4], mb.borde_izq, mb.borde_dcha, fot.shape[:2])
         imgs.append(cv2.resize(fot, TAM, interpolation=cv2.INTER_AREA)[..., ::-1])  # RGB
         masks.append(cv2.resize(m, TAM, interpolation=cv2.INTER_NEAREST))
-        s_l.append(p[3]); vuelta_l.append(p[5])
+        s_l.append(p[3])
+        vuelta_l.append(p[5])
     cap.release()
     return {"imagenes": np.array(imgs, np.uint8), "mascaras": np.array(masks, np.uint8), "s": np.array(s_l, np.float32), "vuelta": np.array(vuelta_l, np.int16)}
 

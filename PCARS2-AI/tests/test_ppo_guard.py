@@ -23,7 +23,8 @@ def test_three_clean_episodes_raise_the_target_by_one_small_step():
 
 def test_a_slow_or_wobbly_lap_breaks_the_streak_without_counting_as_a_failure():
     g = _gate()
-    g.on_episode(_ep()); g.on_episode(_ep())
+    g.on_episode(_ep())
+    g.on_episode(_ep())
     assert g.on_episode(_ep(cte=1.4)) == "none"            # limpia no es: rompe la racha
     assert g.on_episode(_ep(speed=50.0)) == "none"         # no sigue el objetivo
     assert g.clean == 0 and g.fails == 0 and g.target_kmh == 60.0
@@ -48,7 +49,8 @@ def test_udp_timeouts_are_neutral_until_a_streak_then_stop():
     g = _gate(max_udp_streak=3)
     assert [g.on_episode(_ep("udp_timeout")) for _ in range(3)] == ["none", "none", "stop"]
     g2 = _gate(max_udp_streak=3)
-    g2.on_episode(_ep("udp_timeout")); g2.on_episode(_ep("udp_timeout"))
+    g2.on_episode(_ep("udp_timeout"))
+    g2.on_episode(_ep("udp_timeout"))
     g2.on_episode(_ep())                                   # un episodio normal rompe la racha
     assert g2.on_episode(_ep("udp_timeout")) == "none"
 
@@ -63,7 +65,8 @@ def test_too_many_rollbacks_without_progress_stops_the_run():
 
 def test_progress_resets_the_rollback_budget():
     g = _gate(max_backoffs=1)
-    g.on_episode(_ep("stuck")); assert g.on_episode(_ep("stuck")) == "backoff"
+    g.on_episode(_ep("stuck"))
+    assert g.on_episode(_ep("stuck")) == "backoff"
     for _ in range(3):
         g.on_episode(_ep())                                # sube: hay progreso
     assert g.backoffs == 0

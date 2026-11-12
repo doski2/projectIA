@@ -53,7 +53,7 @@ def evaluar(res: Dict) -> List[Tuple[str, str, Optional[float], float, bool]]:
 
 def cargar_ticks(ruta: Path) -> List[dict]:
     with open(ruta, encoding="utf-8") as fh:
-        return [t for t in (json.loads(l) for l in fh if '"type": "tick"' in l)]
+        return [t for t in (json.loads(linea) for linea in fh if '"type": "tick"' in linea)]
 
 
 def vueltas(ticks: Sequence[dict], minimo_m: float = 3400.0) -> List[Dict]:
@@ -79,8 +79,11 @@ def tramos_fuera(ticks: Sequence[dict], vueltas_validas: Sequence[int]) -> List[
     tk = [t for t in ticks if t["lap"] in vueltas_validas]
     if not tk:
         return []
-    d = np.array([t["lap_distance"] for t in tk]); cte = np.array([abs(t["signed_cte"]) for t in tk])
-    v = np.array([t["speed_kmh"] for t in tk]); g = np.array([t["gear"] for t in tk]); lap = np.array([t["lap"] for t in tk])
+    d = np.array([t["lap_distance"] for t in tk])
+    cte = np.array([abs(t["signed_cte"]) for t in tk])
+    v = np.array([t["speed_kmh"] for t in tk])
+    g = np.array([t["gear"] for t in tk])
+    lap = np.array([t["lap"] for t in tk])
     beta = np.array([abs(np.degrees(np.arctan2(t["vehicle"]["local_velocity"][0], -t["vehicle"]["local_velocity"][2]))) if -t["vehicle"]["local_velocity"][2] > 5 else 0.0 for t in tk])
     lat = np.array([abs(t["vehicle"]["local_accel"][0]) for t in tk])
     malo = (cte > CTE_ALTO_M) | (beta > DERIVA_ALTA_DEG)
@@ -100,8 +103,11 @@ def frenos(ticks: Sequence[dict], vueltas_validas: Sequence[int]) -> Dict:
     tk = [t for t in ticks if t["lap"] in vueltas_validas]
     if len(tk) < 50:
         return {}
-    t_ = np.array([t["t_s"] for t in tk]); v = np.array([t["speed_kmh"] for t in tk]) / 3.6
-    brk = np.array([t["brake"] for t in tk]); thr = np.array([t["throttle"] for t in tk]); g = np.array([t["gear"] for t in tk])
+    t_ = np.array([t["t_s"] for t in tk])
+    v = np.array([t["speed_kmh"] for t in tk]) / 3.6
+    brk = np.array([t["brake"] for t in tk])
+    thr = np.array([t["throttle"] for t in tk])
+    g = np.array([t["gear"] for t in tk])
     yaw = np.array([t["vehicle"]["yaw_rate"] for t in tk])
     rps = np.array([[abs(x) for x in t["vehicle"]["tyre_rps"]] for t in tk])
     ratio = rps[:, 2:].mean(axis=1) / np.maximum(rps[:, :2].mean(axis=1), 1e-6)
@@ -128,7 +134,9 @@ def cambios(ticks: Sequence[dict], vueltas_validas: Sequence[int], v_min_kmh: fl
     tk = [t for t in ticks if t["lap"] in vueltas_validas and t["t_s"] > 6.0]
     if len(tk) < 20:
         return {}
-    t_ = np.array([t["t_s"] for t in tk]); v = np.array([t["speed_kmh"] for t in tk]); g = np.array([t["gear"] for t in tk])
+    t_ = np.array([t["t_s"] for t in tk])
+    v = np.array([t["speed_kmh"] for t in tk])
+    g = np.array([t["gear"] for t in tk])
     idx = np.flatnonzero((g == 0) & (v > v_min_kmh))
     out: Dict[str, List[Tuple[float, float]]] = {"sube": [], "baja": []}
     if len(idx):
@@ -166,11 +174,11 @@ def evaluar_parejas(ruta: Path, vs: Sequence[Dict]) -> List[Dict]:
 
     with open(ruta, encoding="utf-8") as fh:
         lineas = fh.readlines()
-    cabecera = next((l for l in lineas if '"type": "session"' in l), "")
+    cabecera = next((linea for linea in lineas if '"type": "session"' in linea), "")
     por_vuelta: Dict[int, List[str]] = {}
-    for l in lineas:
-        if '"type": "tick"' in l:
-            por_vuelta.setdefault(int(json.loads(l)["lap"]), []).append(l)
+    for linea in lineas:
+        if '"type": "tick"' in linea:
+            por_vuelta.setdefault(int(json.loads(linea)["lap"]), []).append(linea)
     out = []
     for a, b in zip(vs, vs[1:]):
         if b["vuelta"] != a["vuelta"] + 1:

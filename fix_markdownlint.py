@@ -316,7 +316,6 @@ def pick_md060_style(
     fijar tablas usamos `aligned` (tuberías en columna — doc MD060).
     """
     style = str(config.get("style", "any"))
-    aligned_delimiter = bool(config.get("aligned_delimiter", False))
     if style != "any":
         return style
     # Reparación: salida style `aligned` (MD060 — tuberías en columna).
