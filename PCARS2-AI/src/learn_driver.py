@@ -71,7 +71,18 @@ from brake_slip import BrakeSlipConfig, BrakeSlipLimiter
 from obs_universal import OBS_SCHEMA, OBS_UNIVERSAL_DIM, build_obs_universal
 from reference_recorder import ReferenceLine
 from safety_monitor import SafetyMonitor
-from session_log import DamageWatch, TeachingSessionRecorder, compound_diag, conditions_diag, default_log_path, rain_over_limit, timing_diag, vehicle_diag
+from session_log import (
+    DamageWatch,
+    TeachingSessionRecorder,
+    compound_diag,
+    conditions_diag,
+    default_log_path,
+    rain_over_limit,
+    read_setup,
+    teacher_diag,
+    timing_diag,
+    vehicle_diag,
+)
 from teacher_controller import TeacherConfig, TeachingController, resolve_teacher_decision
 from track_deviation import maybe_build_track_diag
 from teacher_intents import rule_for_reason
@@ -737,6 +748,7 @@ def run(args: argparse.Namespace) -> int:
         "experiment": experiment or None,
         "ramp": ramp.to_dict() if ramp is not None else None,
         "k_heading": teacher.config.k_heading,
+        "reglaje": read_setup(Path(args.reference).with_name("reglaje_vigente.json")),
     })
 
     if ramp is not None:
@@ -1021,6 +1033,7 @@ def run(args: argparse.Namespace) -> int:
                 track_diag=track_diag,
                 vehicle={**vehicle_diag(telem), **(brake_slip.diag() if brake_slip is not None else {})},
                 timing=timing_diag(timings),
+                teacher=teacher_diag(teacher, telem.speed, timings.lap_distance),
             )
             if lat_adapter is not None and not adapt_started:
                 game_state_now = session.game_state

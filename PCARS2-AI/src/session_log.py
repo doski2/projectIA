@@ -25,7 +25,7 @@ MIN_HTML_DURATION_S = 5.0
 
 # Versión del formato del log. 1 = sin campo (logs antiguos); 2 = bloque `vehicle` ampliado
 # (ver `vehicle_extra`) y cabecera con `origin` / `experiment`.
-LOG_SCHEMA = 4  # 4: temperaturas de la goma por capa y zona en °C (`tyre_layer_c`… `tyre_right_c`) y evento `tyre_compound`; 3: `lat_accel` es la lateral real y aparece `long_accel` (en el esquema 2 era la longitudinal, H1)
+LOG_SCHEMA = 5  # 5: por tick, la fase del teacher (`phase_teacher`), si el tope del gas de salida recorta (`exit_bound`) y el perfil de frenada (`v_profile_kmh`, `over_profile_ms`), y en la cabecera el reglaje del garaje (`reglaje`), para repetir el ajuste por curva con fidelidad; 4: temperaturas de la goma por capa y zona en °C (`tyre_layer_c`… `tyre_right_c`) y evento `tyre_compound`; 3: `lat_accel` es la lateral real y aparece `long_accel` (en el esquema 2 era la longitudinal, H1)
 
 # Perfil de ajustes del juego con el que se graba. Se cambia a mano si se tocan los ajustes
 # (ver experimental/docs/DECISIONES.md, sección 6). Los logs sin este campo son del perfil R0.
@@ -270,6 +270,29 @@ def tick_accels(vehicle: dict) -> Optional[Tuple[float, float]]:
     return float(la[0]), -float(la[2])
 
 
+def read_setup(path: Path) -> Optional[dict]:
+    """`reglaje_vigente.json` de la pista (junto a la referencia), para la cabecera del log; None si no existe o no se puede leer (no para la sesión)."""
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def teacher_diag(teacher, speed_ms: float, lap_distance: float) -> dict:
+    """Lo que el teacher sabe y el ajuste por curva necesita (`log_schema` 5): fase de la técnica de pedales, si el tope del gas de salida recorta y,
+    con perfil de frenada, v*(s) y la velocidad sobre él. Vacío sin técnica de pedales."""
+    cfg = getattr(teacher, "config", None)
+    if cfg is None or not getattr(cfg, "pedal_technique", False):
+        return {}
+    out = {"phase_teacher": str(teacher.phase), "exit_bound": bool(teacher.exit_bound)}
+    if getattr(cfg, "brake_profile", False) and getattr(cfg, "lat_accel_limit", None):
+        v = float(teacher.profile_at(lap_distance))
+        out["v_profile_kmh"] = round(v * 3.6, 2)
+        out["over_profile_ms"] = round(float(speed_ms) - v, 3)
+    return out
+
+
 def vehicle_diag(telem) -> dict:
     """Respuesta real del coche (UDP) para comparar con el volante enviado."""
     diag = {
@@ -360,6 +383,7 @@ class TeachingSessionRecorder:
         track_diag: Optional[dict] = None,
         vehicle: Optional[dict] = None,
         timing: Optional[dict] = None,
+        teacher: Optional[dict] = None,
     ) -> None:
         if self._file is None:
             return
@@ -411,6 +435,8 @@ class TeachingSessionRecorder:
             row["vehicle"] = vehicle
         if timing:
             row["timing"] = timing
+        if teacher:
+            row.update(teacher)
         self._file.write(json.dumps(row, ensure_ascii=False) + "\n")
 
     def finish(self, laps_completed: int = 0, open_browser: bool = False) -> dict:

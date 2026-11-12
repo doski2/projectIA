@@ -1,7 +1,7 @@
 import json
 from types import SimpleNamespace
 
-from session_log import GAME_PROFILE, LOG_SCHEMA, TeachingSessionRecorder, default_log_path, tick_accels, vehicle_diag, vehicle_extra
+from session_log import GAME_PROFILE, LOG_SCHEMA, TeachingSessionRecorder, default_log_path, read_setup, teacher_diag, tick_accels, vehicle_diag, vehicle_extra
 
 
 def _frame(**extra):
@@ -219,7 +219,7 @@ def test_rain_over_limit():
 
 
 def test_log_schema_3_has_the_real_lateral_acceleration_and_an_explicit_longitudinal_one():
-    assert LOG_SCHEMA == 4  # 4 añade las temperaturas de la goma por zona; la lateral y la longitudinal siguen como en 3
+    assert LOG_SCHEMA == 5  # 4 añade las temperaturas de la goma por zona y 5 la fase del teacher y el reglaje; la lateral y la longitudinal siguen como en 3
     d = vehicle_diag(_frame())
     assert d["lat_accel"] == 1.5 and d["long_accel"] == -3.0  # local_accel = [1.5, 0.25, 3.0]: lateral = eje 0, longitudinal = −eje 2
     assert tick_accels(d) == (1.5, -3.0)  # la misma lectura desde el tick
@@ -229,3 +229,30 @@ def test_tick_accels_ignores_the_ambiguous_lat_accel_field_of_old_logs():
     viejo = {"lat_accel": 3.0, "local_accel": [1.5, 0.25, 3.0]}  # log_schema 2: lat_accel era el eje 2
     assert tick_accels(viejo) == (1.5, -3.0)
     assert tick_accels({"lat_accel": 3.0}) is None
+
+
+# ── log_schema 5: lo que necesita el ajuste por curva ───────────────────────────────────────────────────────────────────────────────────────────────────────
+def _teacher(pedal_technique=True, brake_profile=True, lat=9.5, phase="exit", bound=True, v_ms=30.0):
+    cfg = SimpleNamespace(pedal_technique=pedal_technique, brake_profile=brake_profile, lat_accel_limit=lat)
+    return SimpleNamespace(config=cfg, phase=phase, exit_bound=bound, profile_at=lambda s: v_ms)
+
+
+def test_teacher_diag_has_phase_cap_and_profile_only_when_they_exist():
+    assert teacher_diag(_teacher(), 31.5, 100.0) == {"phase_teacher": "exit", "exit_bound": True, "v_profile_kmh": 108.0, "over_profile_ms": 1.5}
+    assert teacher_diag(_teacher(brake_profile=False), 31.5, 100.0) == {"phase_teacher": "exit", "exit_bound": True}
+    assert teacher_diag(_teacher(pedal_technique=False), 31.5, 100.0) == {}
+
+
+def test_tick_carries_the_teacher_fields_and_the_header_the_setup(tmp_path):
+    reglaje = tmp_path / "reglaje_vigente.json"
+    reglaje.write_text(json.dumps({"_fecha": "2026-11-12", "motor": {"control_traccion_pct": 10}}), encoding="utf-8")
+    assert read_setup(reglaje) == {"_fecha": "2026-11-12", "motor": {"control_traccion_pct": 10}}
+    assert read_setup(tmp_path / "no_existe.json") is None
+    p = tmp_path / "a.jsonl"
+    rec = TeachingSessionRecorder.open(p, {"mode": "learn", "reglaje": read_setup(reglaje)})
+    rec.record_tick(100.0, 2, 10.0, 0.1, 0.1, 0.0, 0.5, 0.0, 0.0, "accel_exit", teacher={"phase_teacher": "exit", "exit_bound": False})
+    assert rec._file is not None
+    rec._file.close()
+    lines = [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines()]
+    assert lines[0]["reglaje"]["motor"]["control_traccion_pct"] == 10
+    assert lines[1]["phase_teacher"] == "exit" and lines[1]["exit_bound"] is False

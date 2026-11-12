@@ -273,6 +273,11 @@ class TeachingController:
         self._brake_scales_version = 0  # cambia con cada `set_brake_scales`: forma parte de la clave de la caché del perfil
 
     @property
+    def phase(self) -> str:
+        """Fase de la técnica de pedales: "drive", "entry" o "exit" (la graba el log desde `log_schema` 5)."""
+        return self._phase
+
+    @property
     def entry_phase(self) -> bool:
         """True mientras la técnica de pedales está en la fase de entrada (frenada) de una curva."""
         return self._phase == "entry"

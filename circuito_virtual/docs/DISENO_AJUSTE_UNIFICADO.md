@@ -106,7 +106,7 @@ La razón de rodar libre se mide en la propia sesión: embrague suelto, gas pedi
 - `--curve-adapt` (aprende), `--curve-adapt-load <mapa>` (repetible para los de formato 1), `--curve-adapt-save <mapa>`, `--curve-adapt-fixed`, `--curve-adapt-only lat,exit` y `--curve-adapt-max lat=14.6,exit=23.4,brake=13.2`.
 - Las opciones antiguas (`--lat-adapt*`, `--exit-adapt*`, `--brake-adapt*`) siguen funcionando como alias: construyen un `CurveAdapter` con solo ese canal y sus valores de hoy. Los comandos de PENDIENTE no se rompen.
 - Un evento `curve_adapt` por vuelta: por curva y magnitud, el valor, la decisión (sube / baja / igual / congelada / límite / tope / sin datos / fijo), el **porqué** (qué umbral, en qué fase) y las métricas.
-- **Log (`log_schema` 5), por tick:** la fase del teacher (`entry` / `mid` / `exit`), `exit_bound`, la velocidad del perfil `v*(s)` y el patinazo calibrado. Sin esto los logs no se pueden volver a pasar por el código con fidelidad.
+- **Log (`log_schema` 5), por tick:** la fase del teacher (`phase_teacher`: `drive` / `entry` / `exit`), `exit_bound`, la velocidad del perfil (`v_profile_kmh`) y la velocidad sobre él (`over_profile_ms`); en la cabecera, `reglaje` (el `reglaje_vigente.json` junto a la referencia). **Hecho el 2026-11-12** (`session_log.teacher_diag` y `read_setup`). El patinazo calibrado no se graba: lo recalcula `repetir_ajuste.py` con `tyre_rps`, que ya está en el log.
 
 ### 2.8 Validación sin juego antes de la primera sesión
 
