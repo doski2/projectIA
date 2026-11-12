@@ -91,7 +91,22 @@ def test_runtime_applies_values_to_the_teacher_at_start_and_after_each_lap(tmp_p
     rt = cli.build(args, ref, 3500.0)
     assert rt is not None
     got = {}
-    teacher = SimpleNamespace(set_lat_scales=lambda s: got.__setitem__("lat", s), set_exit_scales=None, set_brake_scales=None)
+    teacher = SimpleNamespace(set_lat_scales=lambda s: got.__setitem__("lat", s))  # solo el canal activo: los demás no se piden
     events = []
     rt.start({"rain": 0}, None, teacher, events.append)
     assert rt.started and events[0]["type"] == "curve_adapt_start" and len(got["lat"]) == 3500 and set(got["lat"]) == {1.0}
+
+
+def test_learning_saves_the_last_state_every_lap_and_the_clean_map_only_with_a_clean_tail(tmp_path):
+    from curve_adapt import Tick
+    destino = tmp_path / "mapas" / "m.json"
+    args, ref = _parse(tmp_path, *RECETA, "--curve-adapt", "--curve-adapt-only", "lat", "--curve-adapt-save", str(destino))
+    rt = cli.build(args, ref, 3500.0)
+    assert rt is not None and rt.last_path().name == "m_ultimo.json"
+    teacher = SimpleNamespace(set_lat_scales=lambda s: None)
+    rt.start({"rain": 0}, None, teacher, lambda e: None)
+    for lap in (1, 2):
+        for d in range(0, 3500, 2):
+            rt.tick(Tick(lap=lap, s=float(d), signed_cte=0.3, local_vx=0.0, local_vz=-20.0), teacher, lambda e: None)
+    rt.tick(Tick(lap=3, s=0.0, signed_cte=0.3, local_vx=0.0, local_vz=-20.0), teacher, lambda e: None)
+    assert rt.last_path().is_file() and not destino.exists()  # una sola vuelta cerrada: aún no hay cola limpia

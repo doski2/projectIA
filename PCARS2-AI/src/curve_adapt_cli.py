@@ -1,7 +1,7 @@
 """Opciones de línea de órdenes del ajuste por curva y su manejo en el bucle de `learn_driver.py` (`curve_adapt.py`).
 
 Opciones nuevas: `--curve-adapt`, `--curve-adapt-only lat,exit,brake`, `--curve-adapt-load` (repetible: un mapa de formato 2, o `canal=ruta` para uno de formato 1),
-`--curve-adapt-save`, `--curve-adapt-fixed` y `--curve-adapt-max lat=14.6,exit=23.4,brake=13.2`.
+`--curve-adapt-save` (el mapa «limpio», con las dos últimas vueltas sin bajadas, y además `<mapa>_ultimo.json` en cada vuelta), `--curve-adapt-fixed` y `--curve-adapt-max lat=14.6,exit=23.4,brake=13.2`.
 
 Las de antes (`--lat-adapt*`, `--exit-adapt*`, `--brake-adapt*`) siguen valiendo como alias con el mismo efecto: cada una activa su canal, su `-load` carga el mapa de
 formato 1 en ese canal, su `-fixed` congela ese canal, y la cota máxima sale como antes (lateral: el menor de `--lat-adapt-cap` y base × `--lat-adapt-max-scale`;
@@ -177,10 +177,15 @@ class CurveRuntime:
         self.setup_path = setup_path
         self.started = False
 
+    def last_path(self) -> Path:
+        """`<mapa>_ultimo.json`: el estado al cerrar cada vuelta, junto al mapa «limpio»."""
+        p = Path(self.save_path)
+        return p.with_name(p.stem + "_ultimo" + p.suffix)
+
     def apply(self, teacher: Any) -> None:
-        setters = {"lat": teacher.set_lat_scales, "exit": teacher.set_exit_scales, "brake": teacher.set_brake_scales}
+        setters = {"lat": "set_lat_scales", "exit": "set_exit_scales", "brake": "set_brake_scales"}
         for ch in self.adapter.channels:
-            setters[ch](self.adapter.scales_per_m(ch, self.track_m))
+            getattr(teacher, setters[ch])(self.adapter.scales_per_m(ch, self.track_m))
 
     def start(self, now_cond: dict, setup: Optional[dict], teacher: Any, record_event: Callable[[dict], None]) -> None:
         self.started = True
@@ -204,9 +209,12 @@ class CurveRuntime:
             return None
         self.apply(teacher)
         record_event({"type": "curve_adapt", **upd})
-        if self.save_path and self.adapter.cfg.learn and len(self.adapter.cfg.fixed) < len(self.adapter.channels) and self.adapter.clean_tail():
-            save_map(Path(self.save_path), self.adapter.snapshot({"experiment": self.experiment, "lap": upd["lap"]}))
-            print(f"[Learn] ajuste por curva: mapa guardado en {self.save_path} (vuelta {upd['lap']}, dos últimas sin bajadas)")
+        if self.save_path and self.adapter.cfg.learn and len(self.adapter.cfg.fixed) < len(self.adapter.channels):
+            snap = self.adapter.snapshot({"experiment": self.experiment, "lap": upd["lap"]})
+            save_map(self.last_path(), snap)  # el estado de cada vuelta, aunque haya bajadas (2026-11-13: con 42 casillas casi siempre baja alguna)
+            if self.adapter.clean_tail():
+                save_map(Path(self.save_path), snap)
+                print(f"[Learn] ajuste por curva: mapa guardado en {self.save_path} (vuelta {upd['lap']}, dos últimas sin bajadas)")
         changes = [f"C{c}.{ch} {cell['decision']}" + (f" ({cell['motivo']})" if cell["decision"] in ("baja", "aviso") else "")
                    for c, row in upd["curvas"].items() for ch, cell in row.items() if cell["decision"] in self.CHANGES]
         print(f"[Learn] ajuste por curva, vuelta {upd['lap']}: " + ("; ".join(changes) or "sin cambios") + f" | razón libre {upd['razon_libre']:g}")

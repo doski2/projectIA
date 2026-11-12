@@ -1,0 +1,361 @@
+{
+  "version": 2,
+  "curvas": {
+    "1": {
+      "lat": {
+        "valor": 14.19,
+        "ultimo_malo": null,
+        "estado": "sube"
+      },
+      "exit": {
+        "valor": 20.044,
+        "ultimo_malo": null,
+        "estado": "igual"
+      },
+      "brake": {
+        "valor": 11.0,
+        "ultimo_malo": null,
+        "estado": "igual"
+      }
+    },
+    "2": {
+      "lat": {
+        "valor": 10.12,
+        "ultimo_malo": null,
+        "estado": "sube"
+      },
+      "exit": {
+        "valor": 23.4,
+        "ultimo_malo": null,
+        "estado": "igual"
+      },
+      "brake": {
+        "valor": 11.0,
+        "ultimo_malo": null,
+        "estado": "igual"
+      }
+    },
+    "3": {
+      "lat": {
+        "valor": 8.982,
+        "ultimo_malo": null,
+        "estado": "sube"
+      },
+      "exit": {
+        "valor": 23.194,
+        "ultimo_malo": null,
+        "estado": "turno"
+      },
+      "brake": {
+        "valor": 11.0,
+        "ultimo_malo": null,
+        "estado": "igual"
+      }
+    },
+    "4": {
+      "lat": {
+        "valor": 13.342,
+        "ultimo_malo": null,
+        "estado": "sube"
+      },
+      "exit": {
+        "valor": 15.235,
+        "ultimo_malo": null,
+        "estado": "aviso"
+      },
+      "brake": {
+        "valor": 11.0,
+        "ultimo_malo": null,
+        "estado": "igual"
+      }
+    },
+    "5": {
+      "lat": {
+        "valor": 9.897,
+        "ultimo_malo": null,
+        "estado": "sube"
+      },
+      "exit": {
+        "valor": 18.687,
+        "ultimo_malo": null,
+        "estado": "turno"
+      },
+      "brake": {
+        "valor": 12.5,
+        "ultimo_malo": null,
+        "estado": "sin datos"
+      }
+    },
+    "6": {
+      "lat": {
+        "valor": 10.435,
+        "ultimo_malo": null,
+        "estado": "sube"
+      },
+      "exit": {
+        "valor": 22.909,
+        "ultimo_malo": null,
+        "estado": "igual"
+      },
+      "brake": {
+        "valor": 11.0,
+        "ultimo_malo": null,
+        "estado": "sin datos"
+      }
+    },
+    "7": {
+      "lat": {
+        "valor": 12.197,
+        "ultimo_malo": null,
+        "estado": "sube"
+      },
+      "exit": {
+        "valor": 18.0,
+        "ultimo_malo": null,
+        "estado": "igual"
+      },
+      "brake": {
+        "valor": 11.0,
+        "ultimo_malo": null,
+        "estado": "igual"
+      }
+    },
+    "8": {
+      "lat": {
+        "valor": 13.166,
+        "ultimo_malo": null,
+        "estado": "turno"
+      },
+      "exit": {
+        "valor": 18.687,
+        "ultimo_malo": null,
+        "estado": "igual"
+      },
+      "brake": {
+        "valor": 12.977,
+        "ultimo_malo": null,
+        "estado": "sube"
+      }
+    },
+    "9": {
+      "lat": {
+        "valor": 14.17,
+        "ultimo_malo": null,
+        "estado": "sube"
+      },
+      "exit": {
+        "valor": 18.0,
+        "ultimo_malo": null,
+        "estado": "igual"
+      },
+      "brake": {
+        "valor": 11.0,
+        "ultimo_malo": null,
+        "estado": "igual"
+      }
+    },
+    "10": {
+      "lat": {
+        "valor": 11.677,
+        "ultimo_malo": null,
+        "estado": "sube"
+      },
+      "exit": {
+        "valor": 21.574,
+        "ultimo_malo": null,
+        "estado": "turno"
+      },
+      "brake": {
+        "valor": 11.816,
+        "ultimo_malo": null,
+        "estado": "igual"
+      }
+    },
+    "11": {
+      "lat": {
+        "valor": 10.239,
+        "ultimo_malo": null,
+        "estado": "sube"
+      },
+      "exit": {
+        "valor": 18.0,
+        "ultimo_malo": null,
+        "estado": "igual"
+      },
+      "brake": {
+        "valor": 11.42,
+        "ultimo_malo": null,
+        "estado": "turno"
+      }
+    },
+    "12": {
+      "lat": {
+        "valor": 14.11,
+        "ultimo_malo": null,
+        "estado": "turno"
+      },
+      "exit": {
+        "valor": 18.687,
+        "ultimo_malo": null,
+        "estado": "turno"
+      },
+      "brake": {
+        "valor": 11.42,
+        "ultimo_malo": null,
+        "estado": "sube"
+      }
+    },
+    "13": {
+      "lat": {
+        "valor": 14.6,
+        "ultimo_malo": null,
+        "estado": "sube"
+      },
+      "exit": {
+        "valor": 23.194,
+        "ultimo_malo": null,
+        "estado": "turno"
+      },
+      "brake": {
+        "valor": 11.0,
+        "ultimo_malo": null,
+        "estado": "sin datos"
+      }
+    },
+    "14": {
+      "lat": {
+        "valor": 14.6,
+        "ultimo_malo": null,
+        "estado": "tope"
+      },
+      "exit": {
+        "valor": 18.0,
+        "ultimo_malo": null,
+        "estado": "sin datos"
+      },
+      "brake": {
+        "valor": 11.0,
+        "ultimo_malo": null,
+        "estado": "sin datos"
+      }
+    }
+  },
+  "bases": {
+    "lat": 9.5,
+    "exit": 18.0,
+    "brake": 11.0
+  },
+  "maximos": {
+    "lat": 14.6,
+    "exit": 23.4,
+    "brake": 13.2
+  },
+  "razon_libre": 0.9428,
+  "reglaje": {
+    "_nota": "Reglaje del garaje vigente en Sugo. Lo actualiza el usuario a mano cada vez que cambia algo en el garaje (y la fecha). El ajuste por curva lo guarda en su mapa y lo compara al cargarlo: si difiere, aplica el mapa pero olvida la memoria de niveles malos. Las claves que empiezan por _ no cuentan en la comparación. Fuente: PCARS2-AI/docs/CONFIGURACION_JUEGO.md (capturas 2026-10-25, revisadas 2026-11-11) y V95, V99, V112, V118.",
+    "_fecha": "2026-11-12",
+    "compuesto": "Lisos",
+    "presion_neumaticos_bar": {
+      "delante": 1.25,
+      "detras": 1.15
+    },
+    "frenos": {
+      "presion_pct": 90,
+      "reparto_delante_pct": 55
+    },
+    "suspension": {
+      "relacion_direccion": 12.0,
+      "pivote_deg": 5.0,
+      "caida_deg": {
+        "delante": -1.5,
+        "detras": -2.0
+      },
+      "puntera_deg": {
+        "delante": -0.2,
+        "detras": 0.4
+      },
+      "altura_mm": {
+        "delante": 85,
+        "detras": 95
+      },
+      "muelle_n_mm": {
+        "delante": 48,
+        "detras": 38
+      },
+      "barra_n_mm": {
+        "delante": 20,
+        "detras": 2
+      }
+    },
+    "amortiguadores": {
+      "tope_mm": {
+        "delante": 20,
+        "detras": 20
+      },
+      "compresion_lenta": {
+        "delante": 3600,
+        "detras": 2300
+      },
+      "extension_lenta": {
+        "delante": 3700,
+        "detras": 3700
+      },
+      "compresion_rapida": {
+        "delante": 1600,
+        "detras": 1500
+      },
+      "extension_rapida": {
+        "delante": 2300,
+        "detras": 2000
+      },
+      "transicion_compresion_n": {
+        "delante": 250,
+        "detras": 100
+      },
+      "transicion_extension_n": {
+        "delante": -210,
+        "detras": -200
+      }
+    },
+    "motor": {
+      "gasolina_l": 12,
+      "radiador_pct": 75,
+      "freno_motor": 8,
+      "control_traccion_pct": 10,
+      "abs_pct": 75
+    },
+    "marchas": {
+      "final": 3.444,
+      "relaciones": [
+        2.846,
+        1.875,
+        1.421,
+        1.125
+      ]
+    },
+    "diferencial": {
+      "ddl_embragues": true,
+      "punto_muerto_deg": 60
+    }
+  },
+  "conditions": {
+    "rain": 0,
+    "track_c": 16,
+    "ambient_c": 12,
+    "tyre_start_c": 85.0,
+    "compound": "Lisos/Lisos/Lisos/Lisos",
+    "tyre_ref_c": 51.1
+  },
+  "tyre_by_lap": {
+    "2": 58.1,
+    "3": 52.8,
+    "4": 50.6,
+    "5": 49.8
+  },
+  "laps_closed": 4,
+  "clean_tail": true,
+  "meta": {
+    "experiment": "a2_optA1mu9c12_155_g4_up7400_lat95_slip8_v70_ff0_cap100_pv05_kh10_gas1_fr11_perfil_c10_slip_exit18_curva_aprende_dif60_frenos55_comb12_refd11_l10",
+    "lap": 5
+  }
+}
